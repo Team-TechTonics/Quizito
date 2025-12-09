@@ -14,6 +14,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
+const { generateDeepSeekQuiz } = require("./services/deepseek");
 const mongoose = require("mongoose");
 const redis = require("redis");
 const cors = require("cors");
@@ -361,7 +362,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["student", "teacher", "admin", "organization"],
+      enum: ["student", "teacher", "admin", "organization",],
       default: "student",
       index: true,
     },
@@ -770,53 +771,72 @@ const QuizResult = mongoose.model("QuizResult", quizResultSchema);
 // ---------------------------------------------------------------------------
 // 7. HELPER FUNCTIONS
 // ---------------------------------------------------------------------------
-
 // Authentication middleware
 const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // Accept both lowercase & uppercase Authorization header
+    let authHeader = req.headers.authorization || req.headers.Authorization;
+
+    if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required",
+        message: "AUTH_REQUIRED",
       });
     }
 
-    const token = authHeader.split(" ")[1];
+    // Accept "Bearer token" or "bearer token"
+    if (/^bearer\s+/i.test(authHeader)) {
+      authHeader = authHeader.replace(/bearer\s+/i, "").trim();
+    }
+
+    const token = authHeader;
+
+    if (!token || token.length < 10) {
+      return res.status(401).json({
+        success: false,
+        message: "AUTH_REQUIRED",
+      });
+    }
+
+    // Verify JWT
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user || !user.isActive) {
       return res.status(401).json({
         success: false,
-        message: "User not found or inactive",
+        message: "USER_INACTIVE",
       });
     }
 
+    // Attach user to req
     req.user = user;
     req.token = token;
     next();
+
   } catch (error) {
+    // Token expired
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
-        message: "Token expired",
+        message: "TOKEN_EXPIRED",
       });
     }
-    
+
+    // Invalid token formatting
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
-        message: "Invalid token",
+        message: "INVALID_TOKEN",
       });
     }
-    
+
+    // Any other backend error
     logger.error("Authentication error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Authentication failed",
+      message: "AUTH_FAILED",
     });
   }
 };
@@ -827,7 +847,7 @@ const authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required",
+        message: "REAUTH_REQUIRED",
       });
     }
 
@@ -1698,11 +1718,12 @@ app.get("/api/quizzes/user/:userId", authenticate, async (req, res) => {
 // 12. AI QUIZ GENERATION ROUTES
 // ---------------------------------------------------------------------------
 
-// Generate quiz from text/topic
+// Generate quiz using DeepSeek (OpenRouter)
 app.post("/api/ai/generate", authenticate, async (req, res) => {
   try {
     const { type, content, options = {} } = req.body;
 
+    // Basic validation
     if (!type || !content || !content.trim()) {
       return res.status(400).json({
         success: false,
@@ -1710,45 +1731,62 @@ app.post("/api/ai/generate", authenticate, async (req, res) => {
       });
     }
 
-    if (!openai) {
-      return res.status(503).json({
+    // Generate quiz using DeepSeek
+    let quizData;
+    if (type.toLowerCase() === "text" || type.toLowerCase() === "topic") {
+      quizData = await generateDeepSeekQuiz(
+        content,
+        options.numQuestions || 10,
+        options.difficulty || "medium"
+      );
+    } else {
+      return res.status(400).json({
         success: false,
-        message: "AI service is currently unavailable",
+        message: "Invalid generation type. Use 'text' or 'topic'",
       });
     }
 
-    let quizData;
-
-    switch (type.toLowerCase()) {
-      case "text":
-        quizData = await generateQuizFromText(content, options);
-        break;
-        
-      case "topic":
-        quizData = await generateQuizFromText(`Generate questions about: ${content}`, options);
-        break;
-        
-      default:
-        return res.status(400).json({
-          success: false,
-          message: "Invalid generation type. Use 'text' or 'topic'",
-        });
-    }
-
-    // Save to database
-    const quiz = await Quiz.create({
-      ...quizData,
+    // Transform DeepSeek response -> DB-ready format
+    const formattedQuiz = {
+      title: quizData.topic || "AI Generated Quiz",
+      description: `Quiz generated on: ${quizData.topic}`,
+      category: "AI Generated",
+      difficulty: quizData.difficulty || "medium",
       createdBy: req.user._id,
       isPublic: false,
-    });
+      questions: quizData.questions.map((q) => ({
+        question: q.question,
+        type: "multiple-choice",
+        options: q.options.map((opt, idx) => ({
+          text: opt,
+          isCorrect: idx === q.correctAnswer,
+        })),
+        correctAnswer: q.options[q.correctAnswer],
+        correctIndex: q.correctAnswer,
+        explanation: q.explanation,
+        points: 100,
+        timeLimit: 30,
+      })),
+      metadata: {
+        generatedByAI: true,
+        aiModel: "deepseek-chat (OpenRouter)",
+        source: "text/topic",
+        generationTime: new Date(),
+      },
+    };
+
+    // Save to DB
+    const quiz = await Quiz.create(formattedQuiz);
 
     res.json({
       success: true,
-      message: "Quiz generated successfully",
+      message: "Quiz generated successfully via DeepSeek",
       quiz,
     });
+
   } catch (error) {
     logger.error("AI generation error:", error);
+
     res.status(500).json({
       success: false,
       message: error.message || "Failed to generate quiz",
@@ -1756,7 +1794,9 @@ app.post("/api/ai/generate", authenticate, async (req, res) => {
   }
 });
 
+
 // Upload and generate from PDF
+// Upload + Generate Quiz from PDF/Text using DeepSeek
 app.post("/api/ai/upload", authenticate, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -1766,71 +1806,115 @@ app.post("/api/ai/upload", authenticate, upload.single("file"), async (req, res)
       });
     }
 
-    if (!openai) {
-      // Clean up uploaded file
-      if (req.file.path) fs.unlinkSync(req.file.path);
-      return res.status(503).json({
-        success: false,
-        message: "AI service is currently unavailable",
-      });
-    }
-
-    const options = req.body.options ? JSON.parse(req.body.options) : {};
-    let quizData;
-    let fileError = null;
+    let extractedText = "";
+    const filePath = req.file.path;
 
     try {
+      // PDF
       if (req.file.mimetype === "application/pdf") {
-        const pdfBuffer = fs.readFileSync(req.file.path);
-        quizData = await generateQuizFromPDF(pdfBuffer, options);
+        const buffer = fs.readFileSync(filePath);
+        const pdfData = await PDFParser(buffer);
+
+        if (!pdfData.text || pdfData.text.trim().length < 50) {
+          return res.status(400).json({
+            success: false,
+            message: "PDF text extraction failed or too short.",
+          });
+        }
+
+        extractedText = pdfData.text;
+
+      // Plain text file
       } else if (req.file.mimetype.startsWith("text/")) {
-        const textContent = fs.readFileSync(req.file.path, "utf8");
-        quizData = await generateQuizFromText(textContent, options);
+        extractedText = fs.readFileSync(filePath, "utf8");
+
       } else {
-        fileError = "Unsupported file type. Please upload PDF or text file";
+        return res.status(400).json({
+          success: false,
+          message: "Unsupported file type. Upload PDF or TXT.",
+        });
       }
-    } catch (genError) {
-      fileError = genError.message;
+
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to read file.",
+      });
     } finally {
-      // Clean up uploaded file
-      if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // cleanup
     }
 
-    if (fileError) {
-      return res.status(400).json({
+    // ---------------------
+    // 🔥 Generate quiz using DeepSeek
+    // ---------------------
+
+    const numQuestions = parseInt(req.body.numQuestions || "10");
+    const difficulty = req.body.difficulty || "medium";
+
+    const quizAI = await generateDeepSeekQuiz(
+      extractedText,
+      numQuestions,
+      difficulty
+    );
+
+    if (!quizAI || !quizAI.questions) {
+      return res.status(500).json({
         success: false,
-        message: fileError,
+        message: "DeepSeek returned invalid quiz format.",
       });
     }
 
-    // Save to database
-    const quiz = await Quiz.create({
-      ...quizData,
+    // ---------------------
+    // 🔥 Convert DeepSeek Output → Quiz Schema
+    // ---------------------
+
+    const formattedQuiz = {
+      title: quizAI.topic || "AI Generated Quiz",
+      description: `Quiz generated from uploaded file`,
+      category: "AI Generated",
+      difficulty: quizAI.difficulty || "medium",
       createdBy: req.user._id,
       isPublic: false,
-    });
+      questions: quizAI.questions.map((q) => ({
+        question: q.question,
+        type: "multiple-choice",
+        options: q.options.map((opt, index) => ({
+          text: opt,
+          isCorrect: index === q.correctAnswer,
+        })),
+        correctAnswer: q.options[q.correctAnswer],
+        correctIndex: q.correctAnswer,
+        explanation: q.explanation || "",
+        points: 100,
+        timeLimit: 30,
+      })),
+      metadata: {
+        generatedByAI: true,
+        aiModel: "deepseek-chat (OpenRouter)",
+        sourceMaterial: "uploaded file",
+        generationTime: new Date(),
+      },
+    };
+
+    // 🔥 Save quiz in DB
+    const quiz = await Quiz.create(formattedQuiz);
 
     res.json({
       success: true,
-      message: "Quiz generated from file successfully",
+      message: "Quiz generated from file successfully using DeepSeek",
       quiz,
     });
+
   } catch (error) {
-    logger.error("File upload generation error:", error);
-    
-    // Clean up file if it exists
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
+    logger.error("DeepSeek PDF upload error:", error);
+
     res.status(500).json({
       success: false,
-      message: "Failed to generate quiz from file",
+      message: "Failed to generate quiz from file.",
     });
   }
 });
+
 
 // ---------------------------------------------------------------------------
 // 13. LIVE SESSION ROUTES (FIXED)

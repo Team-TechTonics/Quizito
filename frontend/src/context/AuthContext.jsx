@@ -1,88 +1,136 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react'
-import axios from 'axios'
-import toast from 'react-hot-toast'
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import toast from "react-hot-toast";
+import { api, setAuthToken } from "../lib/api";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000'
+const AuthContext = createContext();
 
-const AuthContext = createContext()
-
-export const useAuth = () => useContext(AuthContext)
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(localStorage.getItem('quizito_token'))
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [token, setToken] = useState(() => localStorage.getItem("quizito_token") || null);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // loading while verifying token
+  const [authLoading, setAuthLoading] = useState(false); // loading for login/register actions
 
-  // 🔥 Fix: Apply axios header IMMEDIATELY
+  // Immediately apply token to api instance (synchronous)
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    } else {
-      delete axios.defaults.headers.common['Authorization']
-    }
-  }, [token])
+    setAuthToken(token);
+  }, [token]);
 
-  // 🔥 Verify token AFTER axios header is set
-  useEffect(() => {
-    const verify = async () => {
-      if (!token) {
-        setLoading(false)
-        return
-      }
-
-      try {
-        const res = await axios.get(`${API_URL}/api/auth/me`)
-        setUser(res.data.user)
-      } catch (err) {
-        console.error('Auth verify failed:', err)
-        localStorage.removeItem('quizito_token')
-        setToken(null)
-        setUser(null)
-      }
-
-      setLoading(false)
+  // Verify token and fetch user on mount (only after header is set)
+  const verifyToken = useCallback(async (currentToken) => {
+    if (!currentToken) {
+      setUser(null);
+      setLoading(false);
+      return;
     }
 
-    verify()
-  }, [token])
-
-  const login = async (email, password) => {
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, { email, password })
-
-      const newToken = res.data.token
-      const newUser = res.data.user
-
-      localStorage.setItem('quizito_token', newToken)
-      setToken(newToken)
-      setUser(newUser)
-
-      toast.success('Logged in successfully!')
-      return { success: true }
+      // header already set above
+      const { data } = await api.get("/api/auth/me");
+      setUser(data.user);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed')
-      return { success: false }
+      console.error("verifyToken error:", err);
+      // clear invalid token
+      localStorage.removeItem("quizito_token");
+      setToken(null);
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Run verifyToken synchronously after setting header
+    verifyToken(token);
+  }, [token, verifyToken]);
+
+  // Login expects (email, password)
+  const login = async (email, password) => {
+    setAuthLoading(true);
+    try {
+      const res = await api.post("/api/auth/login", { email: email?.trim?.() ?? email, password });
+      const newToken = res.data.token;
+      const newUser = res.data.user;
+
+      if (!newToken) {
+        throw new Error(res.data?.message || "No token returned");
+      }
+
+      localStorage.setItem("quizito_token", newToken);
+      setToken(newToken); // this will set header and trigger verify
+      setUser(newUser);
+      toast.success("Logged in successfully");
+      setAuthLoading(false);
+      return { success: true, user: newUser };
+    } catch (error) {
+      console.error("login error:", error);
+      const message = error.response?.data?.message || error.message || "Login failed";
+      toast.error(message);
+      setAuthLoading(false);
+      return { success: false, error: message };
+    }
+  };
+
+  const register = async (username, email, password) => {
+    setAuthLoading(true);
+    try {
+      const res = await api.post("/api/auth/register", { username, email: email?.trim?.(), password });
+      const newToken = res.data.token;
+      const newUser = res.data.user;
+
+      localStorage.setItem("quizito_token", newToken);
+      setToken(newToken);
+      setUser(newUser);
+      toast.success("Account created");
+      setAuthLoading(false);
+      return { success: true, user: newUser };
+    } catch (error) {
+      console.error("register error:", error);
+      const message = error.response?.data?.message || error.message || "Registration failed";
+      toast.error(message);
+      setAuthLoading(false);
+      return { success: false, error: message };
+    }
+  };
 
   const logout = () => {
-    localStorage.removeItem('quizito_token')
-    setToken(null)
-    setUser(null)
-    toast.success('Logged out')
-  }
+    localStorage.removeItem("quizito_token");
+    setToken(null);
+    setUser(null);
+    setAuthToken(null);
+    toast.success("Logged out");
+  };
 
-  return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      loading,
-      login,
-      logout,
-      isAuthenticated: !!user
-    }}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
+  // Helper: refresh user data on demand
+  const refreshUser = async () => {
+    if (!token) return null;
+    try {
+      const { data } = await api.get("/api/auth/me");
+      setUser(data.user);
+      return data.user;
+    } catch (err) {
+      console.error("refreshUser failed:", err);
+      return null;
+    }
+  };
+
+  const value = {
+    user,
+    token,
+    loading,
+    authLoading,
+    login,
+    register,
+    logout,
+    refreshUser,
+    isAuthenticated: !!user,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

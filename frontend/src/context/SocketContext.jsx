@@ -1,110 +1,54 @@
-// src/context/SocketContext.jsx
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { io } from 'socket.io-client'
-import { useAuth } from './AuthContext'
+import React, { createContext, useContext, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
+import { useAuth } from "./AuthContext";
 
-const SocketContext = createContext()
+const SocketContext = createContext();
 
-export const useSocket = () => {
-  const context = useContext(SocketContext)
-  if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider')
-  }
-  return context
-}
+export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }) => {
-  const { token, isAuthenticated } = useAuth()
-  const [socket, setSocket] = useState(null)
-  const [isConnected, setIsConnected] = useState(false)
-
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:10000'
+  const { token } = useAuth();
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !token) return
+    if (!token) return;  // ⛔ Don't connect if no token
 
-    const newSocket = io(SOCKET_URL, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      auth: { token },
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
+    // 1. Create socket instance
+    socketRef.current = io(import.meta.env.VITE_API_URL, {
+      transports: ["websocket"],
+      autoConnect: false,  // wait for token
+    });
 
-    newSocket.on('connect', () => {
-      setIsConnected(true)
-      console.log('Socket connected:', newSocket.id)
-    })
+    // 2. Connect socket
+    socketRef.current.connect();
 
-    newSocket.on('disconnect', () => {
-      setIsConnected(false)
-      console.log('Socket disconnected')
-    })
+    // 3. Authenticate immediately after connection
+    socketRef.current.on("connect", () => {
+      console.log("Socket connected:", socketRef.current.id);
 
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error)
-    })
+      socketRef.current.emit("authenticate", {
+        token, // 🔥 SEND TOKEN HERE
+      });
+    });
 
-    // Authenticate socket
-    newSocket.emit('authenticate', token)
+    // 4. Listen for authentication success
+    socketRef.current.on("authenticated", (data) => {
+      console.log("Socket authenticated:", data);
+    });
 
-    setSocket(newSocket)
+    // 5. Listen for errors
+    socketRef.current.on("error", (err) => {
+      console.error("Socket error:", err);
+    });
 
     return () => {
-      newSocket.close()
-    }
-  }, [isAuthenticated, token, SOCKET_URL])
-
-  const joinRoom = (roomCode, username, userId) => {
-    if (socket) {
-      socket.emit('join-room', { roomCode, username, userId })
-    }
-  }
-
-  const startQuiz = (roomCode) => {
-    if (socket) {
-      socket.emit('start-quiz', { roomCode })
-    }
-  }
-
-  const submitAnswer = (roomCode, userId, questionIndex, selectedOption, timeTaken) => {
-    if (socket) {
-      socket.emit('submit-answer', {
-        roomCode,
-        userId,
-        questionIndex,
-        selectedOption,
-        timeTaken
-      })
-    }
-  }
-
-  const generateQuiz = (roomCode, topic) => {
-    if (socket) {
-      socket.emit('generate-quiz', { roomCode, topic })
-    }
-  }
-
-  const endQuiz = (roomCode) => {
-    if (socket) {
-      socket.emit('end-quiz', { roomCode })
-    }
-  }
-
-  const value = {
-    socket,
-    isConnected,
-    joinRoom,
-    startQuiz,
-    submitAnswer,
-    generateQuiz,
-    endQuiz
-  }
+      socketRef.current.disconnect();
+    };
+  }, [token]);
 
   return (
-    <SocketContext.Provider value={value}>
+    <SocketContext.Provider value={socketRef.current}>
       {children}
     </SocketContext.Provider>
-  )
-}
+  );
+};

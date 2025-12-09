@@ -40,19 +40,22 @@ const AIGenerator = ({ onGenerate, loading, setLoading }) => {
 
       // ⚡ Correct backend parameter names
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:10000'}/api/ai/generate`,
-        {
-          topic,              // FIXED — backend expects `topic`
-          numQuestions,       // FIXED — backend expects `numQuestions`
-          difficulty          // FIXED — backend expects `difficulty`
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('quizito_token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+  `${import.meta.env.VITE_API_URL || "http://localhost:10000"}/api/ai/generate`,
+  {
+    type: "topic",
+    content: topic,
+    options: {
+      numQuestions,
+      difficulty
+    }
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("quizito_token")}`,
+      "Content-Type": "application/json"
+    }
+  }
+);
 
       console.log('AI Generation Response:', response.data)
 
