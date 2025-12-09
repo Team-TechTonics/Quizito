@@ -30,7 +30,7 @@ function App() {
       <AuthProvider>
         <SocketProvider>
           <QuizProvider>
-            <div className="min-h-screen flex flex-col">
+            <div className="min-h-screen flex flex-col bg-gray-100">
               <Navbar />
               <main className="flex-grow">
                 <Routes>
@@ -41,12 +41,12 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/leaderboard" element={<Leaderboard />} />
-                  
-
+                  <Route path="/host-session" element={<HostSession />} />
+                  <Route path="/join-quiz" element={<JoinQuiz />} />
                   {/* PROTECTED ROUTES */}
                   <Route element={<ProtectedRoute />}>
                     <Route path="/create-quiz" element={<CreateQuiz />} />
-                    <Route path="/host-session" element={<HostSession />} />
+                    
                     <Route path="/play/:roomCode" element={<PlayQuiz />} />
                     <Route path="/results/:sessionId" element={<Results />} />
                     <Route path="/profile" element={<Profile />} />

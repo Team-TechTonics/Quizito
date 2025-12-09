@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuiz } from '../QuizContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   UserPlus, User, Mail, Lock, Eye, EyeOff, Check, 
   Brain, ArrowRight, AlertCircle, Chrome as ChromeIcon
@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register, googleLogin, authLoading } = useQuiz();
+  const { register, authLoading } = useAuth();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -94,11 +94,11 @@ const Register = () => {
     
     if (!validateForm()) return;
 
-    const result = await register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-    });
+    const result = await register(
+  formData.name,
+  formData.email,
+  formData.password
+);
 
     if (result.success) {
       toast.success('Account created successfully! 🎉');

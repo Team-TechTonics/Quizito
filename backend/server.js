@@ -52,7 +52,7 @@ const axios = require("axios");
 const {
   NODE_ENV = "development",
   PORT = 10000,
-  MONGODB_URI="mongodb+srv:ramanujpatro07_db_user:cVCxtMKOSxL8Sa1q@quizito.ztdjpfy.mongodb.net/quizito?retryWrites=true&w=majority&appName=Quizito",
+  MONGODB_URI="mongodb+srv://ramanujpatro07_db_user:cVCxtMKOSxL8Sa1q@quizito.ztdjpfy.mongodb.net/quizito?retryWrites=true&w=majority&appName=Quizito",
   JWT_SECRET = require("crypto").randomBytes(64).toString("hex"),
   OPENAI_API_KEY,
   DEEPSEEK_API_KEY,
@@ -1616,16 +1616,16 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     
     // Check Redis cache for blacklisted tokens
-    if (redisClient) {
-      const isBlacklisted = await redisClient.get(`blacklist:${token}`);
-      if (isBlacklisted) {
-        return res.status(401).json({
-          success: false,
-          message: "Token has been revoked",
-          code: "TOKEN_REVOKED",
-        });
-      }
-    }
+    // if (redisClient) {
+    //   const isBlacklisted = await redisClient.get(`blacklist:${token}`);
+    //   if (isBlacklisted) {
+    //     return res.status(401).json({
+    //       success: false,
+    //       message: "Token has been revoked",
+    //       code: "TOKEN_REVOKED",
+    //     });
+    //   }
+    // }
 
     const decoded = jwt.verify(token, JWT_SECRET);
     
@@ -1633,12 +1633,12 @@ const authenticate = async (req, res, next) => {
     const cacheKey = `user:${decoded.id}`;
     let user = null;
     
-    if (redisClient) {
-      const cachedUser = await redisClient.get(cacheKey);
-      if (cachedUser) {
-        user = JSON.parse(cachedUser);
-      }
-    }
+    // if (redisClient) {
+    //   const cachedUser = await redisClient.get(cacheKey);
+    //   if (cachedUser) {
+    //     user = JSON.parse(cachedUser);
+    //   }
+    // }
     
     if (!user) {
       user = await User.findById(decoded.id).select("-password");
@@ -1651,9 +1651,9 @@ const authenticate = async (req, res, next) => {
       }
       
       // Cache user for 5 minutes
-      if (redisClient) {
-        await redisClient.setex(cacheKey, 300, JSON.stringify(user.toObject()));
-      }
+      // if (redisClient) {
+      //   await redisClient.setex(cacheKey, 300, JSON.stringify(user.toObject()));
+      // }
     }
 
     // Check if user is active
@@ -3076,7 +3076,7 @@ app.get("/", (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-      redis: redisClient ? "connected" : "not configured",
+      //redis: redisClient ? "connected" : "not configured",
       openai: !!openai,
       deepseek: !!deepseek,
       speech: !!SPEECH_API_KEY,
@@ -3100,7 +3100,7 @@ app.get("/", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     const dbStatus = mongoose.connection.readyState === 1 ? "healthy" : "unhealthy";
-    const redisStatus = redisClient && redisClient.status === "ready" ? "healthy" : "unhealthy";
+    //const redisStatus = redisClient && redisClient.status === "ready" ? "healthy" : "unhealthy";
     
     const health = {
       status: "healthy",
@@ -3117,10 +3117,10 @@ app.get("/health", async (req, res) => {
           status: dbStatus,
           connection: mongoose.connection.readyState,
         },
-        redis: {
-          status: redisStatus,
-          connected: redisClient ? redisClient.status === "ready" : false,
-        },
+        // redis: {
+        //   status: redisStatus,
+        //   connected: redisClient ? redisClient.status === "ready" : false,
+        // },
         socketio: {
           clients: io.engine.clientsCount,
           status: "healthy",
@@ -3229,7 +3229,7 @@ app.post("/api/auth/register", async (req, res) => {
       username,
       email: email.toLowerCase(),
       password,
-      role,
+      role:"student",
       displayName: displayName || username,
       organization,
       metadata: {
@@ -3248,9 +3248,9 @@ app.post("/api/auth/register", async (req, res) => {
     delete userResponse.password;
 
     // Cache user data
-    if (redisClient) {
-      await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
+    // }
 
     // Set refresh token as HTTP-only cookie
     res.cookie("refreshToken", refreshToken, {
@@ -3307,9 +3307,17 @@ app.post("/api/auth/login", async (req, res) => {
         code: "CREDENTIALS_REQUIRED",
       });
     }
-
+    
     // Find user with password
     const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+    if (user) {
+      // ✅ CRITICAL FIX: If role is "user", update it to "student"
+      if (user.role === "user") {
+        user.role = "student";
+        await user.save({ validateBeforeSave: false }); // Skip validation to avoid the error
+        logger.info(`Updated user role from "user" to "student" for ${user.email}`);
+      }
+    }
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -3366,9 +3374,9 @@ app.post("/api/auth/login", async (req, res) => {
     const userResponse = user.toObject();
     delete userResponse.password;
     
-    if (redisClient) {
-      await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
+    // }
 
     // Set refresh token as HTTP-only cookie
     res.cookie("refreshToken", refreshToken, {
@@ -3462,14 +3470,14 @@ app.post("/api/auth/refresh", async (req, res) => {
 app.post("/api/auth/logout", authenticate, async (req, res) => {
   try {
     // Add token to blacklist
-    if (redisClient) {
-      const tokenExp = req.user.exp || Math.floor(Date.now() / 1000) + 3600;
-      const ttl = tokenExp - Math.floor(Date.now() / 1000);
+    // if (redisClient) {
+    //   const tokenExp = req.user.exp || Math.floor(Date.now() / 1000) + 3600;
+    //   const ttl = tokenExp - Math.floor(Date.now() / 1000);
       
-      if (ttl > 0) {
-        await redisClient.setex(`blacklist:${req.token}`, ttl, "true");
-      }
-    }
+    //   if (ttl > 0) {
+    //     await redisClient.setex(`blacklist:${req.token}`, ttl, "true");
+    //   }
+    // }
 
     // Clear refresh token cookie
     res.clearCookie("refreshToken", {
@@ -3541,11 +3549,11 @@ app.put("/api/auth/profile", authenticate, async (req, res) => {
     );
 
     // Update cache
-    if (redisClient) {
-      const userResponse = user.toObject();
-      delete userResponse.password;
-      await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
-    }
+    // if (redisClient) {
+    //   const userResponse = user.toObject();
+    //   delete userResponse.password;
+    //   await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
+    // }
 
     res.json({
       success: true,
@@ -3598,9 +3606,9 @@ app.post("/api/auth/change-password", authenticate, async (req, res) => {
     await user.save();
 
     // Invalidate cache
-    if (redisClient) {
-      await redisClient.del(`user:${user._id}`);
-    }
+    // if (redisClient) {
+    //   await redisClient.del(`user:${user._id}`);
+    // }
 
     res.json({
       success: true,
@@ -3723,9 +3731,9 @@ app.get("/api/quizzes", async (req, res) => {
     };
 
     // Cache result for 5 minutes
-    if (redisClient) {
-      await redisClient.setex(cacheKey, 300, JSON.stringify(result));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(cacheKey, 300, JSON.stringify(result));
+    // }
 
     res.json(result);
   } catch (error) {
@@ -3752,9 +3760,9 @@ app.get("/api/quizzes/:id", async (req, res) => {
     const cacheKey = `quiz:${id}:${showAnswers}`;
     let cachedQuiz = null;
     
-    if (redisClient) {
-      cachedQuiz = await redisClient.get(cacheKey);
-    }
+    // if (redisClient) {
+    //   cachedQuiz = await redisClient.get(cacheKey);
+    // }
 
     if (cachedQuiz) {
       return res.json(JSON.parse(cachedQuiz));
@@ -3829,10 +3837,10 @@ app.get("/api/quizzes/:id", async (req, res) => {
       },
     };
 
-    // Cache result for 2 minutes
-    if (redisClient) {
-      await redisClient.setex(cacheKey, 120, JSON.stringify(result));
-    }
+    // // Cache result for 2 minutes
+    // if (redisClient) {
+    //   await redisClient.setex(cacheKey, 120, JSON.stringify(result));
+    // }
 
     res.json(result);
   } catch (error) {
@@ -3858,7 +3866,7 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       questions,
       settings,
       tags,
-      visibility = "public",
+      visibility = "private",
       accessCode,
       allowedUsers = [],
       allowedEmails = [],
@@ -3870,6 +3878,12 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       sourceMaterial,
     } = req.body;
 
+    console.log("Quiz creation request received:", { 
+      title, 
+      category, 
+      questionCount: questions?.length,
+      userId: req.user?._id 
+    });
     // Validation
     if (!title || !title.trim()) {
       return res.status(400).json({
@@ -3939,7 +3953,8 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       organizationId = req.user._id;
     }
 
-    const quiz = await Quiz.create({
+    // Create quiz with minimal required fields first
+    const quizData = {
       title: title.trim(),
       description: description?.trim(),
       shortDescription: shortDescription?.trim(),
@@ -3979,24 +3994,33 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       aiModel,
       sourceMaterial,
       generationTime: aiGenerated ? new Date() : null,
-      estimatedTime: questions.length * 30,
-      status: visibility === "public" ? "published" : "draft",
+      status: "draft", // Always start as draft
+    };
+
+    console.log("Creating quiz with data:", { 
+      title: quizData.title,
+      createdBy: quizData.createdBy,
+      questionCount: quizData.questions.length 
     });
 
+    const quiz = await Quiz.create(quizData);
+
+    console.log("Quiz created successfully:", quiz._id);
+
     // Clear relevant caches
-    if (redisClient) {
-      const cachePatterns = [
-        "quizzes:*",
-        `user:quizzes:${req.user._id}:*`,
-      ];
+    // if (redisClient) {
+    //   const cachePatterns = [
+    //     "quizzes:*",
+    //     `user:quizzes:${req.user._id}:*`,
+    //   ];
       
-      for (const pattern of cachePatterns) {
-        const keys = await redisClient.keys(pattern);
-        if (keys.length > 0) {
-          await redisClient.del(...keys);
-        }
-      }
-    }
+    //   for (const pattern of cachePatterns) {
+    //     const keys = await redisClient.keys(pattern);
+    //     if (keys.length > 0) {
+    //       await redisClient.del(...keys);
+    //     }
+    //   }
+    // }
 
     res.status(201).json({
       success: true,
@@ -4004,6 +4028,7 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       quiz,
     });
   } catch (error) {
+    console.error("Create quiz error details:", error);
     logger.error("Create quiz error:", error);
     
     if (error.name === 'ValidationError') {
@@ -4026,8 +4051,9 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
     
     res.status(500).json({
       success: false,
-      message: "Failed to create quiz",
+      message: error.message || "Failed to create quiz",
       code: "CREATE_QUIZ_FAILED",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -4049,9 +4075,11 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
     }
 
     // Check permissions
-    const canEdit = req.user._id.toString() === quiz.createdBy.toString() || 
-                   req.user.role === "admin" ||
-                   (quiz.organization && req.user._id.toString() === quiz.organization.toString());
+     const canEdit = req.user._id && (
+      req.user._id.toString() === quiz.createdBy.toString() || 
+      req.user.role === "admin" ||
+      (quiz.organization && req.user._id.toString() === quiz.organization.toString())
+    );
 
     if (!canEdit) {
       return res.status(403).json({
@@ -4060,7 +4088,6 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
         code: "UPDATE_NOT_AUTHORIZED",
       });
     }
-
     // Filter updates
     const allowedUpdates = [
       "title", "description", "shortDescription", "category", "subcategory",
@@ -4097,20 +4124,20 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
     );
 
     // Clear caches
-    if (redisClient) {
-      const cacheKeys = [
-        `quiz:${id}:*`,
-        `quizzes:*`,
-        `user:quizzes:${req.user._id}:*`,
-      ];
+    // if (redisClient) {
+    //   const cacheKeys = [
+    //     `quiz:${id}:*`,
+    //     `quizzes:*`,
+    //     `user:quizzes:${req.user._id}:*`,
+    //   ];
       
-      for (const pattern of cacheKeys) {
-        const keys = await redisClient.keys(pattern);
-        if (keys.length > 0) {
-          await redisClient.del(...keys);
-        }
-      }
-    }
+    //   for (const pattern of cacheKeys) {
+    //     const keys = await redisClient.keys(pattern);
+    //     if (keys.length > 0) {
+    //       await redisClient.del(...keys);
+    //     }
+    //   }
+    // }
 
     res.json({
       success: true,
@@ -4169,20 +4196,20 @@ app.delete("/api/quizzes/:id", authenticate, async (req, res) => {
     await quiz.save();
 
     // Clear caches
-    if (redisClient) {
-      const cacheKeys = [
-        `quiz:${quiz._id}:*`,
-        `quizzes:*`,
-        `user:quizzes:${req.user._id}:*`,
-      ];
+    // if (redisClient) {
+    //   const cacheKeys = [
+    //     `quiz:${quiz._id}:*`,
+    //     `quizzes:*`,
+    //     `user:quizzes:${req.user._id}:*`,
+    //   ];
       
-      for (const pattern of cacheKeys) {
-        const keys = await redisClient.keys(pattern);
-        if (keys.length > 0) {
-          await redisClient.del(...keys);
-        }
-      }
-    }
+    //   for (const pattern of cacheKeys) {
+    //     const keys = await redisClient.keys(pattern);
+    //     if (keys.length > 0) {
+    //       await redisClient.del(...keys);
+    //     }
+    //   }
+    // }
 
     res.json({
       success: true,
@@ -4257,20 +4284,20 @@ app.post("/api/quizzes/:id/duplicate", authenticate, hasPermission("canCreateQui
       updatedAt: new Date(),
     });
 
-    // Clear relevant caches
-    if (redisClient) {
-      const cachePatterns = [
-        "quizzes:*",
-        `user:quizzes:${req.user._id}:*`,
-      ];
+    // // Clear relevant caches
+    // if (redisClient) {
+    //   const cachePatterns = [
+    //     "quizzes:*",
+    //     `user:quizzes:${req.user._id}:*`,
+    //   ];
       
-      for (const pattern of cachePatterns) {
-        const keys = await redisClient.keys(pattern);
-        if (keys.length > 0) {
-          await redisClient.del(...keys);
-        }
-      }
-    }
+    //   for (const pattern of cachePatterns) {
+    //     const keys = await redisClient.keys(pattern);
+    //     if (keys.length > 0) {
+    //       await redisClient.del(...keys);
+    //     }
+    //   }
+    // }
 
     res.status(201).json({
       success: true,
@@ -4321,9 +4348,9 @@ app.get("/api/quizzes/user/:userId", authenticate, async (req, res) => {
     const cacheKey = `user:quizzes:${userId}:${page}:${limit}:${status}:${visibility}`;
     let cachedResult = null;
     
-    if (redisClient) {
-      cachedResult = await redisClient.get(cacheKey);
-    }
+    // if (redisClient) {
+    //   cachedResult = await redisClient.get(cacheKey);
+    // }
 
     if (cachedResult) {
       return res.json(JSON.parse(cachedResult));
@@ -4356,9 +4383,9 @@ app.get("/api/quizzes/user/:userId", authenticate, async (req, res) => {
     };
 
     // Cache for 2 minutes
-    if (redisClient) {
-      await redisClient.setex(cacheKey, 120, JSON.stringify(result));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(cacheKey, 120, JSON.stringify(result));
+    // }
 
     res.json(result);
   } catch (error) {
@@ -4433,9 +4460,9 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
     await quiz.save();
 
     // Clear cache
-    if (redisClient) {
-      await redisClient.del(`quiz:${id}:*`);
-    }
+    // if (redisClient) {
+    //   await redisClient.del(`quiz:${id}:*`);
+    // }
 
     res.json({
       success: true,
@@ -4487,16 +4514,16 @@ app.post("/api/ai/generate", authenticate, hasPermission("canUseAI"), async (req
 
     // Check rate limits
     const rateLimitKey = `ai:rate:${req.user._id}`;
-    if (redisClient) {
-      const requests = await redisClient.get(rateLimitKey);
-      if (requests && parseInt(requests) >= 50) {
-        return res.status(429).json({
-          success: false,
-          message: "AI generation rate limit exceeded. Please try again later.",
-          code: "RATE_LIMIT_EXCEEDED",
-        });
-      }
-    }
+    // if (redisClient) {
+    //   const requests = await redisClient.get(rateLimitKey);
+    //   if (requests && parseInt(requests) >= 50) {
+    //     return res.status(429).json({
+    //       success: false,
+    //       message: "AI generation rate limit exceeded. Please try again later.",
+    //       code: "RATE_LIMIT_EXCEEDED",
+    //     });
+    //   }
+    // }
 
     logger.info(`AI generation requested by ${req.user.username}: ${type}, model: ${aiModel}`);
 
@@ -4579,11 +4606,11 @@ app.post("/api/ai/generate", authenticate, hasPermission("canUseAI"), async (req
       generationTime: new Date(),
     });
 
-    // Update rate limit
-    if (redisClient) {
-      await redisClient.incr(rateLimitKey);
-      await redisClient.expire(rateLimitKey, 3600); // 1 hour TTL
-    }
+    // // Update rate limit
+    // if (redisClient) {
+    //   await redisClient.incr(rateLimitKey);
+    //   await redisClient.expire(rateLimitKey, 3600); // 1 hour TTL
+    // }
 
     // Log AI usage
     logger.info(`AI quiz generated successfully: ${quiz._id} by ${req.user.username}`);
@@ -5500,9 +5527,9 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
     const cacheKey = `analytics:user:${userId}:${period}`;
     let cachedResult = null;
     
-    if (redisClient) {
-      cachedResult = await redisClient.get(cacheKey);
-    }
+    // if (redisClient) {
+    //   cachedResult = await redisClient.get(cacheKey);
+    // }
 
     if (cachedResult) {
       return res.json(JSON.parse(cachedResult));
@@ -5702,9 +5729,9 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
     };
 
     // Cache for 5 minutes
-    if (redisClient) {
-      await redisClient.setex(cacheKey, 300, JSON.stringify(result));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(cacheKey, 300, JSON.stringify(result));
+    // }
 
     res.json(result);
   } catch (error) {
@@ -5747,9 +5774,9 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
     const cacheKey = `analytics:platform:${period}`;
     let cachedResult = null;
     
-    if (redisClient) {
-      cachedResult = await redisClient.get(cacheKey);
-    }
+    // if (redisClient) {
+    //   cachedResult = await redisClient.get(cacheKey);
+    // }
 
     if (cachedResult) {
       return res.json(JSON.parse(cachedResult));
@@ -5889,7 +5916,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-        redis: redisClient && redisClient.status === "ready" ? "connected" : "disconnected",
+       // redis: redisClient && redisClient.status === "ready" ? "connected" : "disconnected",
         socketConnections: io.engine.clientsCount,
       }),
     ]);
@@ -5948,9 +5975,9 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
     };
 
     // Cache for 15 minutes
-    if (redisClient) {
-      await redisClient.setex(cacheKey, 900, JSON.stringify(result));
-    }
+    // if (redisClient) {
+    //   await redisClient.setex(cacheKey, 900, JSON.stringify(result));
+    // }
 
     res.json(result);
   } catch (error) {
@@ -6057,9 +6084,9 @@ app.put("/api/admin/users/:id", authenticate, authorize("admin"), async (req, re
     ).select("-password");
 
     // Clear user cache
-    if (redisClient) {
-      await redisClient.del(`user:${id}`);
-    }
+    // if (redisClient) {
+    //   await redisClient.del(`user:${id}`);
+    // }
 
     res.json({
       success: true,
@@ -6245,12 +6272,12 @@ app.post("/api/admin/moderate/:id", authenticate, authorize("admin"), async (req
 
     await item.updateOne(updateData);
 
-    // Clear relevant caches
-    if (redisClient) {
-      if (type === "user") {
-        await redisClient.del(`user:${id}`);
-      }
-    }
+    // // Clear relevant caches
+    // if (redisClient) {
+    //   if (type === "user") {
+    //     await redisClient.del(`user:${id}`);
+    //   }
+    // }
 
     res.json({
       success: true,
@@ -6371,6 +6398,225 @@ app.use((error, req, res, next) => {
 
   res.status(statusCode).json(response);
 });
+// ===========================================================================
+// 19.5. LEADERBOARD ROUTES (ADD THIS SECTION BEFORE START SERVER)
+// ===========================================================================
+
+// Get global leaderboard
+app.get("/api/analytics/leaderboard", async (req, res) => {
+  try {
+    const { limit = 20, period = "weekly" } = req.query;
+    
+    // Calculate date range based on period
+    const endDate = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case "daily":
+        startDate.setDate(endDate.getDate() - 1);
+        break;
+      case "weekly":
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case "monthly":
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case "all":
+        startDate = new Date(0); // Beginning of time
+        break;
+      default:
+        startDate.setDate(endDate.getDate() - 7);
+    }
+
+    // Get top users by score in the period
+    const results = await QuizResult.aggregate([
+      {
+        $match: {
+          completedAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: "$userId",
+          totalScore: { $sum: "$score" },
+          totalQuizzes: { $sum: 1 },
+          totalCorrect: { $sum: "$correctAnswers" },
+          totalQuestions: { $sum: "$totalQuestions" },
+          totalTime: { $sum: "$timeSpent" },
+          lastPlayed: { $max: "$completedAt" }
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $unwind: "$user"
+      },
+      {
+        $project: {
+          userId: "$_id",
+          username: "$user.username",
+          avatar: "$user.avatar",
+          score: "$totalScore",
+          quizzes: "$totalQuizzes",
+          accuracy: {
+            $cond: {
+              if: { $gt: ["$totalQuestions", 0] },
+              then: { $multiply: [{ $divide: ["$totalCorrect", "$totalQuestions"] }, 100] },
+              else: 0
+            }
+          },
+          averageTime: {
+            $cond: {
+              if: { $gt: ["$totalQuizzes", 0] },
+              then: { $divide: ["$totalTime", "$totalQuizzes"] },
+              else: 0
+            }
+          },
+          streak: { $ifNull: ["$user.stats.currentStreak", 0] },
+          lastPlayed: 1
+        }
+      },
+      {
+        $sort: { score: -1 }
+      },
+      {
+        $limit: parseInt(limit)
+      }
+    ]);
+
+    // Add rank
+    const leaderboard = results.map((user, index) => ({
+      ...user,
+      rank: index + 1,
+      isCurrentUser: req.user && user.userId && user.userId.toString() === req.user._id?.toString()
+    }));
+
+    // Calculate stats
+    const stats = {
+      totalPlayers: leaderboard.length,
+      averageScore: leaderboard.length > 0 
+        ? leaderboard.reduce((sum, user) => sum + user.score, 0) / leaderboard.length 
+        : 0,
+      averageAccuracy: leaderboard.length > 0 
+        ? leaderboard.reduce((sum, user) => sum + user.accuracy, 0) / leaderboard.length 
+        : 0,
+      averageTime: leaderboard.length > 0 
+        ? leaderboard.reduce((sum, user) => sum + user.averageTime, 0) / leaderboard.length 
+        : 0,
+    };
+
+    res.json({
+      success: true,
+      leaderboard,
+      stats,
+      period,
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    logger.error("Global leaderboard error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch leaderboard",
+      code: "LEADERBOARD_FAILED",
+    });
+  }
+});
+
+// Get session leaderboard
+app.get("/api/sessions/:code/leaderboard", async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    const session = await Session.findOne({ roomCode: code.toUpperCase() })
+      .select("leaderboard participants quizId settings")
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: "Session not found",
+        code: "SESSION_NOT_FOUND",
+      });
+    }
+
+    // Use session leaderboard if available, otherwise calculate from participants
+    let leaderboard = session.leaderboard || [];
+    
+    if (leaderboard.length === 0 && session.participants) {
+      leaderboard = session.participants
+        .filter(p => p.userId && p.score !== undefined)
+        .map(p => ({
+          userId: p.userId,
+          username: p.username || p.displayName || "Anonymous",
+          avatar: p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username || "user"}`,
+          score: p.score || 0,
+          correctAnswers: p.correctAnswers || 0,
+          streak: p.streak || 0,
+          performance: p.performance || { accuracy: 0, speed: 0 }
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map((p, index) => ({
+          ...p,
+          rank: index + 1,
+          accuracy: p.performance?.accuracy || (p.correctAnswers > 0 ? (p.correctAnswers / session.settings?.totalQuestions || 10) * 100 : 0)
+        }));
+    }
+
+    // Get current user from token if available
+    const token = req.headers.authorization?.split(" ")[1];
+    let currentUserId = null;
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        currentUserId = decoded.id;
+      } catch (e) {
+        // Token invalid, ignore
+      }
+    }
+
+    // Mark current user
+    leaderboard = leaderboard.map(p => ({
+      ...p,
+      isCurrentUser: currentUserId && p.userId && p.userId.toString() === currentUserId.toString()
+    }));
+
+    // Calculate session stats
+    const stats = {
+      totalPlayers: leaderboard.length,
+      averageScore: leaderboard.length > 0 
+        ? leaderboard.reduce((sum, p) => sum + p.score, 0) / leaderboard.length 
+        : 0,
+      averageAccuracy: leaderboard.length > 0 
+        ? leaderboard.reduce((sum, p) => sum + p.accuracy, 0) / leaderboard.length 
+        : 0,
+      averageTime: session.settings?.questionTime || 30,
+    };
+
+    res.json({
+      success: true,
+      leaderboard,
+      stats,
+      sessionCode: code,
+      sessionName: session.name || "Quiz Session",
+      updatedAt: new Date(),
+      isLive: activeSessions.has(code.toUpperCase())
+    });
+  } catch (error) {
+    logger.error("Session leaderboard error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch session leaderboard",
+      code: "SESSION_LEADERBOARD_FAILED",
+    });
+  }
+});
 
 // ===========================================================================
 // 20. START SERVER WITH COMPREHENSIVE LOGGING
@@ -6442,10 +6688,10 @@ const shutdown = async (signal) => {
       await mongoose.connection.close();
       logger.info("✅ MongoDB connection closed");
       
-      if (redisClient && redisClient.status === "ready") {
-        await redisClient.quit();
-        logger.info("✅ Redis connection closed");
-      }
+      // if (redisClient && redisClient.status === "ready") {
+      //   await redisClient.quit();
+      //   logger.info("✅ Redis connection closed");
+      // }
       
       logger.info("✅ Graceful shutdown complete");
       process.exit(0);
