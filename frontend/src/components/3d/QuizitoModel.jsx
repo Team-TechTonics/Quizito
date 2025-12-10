@@ -89,7 +89,8 @@ const QuizitoModel = () => {
       answerSpheres.push(sphere);
       
       // Add selection ring
-      const ringGeometry = new THREE.RingGeometry(0.55, 0.6, 32);
+      const ringGeometry = new THREE.TorusGeometry(0.575, 0.02, 16, 100);
+
       const ringMaterial = new THREE.MeshBasicMaterial({
         color: sphereColors[index],
         side: THREE.DoubleSide,
