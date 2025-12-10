@@ -25,6 +25,7 @@ const express = require("express");
 const app = express();
 app.set("trust proxy", 1); // Fixes express-rate-limit X-Forwarded-For error on Render
 
+//const jwt = require("jsonwebtoken");
 const http = require("http");
 const server = http.createServer(app);
 const socketIo = require("socket.io");
@@ -44,7 +45,29 @@ const PDFParser = require("pdf-parse");
 //const Redis = require("ioredis");
 const winston = require("winston");
 const axios = require("axios");
+// ===========================================================================
+// DUPLICATE CHECKER - Add this right after imports
+// ===========================================================================
+const declaredFunctions = new Set();
 
+const originalDeclare = (name, func) => {
+  if (declaredFunctions.has(name)) {
+    console.error(`❌ DUPLICATE FUNCTION: "${name}" already declared. Skipping duplicate.`);
+    return null;
+  }
+  declaredFunctions.add(name);
+  return func;
+};
+
+// Wrap your function declarations (temporary debugging)
+const wrapDeclaration = (name, func) => {
+  try {
+    return originalDeclare(name, func);
+  } catch (error) {
+    console.error(`Error declaring ${name}:`, error.message);
+    return func; // Fallback to original
+  }
+};
 // ===========================================================================
 // 1. CONFIGURATION & ENVIRONMENT
 // ===========================================================================
@@ -1797,7 +1820,7 @@ const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
   return newDifficulty;
 };
 
-// Calculate points with bonuses
+/*// Calculate points with bonuses
 const calculatePoints = (question, answerData, userPerformance) => {
   const basePoints = question.points || 100;
   const { timeTaken, isCorrect, streak, hintUsed } = answerData;
@@ -1834,7 +1857,7 @@ const calculatePoints = (question, answerData, userPerformance) => {
   // Ensure minimum points
   return Math.max(points, 10);
 };
-
+*/
 // AI-powered question generation
 const generateQuestionsWithAI = async (content, options = {}) => {
   const {
@@ -2131,21 +2154,22 @@ const processTextToSpeech = async (text, options = {}) => {
   }
 };
 
+
 // ===========================================================================
-// 10. SOCKET.IO REAL-TIME HANDLERS
+// 10. SOCKET.IO REAL-TIME HANDLERS (COMPLETE VERSION)
 // ===========================================================================
 
 // Socket authentication middleware
 io.use(async (socket, next) => {
   try {
-    const token = socket.handshake.auth.token;
+    const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
     
     if (!token) {
       return next(new Error("Authentication token required"));
     }
     
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).select("_id username avatar role");
+    const user = await User.findById(decoded.id).select("_id username email avatar role displayName");
     
     if (!user) {
       return next(new Error("User not found"));
@@ -2154,13 +2178,15 @@ io.use(async (socket, next) => {
     socket.user = {
       _id: user._id,
       username: user.username,
+      email: user.email,
       avatar: user.avatar,
       role: user.role,
+      displayName: user.displayName || user.username,
     };
     
     next();
   } catch (error) {
-    next(new Error("Authentication failed"));
+    next(new Error("Authentication failed: " + error.message));
   }
 });
 
@@ -2169,6 +2195,10 @@ io.on("connection", (socket) => {
   
   // Join user to their personal room
   socket.join(`user:${socket.user._id}`);
+  
+  // ===========================================
+  // MAIN SESSION HANDLERS
+  // ===========================================
   
   // Handle session creation
   socket.on("create-session", async (data, callback) => {
@@ -2204,7 +2234,17 @@ io.on("connection", (socket) => {
           showLeaderboard: true,
           showCorrectAnswers: true,
           randomizeQuestions: false,
+          randomizeOptions: false,
           allowLateJoin: true,
+          requireApproval: false,
+          privateMode: false,
+          adaptiveDifficulty: false,
+          powerupsEnabled: true,
+          hintsEnabled: true,
+          teamMode: false,
+          musicEnabled: true,
+          soundEffects: true,
+          theme: "default",
           ...settings,
         },
         participants: [{
@@ -2214,6 +2254,7 @@ io.on("connection", (socket) => {
           avatar: socket.user.avatar,
           role: "host",
           isReady: true,
+          status: "waiting",
         }],
         status: "waiting",
       });
@@ -2338,7 +2379,7 @@ io.on("connection", (socket) => {
       
       // Get quiz info
       const quiz = await Quiz.findById(session.quizId)
-        .select("title category difficulty totalPlays")
+        .select("title category difficulty questions")
         .lean();
       
       // Prepare response
@@ -2730,59 +2771,385 @@ io.on("connection", (socket) => {
     }
   });
   
-  // Handle disconnection
-  socket.on("disconnect", async () => {
+  // ===========================================
+  // NEW HANDLERS
+  // ===========================================
+  
+  // Handle player kicking
+  socket.on("kick-player", async (data, callback) => {
     try {
-      const roomCode = socket.currentRoom;
+      const { roomCode, userId } = data;
       
-      if (roomCode) {
-        const session = await Session.findOne({ roomCode });
+      const session = await Session.findOne({ roomCode });
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      // Check if user is host
+      if (!session.hostId.equals(socket.user._id)) {
+        return callback({ success: false, message: "Only host can kick players" });
+      }
+
+      // Find and remove participant
+      const participantIndex = session.participants.findIndex(
+        p => p.userId && p.userId.equals(userId)
+      );
+
+      if (participantIndex === -1) {
+        return callback({ success: false, message: "Player not found" });
+      }
+
+      // Add to banned users
+      session.bannedUsers.push(userId);
+      
+      // Remove from participants
+      const kickedParticipant = session.participants.splice(participantIndex, 1)[0];
+      
+      await session.save();
+
+      // Notify kicked player
+      const kickedSocketId = kickedParticipant.socketId;
+      if (kickedSocketId) {
+        io.to(kickedSocketId).emit("kicked-from-session", {
+          reason: "Removed by host",
+          sessionCode: roomCode,
+        });
+        io.sockets.sockets.get(kickedSocketId)?.leave(roomCode);
+      }
+
+      // Notify others
+      socket.to(roomCode).emit("player-kicked", {
+        userId,
+        username: kickedParticipant.username,
+        kickedBy: socket.user.username,
+      });
+
+      // Update leaderboard
+      updateSessionLeaderboard(roomCode);
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Kick player error:", error);
+      callback({ success: false, message: "Failed to kick player" });
+    }
+  });
+
+  // Handle session settings update
+  socket.on("update-settings", async (data, callback) => {
+    try {
+      const { roomCode, settings } = data;
+      
+      const session = await Session.findOne({ roomCode });
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      // Check if user is host
+      if (!session.hostId.equals(socket.user._id)) {
+        return callback({ success: false, message: "Only host can update settings" });
+      }
+
+      // Update settings
+      Object.assign(session.settings, settings);
+      await session.save();
+
+      // Broadcast to room
+      io.to(roomCode).emit("settings-updated", {
+        settings: session.settings,
+        updatedBy: socket.user.username,
+      });
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Update settings error:", error);
+      callback({ success: false, message: "Failed to update settings" });
+    }
+  });
+
+  // Handle power-up usage
+  socket.on("use-powerup", async (data, callback) => {
+    try {
+      const { roomCode, powerupType } = data;
+      
+      const session = await Session.findOne({ roomCode });
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      const participant = session.participants.find(
+        p => p.userId && p.userId.equals(socket.user._id)
+      );
+
+      if (!participant) {
+        return callback({ success: false, message: "Not a participant" });
+      }
+
+      // Check if game is active
+      if (session.currentState.phase !== "question") {
+        return callback({ success: false, message: "Can only use powerups during questions" });
+      }
+
+      // Initialize powerups array if not exists
+      if (!participant.powerups) {
+        participant.powerups = [];
+      }
+
+      // Check if player has this powerup
+      const powerupIndex = participant.powerups.findIndex(p => p.type === powerupType);
+      if (powerupIndex === -1) {
+        return callback({ success: false, message: "You don't have this powerup" });
+      }
+
+      // Apply powerup effects
+      switch (powerupType) {
+        case "double-points":
+          participant.multiplier = Math.min((participant.multiplier || 1) * 2, 5);
+          participant.powerups[powerupIndex].lastUsed = new Date();
+          break;
         
-        if (session) {
-          // Update participant status
-          const participant = session.participants.find(
-            p => p.socketId === socket.id
-          );
-          
-          if (participant) {
-            participant.isConnected = false;
-            participant.status = "disconnected";
-            participant.lastPing = new Date();
-            await session.save();
-            
-            // Notify others
-            socket.to(roomCode).emit("participant-disconnected", {
-              userId: participant.userId,
-              username: participant.username,
-            });
+        case "time-freeze":
+          // Add extra time
+          if (sessionTimers.has(roomCode)) {
+            clearInterval(sessionTimers.get(roomCode));
+            session.currentState.timeRemaining = (session.currentState.timeRemaining || 30) + 10;
+            startQuestionTimer(roomCode, session);
           }
+          participant.powerups[powerupIndex].lastUsed = new Date();
+          break;
+        
+        case "remove-wrong":
+          // Remove one wrong option (simulated - frontend will handle visual effect)
+          participant.powerups[powerupIndex].lastUsed = new Date();
+          break;
           
-          // Update room sockets
-          if (roomSockets.has(roomCode)) {
-            roomSockets.get(roomCode).delete(socket.id);
+        case "hint":
+          // Show hint
+          participant.powerups[powerupIndex].lastUsed = new Date();
+          break;
+      }
+
+      // Decrease powerup count
+      if (participant.powerups[powerupIndex].count > 1) {
+        participant.powerups[powerupIndex].count -= 1;
+      } else {
+        participant.powerups.splice(powerupIndex, 1);
+      }
+
+      await session.save();
+
+      // Notify player
+      socket.emit("powerup-used", {
+        powerup: powerupType,
+        effect: "Powerup activated!",
+        remainingPowerups: participant.powerups.length,
+      });
+
+      // Notify others (optional - for public powerups)
+      if (powerupType !== "hint" && powerupType !== "remove-wrong") {
+        socket.to(roomCode).emit("player-used-powerup", {
+          userId: socket.user._id,
+          username: socket.user.username,
+          powerup: powerupType,
+        });
+      }
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Powerup error:", error);
+      callback({ success: false, message: "Failed to use powerup" });
+    }
+  });
+
+  // Handle end session
+  socket.on("end-session", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      
+      const session = await Session.findOne({ roomCode });
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      // Check if user is host
+      if (!session.hostId.equals(socket.user._id)) {
+        return callback({ success: false, message: "Only host can end the session" });
+      }
+
+      // Update session status
+      session.status = "finished";
+      session.endedAt = new Date();
+      session.duration = session.startedAt ? 
+        (session.endedAt - session.startedAt) / 1000 : 0;
+      
+      await session.save();
+
+      // Clean up active session
+      activeSessions.delete(roomCode);
+      
+      if (roomSockets.has(roomCode)) {
+        roomSockets.delete(roomCode);
+      }
+      
+      if (sessionTimers.has(roomCode)) {
+        clearTimeout(sessionTimers.get(roomCode));
+        sessionTimers.delete(roomCode);
+      }
+
+      // Notify all participants
+      io.to(roomCode).emit("session-ended-by-host", {
+        message: "Session ended by host",
+        endedAt: session.endedAt,
+        sessionId: session._id,
+      });
+
+      // Kick all players from socket room
+      io.in(roomCode).socketsLeave(roomCode);
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error("End session error:", error);
+      callback({ success: false, message: "Failed to end session" });
+    }
+  });
+
+  // Handle next question force (host only)
+  socket.on("next-question-force", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      
+      const session = await Session.findOne({ roomCode });
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      // Check if user is host
+      if (!session.hostId.equals(socket.user._id)) {
+        return callback({ success: false, message: "Only host can force next question" });
+      }
+
+      // Skip to next question
+      if (session.currentState.phase === "question") {
+        if (sessionTimers.has(roomCode)) {
+          clearInterval(sessionTimers.get(roomCode));
+        }
+        nextQuestion(roomCode, session);
+      }
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Force next question error:", error);
+      callback({ success: false, message: "Failed to skip question" });
+    }
+  });
+
+  // Handle request to get session info
+  socket.on("get-session-info", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      
+      const session = await Session.findOne({ roomCode })
+        .populate("quizId", "title category difficulty questions")
+        .populate("hostId", "username avatar")
+        .lean();
+
+      if (!session) {
+        return callback({ success: false, message: "Session not found" });
+      }
+
+      // Hide sensitive info if not host
+      const isHost = session.hostId._id.toString() === socket.user._id.toString();
+      
+      const safeSession = {
+        ...session,
+        settings: {
+          ...session.settings,
+          password: isHost ? session.settings.password : undefined,
+        },
+        participants: session.participants.map(p => ({
+          userId: p.userId,
+          username: p.username,
+          displayName: p.displayName,
+          avatar: p.avatar,
+          role: p.role,
+          isReady: p.isReady,
+          status: p.status,
+          score: p.score,
+          correctAnswers: p.correctAnswers,
+        })),
+      };
+
+      callback({ success: true, session: safeSession, isHost });
+    } catch (error) {
+      logger.error("Get session info error:", error);
+      callback({ success: false, message: "Failed to get session info" });
+    }
+  });
+
+  // Handle ping/pong for connection health
+  socket.on("ping", (callback) => {
+    callback({ success: true, timestamp: Date.now(), userId: socket.user._id });
+  });
+
+  // Handle disconnect
+  socket.on("disconnect", async (reason) => {
+    try {
+      logger.info(`Socket disconnected: ${socket.id} - Reason: ${reason} - User: ${socket.user?.username}`);
+      
+      // Clean up all rooms this socket was in
+      const rooms = Array.from(socket.rooms);
+      
+      for (const room of rooms) {
+        if (room !== socket.id) { // Skip personal room
+          const session = await Session.findOne({ roomCode: room });
+          
+          if (session) {
+            // Update participant status
+            const participant = session.participants.find(
+              p => p.socketId === socket.id
+            );
             
-            // Clean up if room is empty
-            if (roomSockets.get(roomCode).size === 0) {
-              roomSockets.delete(roomCode);
-              activeSessions.delete(roomCode);
+            if (participant) {
+              participant.isConnected = false;
+              participant.status = "disconnected";
+              participant.lastPing = new Date();
+              await session.save();
               
-              // Update session status
-              if (session.status === "active" || session.status === "starting") {
-                session.status = "cancelled";
-                session.endedAt = new Date();
-                await session.save();
+              // Notify others
+              socket.to(room).emit("participant-disconnected", {
+                userId: participant.userId,
+                username: participant.username,
+              });
+            }
+            
+            // Update room sockets
+            if (roomSockets.has(room)) {
+              roomSockets.get(room).delete(socket.id);
+              
+              // Clean up if room is empty
+              if (roomSockets.get(room).size === 0) {
+                roomSockets.delete(room);
+                activeSessions.delete(room);
+                
+                // Update session status if no one is left
+                if (session.status === "active" || session.status === "starting") {
+                  session.status = "cancelled";
+                  session.endedAt = new Date();
+                  await session.save();
+                }
               }
             }
           }
         }
       }
-      
-      logger.info(`Socket disconnected: ${socket.id} - User: ${socket.user?.username}`);
     } catch (error) {
       logger.error("Disconnect handler error:", error);
     }
   });
 });
+
+// ===========================================================================
+// HELPER FUNCTIONS FOR SOCKET HANDLERS
+// ===========================================================================
 
 // Helper function to start question timer
 const startQuestionTimer = async (roomCode, session) => {
@@ -2838,7 +3205,7 @@ const nextQuestion = async (roomCode, session) => {
     
     if (nextIndex >= quiz.questions.length) {
       // Quiz completed
-      await completeQuiz(roomCode, session);
+      completeQuiz(roomCode, session);
       return;
     }
     
@@ -2920,7 +3287,78 @@ const completeQuiz = async (roomCode, session) => {
     
     await session.save();
     
-    // Save quiz results
+    // Save quiz results to database
+    saveQuizResults(session);
+    
+    // Send final results
+    io.to(roomCode).emit("quiz-completed", {
+      finalResults: {
+        leaderboard: session.leaderboard,
+        sessionId: session._id,
+        quizId: session.quizId._id,
+        totalQuestions: session.quizId.questions.length,
+        duration: session.duration,
+        endedAt: session.endedAt,
+      },
+    });
+    
+    // Clean up after delay
+    setTimeout(() => {
+      io.in(roomCode).socketsLeave(roomCode);
+      roomSockets.delete(roomCode);
+      activeSessions.delete(roomCode);
+      
+      if (sessionTimers.has(roomCode)) {
+        clearInterval(sessionTimers.get(roomCode));
+        sessionTimers.delete(roomCode);
+      }
+    }, 30000); // 30 seconds for clients to view results
+    
+    logger.info(`Quiz completed for session ${roomCode}`);
+  } catch (error) {
+    logger.error("Complete quiz error:", error);
+  }
+};
+
+// Helper function to update leaderboard
+const updateSessionLeaderboard = async (roomCode) => {
+  try {
+    const session = await Session.findOne({ roomCode });
+    if (!session) return;
+    
+    const activeParticipants = session.participants.filter(p => 
+      p.status === "ready" || p.status === "playing"
+    );
+    
+    const sortedParticipants = [...activeParticipants]
+      .sort((a, b) => b.score - a.score)
+      .map((p, index) => ({
+        userId: p.userId,
+        username: p.username,
+        avatar: p.avatar,
+        score: p.score,
+        correctAnswers: p.correctAnswers,
+        streak: p.streak || 0,
+        rank: index + 1,
+      }));
+    
+    // Update session leaderboard
+    session.leaderboard = sortedParticipants;
+    await session.save();
+    
+    // Broadcast to room
+    io.to(roomCode).emit("leaderboard-update", {
+      leaderboard: sortedParticipants,
+      updatedAt: new Date(),
+    });
+  } catch (error) {
+    logger.error("Update leaderboard error:", error);
+  }
+};
+
+// Helper function to save quiz results
+const saveQuizResults = async (session) => {
+  try {
     const quiz = await Quiz.findById(session.quizId);
     
     const savePromises = session.participants
@@ -2976,6 +3414,12 @@ const completeQuiz = async (roomCode, session) => {
               "stats.totalQuestions": quiz.questions.length,
               "stats.experience": Math.floor(participant.score / 10),
             },
+            $set: {
+              "stats.highestScore": {
+                $max: ["$stats.highestScore", participant.score]
+              },
+              lastActive: new Date(),
+            },
           });
           
           return result;
@@ -2995,72 +3439,48 @@ const completeQuiz = async (roomCode, session) => {
       },
     });
     
-    // Send final results
-    io.to(roomCode).emit("quiz-completed", {
-      finalResults: {
-        leaderboard: session.leaderboard,
-        sessionId: session._id,
-        quizId: session.quizId._id,
-        totalQuestions: quiz.questions.length,
-        duration: session.duration,
-        endedAt: session.endedAt,
-      },
-    });
-    
-    // Clean up
-    setTimeout(() => {
-      io.socketsLeave(roomCode);
-      roomSockets.delete(roomCode);
-      activeSessions.delete(roomCode);
-      
-      if (sessionTimers.has(roomCode)) {
-        clearInterval(sessionTimers.get(roomCode));
-        sessionTimers.delete(roomCode);
-      }
-    }, 30000); // 30 seconds for clients to view results
-    
-    logger.info(`Quiz completed for session ${roomCode}`);
   } catch (error) {
-    logger.error("Complete quiz error:", error);
+    logger.error("Save quiz results error:", error);
   }
 };
 
-// Helper function to update leaderboard
-const updateSessionLeaderboard = async (roomCode) => {
-  try {
-    const session = await Session.findOne({ roomCode });
-    if (!session) return;
-    
-    const activeParticipants = session.participants.filter(p => 
-      p.status === "ready" || p.status === "playing"
-    );
-    
-    const sortedParticipants = [...activeParticipants]
-      .sort((a, b) => b.score - a.score)
-      .map((p, index) => ({
-        userId: p.userId,
-        username: p.username,
-        avatar: p.avatar,
-        score: p.score,
-        correctAnswers: p.correctAnswers,
-        streak: p.streak || 0,
-        rank: index + 1,
-      }));
-    
-    // Update session leaderboard
-    session.leaderboard = sortedParticipants;
-    await session.save();
-    
-    // Broadcast to room
-    io.to(roomCode).emit("leaderboard-update", {
-      leaderboard: sortedParticipants,
-      updatedAt: new Date(),
-    });
-  } catch (error) {
-    logger.error("Update leaderboard error:", error);
-  }
+// Add to calculatePoints function (make sure it exists)
+const calculatePoints = (question, answerData, userPerformance) => {
+  const basePoints = question.points || 100;
+  const { timeTaken, isCorrect, streak, hintUsed } = answerData;
+  
+  if (!isCorrect) return 0;
+  
+  let points = basePoints;
+  
+  // Speed bonus (faster = more points)
+  const maxTime = question.timeLimit || 30;
+  const timeRatio = Math.max(0.1, 1 - (timeTaken / maxTime));
+  const speedBonus = Math.round(basePoints * 0.3 * timeRatio);
+  
+  // Streak bonus
+  const streakBonus = streak >= 3 ? Math.round(basePoints * (streak - 2) * 0.05) : 0;
+  
+  // Difficulty multiplier
+  const difficultyMultipliers = {
+    easy: 0.8,
+    medium: 1.0,
+    hard: 1.3,
+    expert: 1.6,
+  };
+  const difficultyMultiplier = difficultyMultipliers[question.difficulty] || 1.0;
+  
+  // Hint penalty
+  const hintPenalty = hintUsed ? Math.round(basePoints * 0.1) : 0;
+  
+  // Calculate total points
+  points = Math.round(
+    (basePoints + speedBonus + streakBonus - hintPenalty) * difficultyMultiplier
+  );
+  
+  // Ensure minimum points
+  return Math.max(points, 10);
 };
-
 // ===========================================================================
 // 11. API ROUTES
 // ===========================================================================
@@ -3952,7 +4372,253 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
     if (req.user.role === "organization") {
       organizationId = req.user._id;
     }
+    // ===========================================================================
+// 22.5. AUTO ROOM GENERATION AFTER QUIZ CREATION
+// ===========================================================================
 
+// Create quiz and auto-generate room immediately
+app.post("/api/quizzes/create-and-host", authenticate, hasPermission("canCreateQuizzes"), async (req, res) => {
+  try {
+    const { quizData, sessionSettings = {} } = req.body;
+
+    console.log("Create and host request received:", { 
+      title: quizData?.title,
+      userId: req.user?._id 
+    });
+
+    // 1. Create the quiz first
+    const quizResponse = await axios.post(
+      `http://localhost:${PORT}/api/quizzes`,
+      quizData,
+      {
+        headers: {
+          'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    ).catch(async (error) => {
+      // If internal call fails, create quiz directly
+      console.log("Direct quiz creation fallback");
+      
+      // Validate quiz data
+      if (!quizData.title || !quizData.title.trim()) {
+        throw new Error("Quiz title is required");
+      }
+
+      if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
+        throw new Error("At least one question is required");
+      }
+
+      if (!quizData.category) {
+        throw new Error("Category is required");
+      }
+
+      // Create quiz directly
+      const quiz = await Quiz.create({
+        title: quizData.title.trim(),
+        description: quizData.description?.trim(),
+        shortDescription: quizData.shortDescription?.trim(),
+        category: quizData.category,
+        subcategory: quizData.subcategory,
+        difficulty: quizData.difficulty || "medium",
+        questions: quizData.questions,
+        createdBy: req.user._id,
+        organization: req.user.role === "organization" ? req.user._id : null,
+        settings: {
+          randomizeQuestions: false,
+          randomizeOptions: false,
+          showProgress: true,
+          showTimer: true,
+          showResults: true,
+          showExplanations: true,
+          showLeaderboard: true,
+          allowRetake: true,
+          allowReview: true,
+          requireLogin: true,
+          passingScore: 60,
+          maxAttempts: 0,
+          timeLimit: null,
+          questionTimeLimit: true,
+          adaptiveDifficulty: false,
+          ...quizData.settings,
+        },
+        tags: quizData.tags || [],
+        visibility: "private",
+        status: "draft",
+        aiGenerated: quizData.aiGenerated || false,
+        aiModel: quizData.aiModel,
+        sourceMaterial: quizData.sourceMaterial,
+        generationTime: quizData.aiGenerated ? new Date() : null,
+      });
+
+      return { data: { quiz } };
+    });
+
+    const quiz = quizResponse.data.quiz;
+
+    // 2. Generate room code
+    const roomCode = await generateRoomCode();
+
+    // 3. Create session immediately
+    const session = await Session.create({
+      roomCode,
+      quizId: quiz._id,
+      hostId: req.user._id,
+      name: quiz.title || `Quiz Room - ${roomCode}`,
+      description: quiz.description || "Join this quiz session!",
+      settings: {
+        maxPlayers: 100,
+        questionTime: 30,
+        showLeaderboard: true,
+        showCorrectAnswers: true,
+        randomizeQuestions: false,
+        randomizeOptions: false,
+        allowLateJoin: true,
+        requireApproval: false,
+        privateMode: false,
+        adaptiveDifficulty: false,
+        powerupsEnabled: true,
+        hintsEnabled: true,
+        teamMode: false,
+        musicEnabled: true,
+        soundEffects: true,
+        ...sessionSettings,
+      },
+      participants: [{
+        userId: req.user._id,
+        username: req.user.username,
+        displayName: req.user.displayName || req.user.username,
+        avatar: req.user.avatar,
+        role: "host",
+        isReady: true,
+        status: "waiting",
+        score: 0,
+        correctAnswers: 0,
+        streak: 0,
+        multiplier: 1,
+      }],
+      status: "waiting",
+      currentState: {
+        phase: "lobby",
+        questionIndex: -1,
+        answersReceived: 0,
+        correctAnswers: 0,
+        paused: false,
+      },
+      stats: {
+        totalQuestions: quiz.questions?.length || 0,
+        completedQuestions: 0,
+        averageScore: 0,
+      },
+      metadata: {
+        createdVia: "web",
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      },
+    });
+
+    // 4. Store in active sessions
+    activeSessions.set(roomCode, {
+      sessionId: session._id,
+      hostId: req.user._id,
+      quizId: quiz._id,
+      participants: new Map([[req.user._id.toString(), null]]),
+      settings: session.settings,
+    });
+
+    // 5. Initialize room sockets
+    roomSockets.set(roomCode, new Set());
+
+    console.log("Quiz created and room generated:", {
+      quizId: quiz._id,
+      roomCode: roomCode,
+      host: req.user.username
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Quiz created and room ready!",
+      quiz: {
+        _id: quiz._id,
+        title: quiz.title,
+        category: quiz.category,
+        difficulty: quiz.difficulty,
+        totalQuestions: quiz.questions?.length || 0,
+      },
+      session: {
+        _id: session._id,
+        roomCode: session.roomCode,
+        name: session.name,
+        hostId: session.hostId,
+        settings: session.settings,
+        participants: session.participants,
+        status: session.status,
+        createdAt: session.createdAt,
+      },
+      joinLinks: {
+        playerLink: `${FRONTEND_URL}/join/${roomCode}`,
+        hostDashboard: `${FRONTEND_URL}/host/${roomCode}`,
+        embedCode: `<iframe src="${FRONTEND_URL}/embed/${roomCode}" width="800" height="600"></iframe>`,
+      },
+    });
+
+  } catch (error) {
+    console.error("Create and host error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create quiz and room",
+      code: "CREATE_AND_HOST_FAILED",
+    });
+  }
+});
+
+// Quick join session check
+app.get("/api/sessions/quick/:code", async (req, res) => {
+  try {
+    const { code } = req.params;
+    const session = await Session.findOne({ roomCode: code.toUpperCase() })
+      .populate("hostId", "username avatar")
+      .populate("quizId", "title category difficulty")
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: "Room not found",
+        code: "ROOM_NOT_FOUND",
+      });
+    }
+
+    const isActive = activeSessions.has(code.toUpperCase());
+    const participantCount = session.participants?.filter(p => 
+      ["waiting", "ready", "playing"].includes(p.status)
+    ).length || 0;
+
+    res.json({
+      success: true,
+      session: {
+        roomCode: session.roomCode,
+        name: session.name,
+        host: session.hostId,
+        quiz: session.quizId,
+        status: session.status,
+        participantCount,
+        maxPlayers: session.settings?.maxPlayers || 100,
+        isActive,
+        currentState: session.currentState,
+      },
+      canJoin: session.status === "waiting" || 
+               (session.status === "active" && session.settings?.allowLateJoin),
+    });
+  } catch (error) {
+    logger.error("Quick join check error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to check room",
+      code: "ROOM_CHECK_FAILED",
+    });
+  }
+});
     // Create quiz with minimal required fields first
     const quizData = {
       title: title.trim(),

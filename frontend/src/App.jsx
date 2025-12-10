@@ -23,6 +23,9 @@ import Profile from './pages/Profile'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Leaderboard from './pages/Leaderboard'
 import JoinQuiz from './pages/JoinQuiz'
+import HostDashboard from './components/HostDashboard';
+import PlayerView from './components/PlayerView';
+import JoinSession from './components/JoinSession';
 
 function App() {
   return (
@@ -52,7 +55,25 @@ function App() {
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/JoinQuiz" element={<JoinQuiz />} />
                   </Route>
-
+                  {/* Host Dashboard */}
+        <Route path="/host/:roomCode" element={
+          <ProtectedRoute>
+            <HostDashboard />
+          </ProtectedRoute>
+        } />
+        
+        {/* Player View */}
+        <Route path="/play/:roomCode" element={
+          <ProtectedRoute>
+            <PlayerView />
+          </ProtectedRoute>
+        } />
+        
+        {/* Quick Join */}
+        <Route path="/join/:roomCode" element={<JoinSession />} />
+        
+        {/* Embed View */}
+        <Route path="/embed/:roomCode" element={<PlayerView embedMode={true} />} />
                 </Routes>
               </main>
               <Footer />
