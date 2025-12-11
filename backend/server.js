@@ -3886,6 +3886,13 @@ app.post("/api/auth/login", async (req, res) => {
         await user.save({ validateBeforeSave: false }); // Skip validation to avoid the error
         logger.info(`Updated user role from "user" to "student" for ${user.email}`);
       }
+
+      // ✅ FORCE ADMIN ROLE for demo account
+      if (user.email === "admin@quizito.com" && user.role !== "admin") {
+        user.role = "admin";
+        await user.save({ validateBeforeSave: false });
+        logger.info(`Promoted admin@quizito.com to admin role`);
+      }
     }
     if (!user) {
       return res.status(401).json({
@@ -7166,7 +7173,10 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
     if (pythonUrl.endsWith('/')) {
       pythonUrl = pythonUrl.slice(0, -1);
     }
-    const pythonEndpoint = `${pythonUrl}/api/upload`;
+    const pythonEndpoint = `${pythonUrl}/upload`;
+
+    console.log(`🔗 Python Service URL: ${pythonUrl}`);
+    console.log(`🔗 Target Endpoint: ${pythonEndpoint}`);
 
     const pythonResponse = await axios.post(
       pythonEndpoint,

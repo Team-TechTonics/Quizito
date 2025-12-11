@@ -27,24 +27,28 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  
-  const { login, isAuthenticated } = useAuth()
+
+  const { login, isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      const redirectTo = location.state?.from || '/'
-      navigate(redirectTo)
+    if (isAuthenticated && !isSubmitting) {
+      if (user?.role === 'admin') {
+        navigate('/admin')
+      } else {
+        const redirectTo = location.state?.from || '/'
+        navigate(redirectTo)
+      }
     }
-  }, [isAuthenticated, navigate, location])
+  }, [isAuthenticated, navigate, location, isSubmitting, user])
 
   // Demo credentials
   const demoAccounts = [
-    { email: 'student@quizito.com', password: 'student123', role: 'Student' },
-    { email: 'educator@quizito.com', password: 'educator123', role: 'Educator' },
-    { email: 'admin@quizito.com', password: 'admin123', role: 'Admin' }
+    { email: 'student@quizito.com', password: 'student123', role: 'Student', status: 'active' },
+    { email: 'educator@quizito.com', password: 'educator123', role: 'Educator', status: 'coming_soon' },
+    { email: 'admin@quizito.com', password: 'Admin@07', role: 'Admin', status: 'active' }
   ]
 
   const validateForm = () => {
@@ -84,6 +88,8 @@ const Login = () => {
   }
 
   const handleDemoLogin = async (demoAccount) => {
+    if (demoAccount.status !== 'active') return;
+
     try {
       setIsSubmitting(true)
       setFormData({
@@ -92,10 +98,14 @@ const Login = () => {
       })
 
       const result = await login(demoAccount.email, demoAccount.password)
-      
+
       if (result.success) {
         toast.success(`Welcome back, ${demoAccount.role}!`)
-        navigate('/')
+        if (result.user.role === 'admin') {
+          navigate('/admin')
+        } else {
+          navigate('/')
+        }
       }
     } catch (error) {
       toast.error('Demo login failed')
@@ -106,20 +116,24 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
 
     setIsSubmitting(true)
-    
+
     try {
       const result = await login(formData.email, formData.password)
-      
+
       if (result.success) {
         setShowSuccess(true)
         setTimeout(() => {
-          navigate('/')
+          if (result.user.role === 'admin') {
+            navigate('/admin')
+          } else {
+            navigate('/')
+          }
         }, 1500)
       } else {
         toast.error(result.error || 'Login failed')
@@ -157,9 +171,9 @@ const Login = () => {
                     Welcome Back to
                     <span className="block gradient-text">Learning Adventure</span>
                   </h1>
-                  
+
                   <p className="text-xl text-gray-600">
-                    Continue your journey with interactive quizzes, live competitions, 
+                    Continue your journey with interactive quizzes, live competitions,
                     and AI-powered learning experiences.
                   </p>
 
@@ -174,7 +188,7 @@ const Login = () => {
                         <p className="text-gray-600 text-sm">Generate quizzes in seconds</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
                         <Zap className="text-green-600" size={20} />
@@ -184,7 +198,7 @@ const Login = () => {
                         <p className="text-gray-600 text-sm">Compete in real-time with others</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
                         <CheckCircle className="text-purple-600" size={20} />
@@ -254,9 +268,25 @@ const Login = () => {
                       <button
                         key={index}
                         onClick={() => handleDemoLogin(account)}
-                        disabled={isSubmitting}
-                        className="p-3 border-2 border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isSubmitting || account.status !== 'active'}
+                        className={`p-3 border-2 border-gray-200 rounded-xl transition-all relative overflow-hidden text-left
+                          ${account.status === 'active'
+                            ? 'hover:border-primary-300 hover:bg-primary-50 cursor-pointer'
+                            : 'bg-gray-50 border-gray-100 opacity-70 cursor-not-allowed'
+                          }
+                        `}
                       >
+                        {account.status === 'coming_soon' && (
+                          <div className="absolute top-0 right-0 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
+                            Coming Soon
+                          </div>
+                        )}
+                        {account.status === 'restricted' && (
+                          <div className="absolute top-0 right-0 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
+                            Restricted
+                          </div>
+                        )}
+
                         <div className="text-sm font-medium">{account.role}</div>
                         <div className="text-xs text-gray-500 truncate">{account.email}</div>
                       </button>
@@ -438,7 +468,7 @@ const Login = () => {
                   >
                     <div className="text-center">
                       <motion.div
-                        animate={{ 
+                        animate={{
                           scale: [1, 1.2, 1],
                           rotate: [0, 360, 0]
                         }}
