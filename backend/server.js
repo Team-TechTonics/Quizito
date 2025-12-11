@@ -7169,54 +7169,60 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
     // Send to Python AI server deployed on Render
     // Use env var or fallback to the known production URL
     let pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-fh77.onrender.com";
-    // Remove trailing slash if present to avoid double slashes
     if (pythonUrl.endsWith('/')) {
       pythonUrl = pythonUrl.slice(0, -1);
     }
-    const pythonEndpoint = `${pythonUrl}/upload`;
 
-    console.log(`🔗 Python Service URL: ${pythonUrl}`);
-    console.log(`🔗 Target Endpoint: ${pythonEndpoint}`);
+    // Step 1: Extract Text from PDF
+    const extractEndpoint = `${pythonUrl}/extract-pdf`;
+    console.log(`🔗 Step 1: Extracting at ${extractEndpoint}`);
 
-    const pythonResponse = await axios.post(
-      pythonEndpoint,
+    const extractResponse = await axios.post(
+      extractEndpoint,
       form,
       {
         headers: form.getHeaders(),
-        timeout: 180000 // 3 minute timeout for Render cold starts
+        timeout: 180000
+      }
+    );
+
+    if (!extractResponse.data.success || !extractResponse.data.data.text) {
+      throw new Error("Failed to extract text from PDF");
+    }
+
+    const pdfText = extractResponse.data.data.text;
+    console.log(`✅ Text extracted, length: ${pdfText.length} chars`);
+
+    // Step 2: Generate Quiz from Text
+    const generateEndpoint = `${pythonUrl}/generate-quiz`;
+    console.log(`🔗 Step 2: Generating at ${generateEndpoint}`);
+
+    const generateResponse = await axios.post(
+      generateEndpoint,
+      {
+        topic: "General", // Universal topic fallback
+        pdfText: pdfText,
+        difficulty: "medium",
+        numQuestions: 10,
+        quizType: "multiple-choice"
+      },
+      {
+        timeout: 180000
       }
     );
 
     console.log("🤖 AI Quiz Generated Successfully");
 
-    // Log raw response from Render
-    console.log("🔍 Raw Render response:", JSON.stringify(pythonResponse.data, null, 2));
-
-    // Python Flask returns an array of questions directly
-    // We need to format it properly for the frontend
-    const questions = pythonResponse.data;
-
-    // Validate response
-    if (!Array.isArray(questions)) {
-      console.error("❌ Invalid response from Python AI:", pythonResponse.data);
-      return res.status(500).json({
-        success: false,
-        message: "Invalid response format from AI service",
-        error: "Expected array of questions"
-      });
-    }
-
-    console.log(`📊 Received ${questions.length} questions from Python AI`);
-    if (questions.length > 0) {
-      console.log(`📝 Sample question:`, JSON.stringify(questions[0], null, 2));
-    }
+    // Parse response based on actual structure from quizito_ai_service.py
+    const quizData = generateResponse.data.data;
+    const questions = quizData.questions || [];
 
     return res.json({
       success: true,
       quiz: {
-        title: "AI Generated Quiz from PDF",
-        category: "General",
-        difficulty: "medium",
+        title: quizData.title || "AI Generated Quiz from PDF",
+        category: quizData.category || "General",
+        difficulty: quizData.difficulty || "medium",
         questions: questions
       }
     });
@@ -7330,15 +7336,42 @@ app.post("/api/quiz-generation/from-audio", audioUpload.single("audio"), async (
       response_format: "json"
     });
 
+    // const text = transcription.text;
+    // console.log("📝 Transcription:", text);
+
     const text = transcription.text;
     console.log("📝 Transcription:", text);
 
-    // Convert text → MCQ questions (simple generator)
-    const questions = generateQuizFromText(text);
+    // Convert text → Quiz using Python AI Service (Better Quality)
+    console.log("🚀 Sending transcription to Python AI for generation...");
+
+    // Construct Python URL (reusing logic from PDF route)
+    let pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-fh77.onrender.com";
+    if (pythonUrl.endsWith('/')) {
+      pythonUrl = pythonUrl.slice(0, -1);
+    }
+    const generateEndpoint = `${pythonUrl}/generate-quiz`;
+
+    const pythonResponse = await axios.post(
+      generateEndpoint,
+      {
+        topic: "Audio Transcription",
+        pdfText: text, // Passing transcription as context
+        difficulty: "medium",
+        numQuestions: 10,
+        quizType: "multiple-choice"
+      },
+      {
+        timeout: 180000
+      }
+    );
+
+    const quizData = pythonResponse.data.data;
+    const questions = quizData.questions || [];
 
     return res.json({
       success: true,
-      quiz: questions
+      quiz: questions // Frontend expects array of questions for this route? Let's check or return object
     });
 
   } catch (error) {
