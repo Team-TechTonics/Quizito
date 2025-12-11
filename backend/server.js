@@ -7161,7 +7161,11 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
 
     // Send to Python AI server deployed on Render
     // Use env var or fallback to the known production URL
-    const pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-fh77.onrender.com";
+    let pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-fh77.onrender.com";
+    // Remove trailing slash if present to avoid double slashes
+    if (pythonUrl.endsWith('/')) {
+      pythonUrl = pythonUrl.slice(0, -1);
+    }
     const pythonEndpoint = `${pythonUrl}/api/upload`;
 
     const pythonResponse = await axios.post(

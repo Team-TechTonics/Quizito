@@ -347,7 +347,7 @@ const CreateQuiz = () => {
       }
     } catch (error) {
       console.error('File upload error:', error)
-      console.error('Backend error response:', error.response?.data)
+      console.error('Backend error response:', JSON.stringify(error.response?.data, null, 2))
       toast.error(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to process file')
     } finally {
       setLoading(false)
