@@ -322,7 +322,7 @@ const CreateQuiz = () => {
             // Python service returns 'answer' (text), find its index in options
             const correctAnswerText = q.answer || q.correctAnswer
             const correctIndex = q.options.findIndex(opt =>
-              opt.toLowerCase().trim() === (correctAnswerText || '').toLowerCase().trim()
+              String(opt).toLowerCase().trim() === String(correctAnswerText || '').toLowerCase().trim()
             )
             const finalIndex = correctIndex >= 0 ? correctIndex : 0
 
