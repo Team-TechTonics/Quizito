@@ -27,4 +27,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:5001/health', timeout=2)"
 
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "quizito_ai_service:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "app2:app"]
