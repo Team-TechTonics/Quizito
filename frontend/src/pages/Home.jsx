@@ -35,7 +35,7 @@ import InteractiveCursor from '../components/ui/InteractiveCursor'
 import QuantumQuizModel from '../components/3d/QuantumQuizModel';
 
 const Home = () => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loginWithToken } = useAuth()
   const { quizzes, fetchQuizzes } = useQuiz()
   const navigate = useNavigate()
   const [featuredQuizzes, setFeaturedQuizzes] = useState([])
@@ -49,6 +49,19 @@ const Home = () => {
   const ctaRef = useRef(null)
 
   useEffect(() => {
+    // Check for token in URL (OAuth callback)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const error = params.get('error');
+
+    if (token) {
+      loginWithToken(token);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      navigate('/login?error=' + error);
+    }
+
     fetchQuizzes()
 
     // Handle scroll for navbar effect

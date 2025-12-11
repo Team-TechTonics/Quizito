@@ -392,6 +392,83 @@ app.use((req, res, next) => {
 });
 
 // ===========================================================================
+// Google OAuth Configuration
+// ===========================================================================
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+
+// Initialize Passport
+app.use(passport.initialize());
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: "/auth/google/callback",
+        proxy: true,
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        try {
+          // Check if user exists
+          let user = await User.findOne({ email: profile.emails[0].value });
+
+          if (user) {
+            return done(null, user);
+          }
+
+          // Create new user
+          const username =
+            profile.displayName.replace(/\s+/g, "").toLowerCase() +
+            Math.floor(Math.random() * 10000);
+
+          user = new User({
+            username: username,
+            email: profile.emails[0].value,
+            password: uuidv4(), // Random password for social auth
+            displayName: profile.displayName,
+            avatar: profile.photos[0]?.value,
+            role: "student",
+            isEmailVerified: true,
+            metadata: {
+              signupSource: "google",
+            },
+          });
+
+          await user.save();
+          done(null, user);
+        } catch (error) {
+          done(error, null);
+        }
+      }
+    )
+  );
+
+  // Routes
+  app.get(
+    "/auth/google",
+    passport.authenticate("google", { scope: ["profile", "email"] })
+  );
+
+  app.get(
+    "/auth/google/callback",
+    passport.authenticate("google", { session: false, failureRedirect: `${FRONTEND_URL}/login?error=auth_failed` }),
+    (req, res) => {
+      // Generate token
+      const token = req.user.generateAuthToken();
+      // Redirect to frontend with token
+      res.redirect(`${FRONTEND_URL}?token=${token}`);
+    }
+  );
+
+  logger.info("✅ Google OAuth configured");
+} else {
+  logger.warn("⚠️ Google OAuth credentials missing - skipping configuration");
+}
+
+
+// ===========================================================================
 // 7. FILE UPLOAD CONFIGURATION
 // ===========================================================================
 

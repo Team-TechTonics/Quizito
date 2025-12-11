@@ -107,6 +107,12 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out");
   };
 
+  const loginWithToken = (newToken) => {
+    localStorage.setItem("quizito_token", newToken);
+    setToken(newToken);
+    toast.success("Successfully logged in");
+  };
+
   // Helper: refresh user data on demand
   const refreshUser = async () => {
     if (!token) return null;
@@ -127,6 +133,7 @@ export const AuthProvider = ({ children }) => {
     authLoading,
     login,
     register,
+    loginWithToken,
     logout,
     refreshUser,
     isAuthenticated: !!user,
