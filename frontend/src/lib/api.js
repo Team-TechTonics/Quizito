@@ -2,7 +2,7 @@
 import axios from "axios";
 // Force reload
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:10000";
+const API_URL = import.meta.env.VITE_API_URL || "https://quizito-backend.onrender.com";
 
 export const api = axios.create({
   baseURL: API_URL,
