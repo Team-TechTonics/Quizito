@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuiz } from '../context/QuizContext';
 import { useAuth } from '../context/AuthContext';
-import { 
+import {
   User, Mail, Lock, Camera, Globe, Award, Trophy,
   Edit, Save, X, Calendar, TrendingUp, Shield, Bell,
-  CreditCard, Settings, LogOut
+  CreditCard, Settings, LogOut, Check
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -112,19 +112,19 @@ const Profile = () => {
                         </button>
                       )}
                     </div>
-                    
+
                     {editMode ? (
                       <div className="w-full space-y-4 mt-6">
                         <input
                           type="text"
                           value={profileData.name}
-                          onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                          onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                           placeholder="Full Name"
                         />
                         <textarea
                           value={profileData.bio}
-                          onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
+                          onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                           rows="3"
                           placeholder="About you..."
@@ -202,11 +202,10 @@ const Profile = () => {
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
-                      className={`flex-1 px-6 py-4 text-sm font-medium capitalize ${
-                        activeTab === tab
+                      className={`flex-1 px-6 py-4 text-sm font-medium capitalize ${activeTab === tab
                           ? 'text-indigo-600 border-b-2 border-indigo-600'
                           : 'text-gray-600 hover:text-gray-800'
-                      }`}
+                        }`}
                     >
                       {tab === 'profile' && <User className="inline mr-2" size={16} />}
                       {tab === 'security' && <Shield className="inline mr-2" size={16} />}
@@ -222,7 +221,7 @@ const Profile = () => {
                   {activeTab === 'profile' && (
                     <div className="space-y-6">
                       <h3 className="text-xl font-bold text-gray-800">Personal Information</h3>
-                      
+
                       <div className="grid md:grid-cols-2 gap-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -233,7 +232,7 @@ const Profile = () => {
                             <input
                               type="text"
                               value={profileData.name}
-                              onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                              onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
                               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                             />
                           </div>
@@ -263,7 +262,7 @@ const Profile = () => {
                             <input
                               type="text"
                               value={profileData.location}
-                              onChange={(e) => setProfileData({...profileData, location: e.target.value})}
+                              onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
                               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                               placeholder="City, Country"
                             />
@@ -304,7 +303,7 @@ const Profile = () => {
                   {activeTab === 'security' && (
                     <div className="space-y-6">
                       <h3 className="text-xl font-bold text-gray-800">Security Settings</h3>
-                      
+
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -315,7 +314,7 @@ const Profile = () => {
                             <input
                               type="password"
                               value={passwordData.currentPassword}
-                              onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                               placeholder="Enter current password"
                             />
@@ -331,7 +330,7 @@ const Profile = () => {
                             <input
                               type="password"
                               value={passwordData.newPassword}
-                              onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                               placeholder="Enter new password"
                             />
@@ -347,7 +346,7 @@ const Profile = () => {
                             <input
                               type="password"
                               value={passwordData.confirmPassword}
-                              onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                               placeholder="Confirm new password"
                             />
@@ -423,7 +422,7 @@ const Profile = () => {
                           </div>
                           <div className="text-3xl font-bold text-gray-800">$0<span className="text-lg text-gray-600">/month</span></div>
                         </div>
-                        
+
                         <div className="space-y-3 mb-6">
                           {[
                             'Create up to 5 quizzes per month',

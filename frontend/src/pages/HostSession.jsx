@@ -181,9 +181,20 @@ const HostSession = () => {
         // Quiz started - backend sends first question
         socket.on('quiz-started', (data) => {
           console.log('Quiz started:', data);
+          console.log('Question object:', data.question);
+          console.log('Question options:', data.question?.options);
+          console.log('Options is array?', Array.isArray(data.question?.options));
+
+
+          // Convert options to array if it's an object with numeric keys
+          const question = { ...data.question };
+          if (question?.options && !Array.isArray(question.options)) {
+            question.options = Object.values(question.options);
+          }
+
           setQuizStarted(true);
           setGameStatus('question');
-          setCurrentQuestion(data.question);
+          setCurrentQuestion(question);
           setCurrentQuestionIndex(data.questionIndex);
           setTimeRemaining(data.timeRemaining || 30);
           setTotalQuestions(data.totalQuestions);
@@ -198,11 +209,18 @@ const HostSession = () => {
         // Next question from backend
         socket.on('next-question', (data) => {
           console.log('Next question:', data);
+
+          // Create a copy and convert options to array if needed
+          const question = { ...data.question };
+          if (question?.options && !Array.isArray(question.options)) {
+            question.options = Object.values(question.options);
+          }
+
           setGameStatus('question');
-          setCurrentQuestion(data.question);
+          setCurrentQuestion(question);
           setCurrentQuestionIndex(data.questionIndex);
           setTimeRemaining(data.timeRemaining || 30);
-          setSelectedOption(null); // Reset selection
+          setSelectedOption(null);
         });
 
         // Question completed (showing answers)
@@ -253,11 +271,11 @@ const HostSession = () => {
         // Leaderboard updates
         socket.on('leaderboard-update', (data) => {
           console.log('Leaderboard updated:', data);
-          setLeaderboard(data.leaderboard);
+          if (data.leaderboard) setLeaderboard(data.leaderboard);
           // Update participant scores
           setParticipants(prev =>
             prev.map(p => {
-              const leaderboardEntry = data.leaderboard.find(l => l.userId === p.userId);
+              const leaderboardEntry = data.leaderboard?.find(l => l.userId === p.userId);
               return leaderboardEntry ? { ...p, score: leaderboardEntry.score } : p;
             })
           );
@@ -267,11 +285,25 @@ const HostSession = () => {
         socket.on('session-ended-by-host', (data) => {
           console.log('Session ended by host:', data);
           setGameStatus('finished');
-          toast('Session ended by host', { icon: '🛑' });
+          toast('Session ended', { icon: '🏁' });
+
+          // Save results
+          localStorage.setItem('quizResults', JSON.stringify({
+            sessionId: sessionId,
+            roomCode: roomCode,
+            leaderboard: leaderboard,
+            totalQuestions: totalQuestions
+          }));
 
           setTimeout(() => {
-            navigate('/profile');
-          }, 3000);
+            navigate(`/results/${sessionId}`, {
+              state: {
+                roomCode: roomCode,
+                sessionId: sessionId,
+                leaderboard: leaderboard
+              }
+            });
+          }, 2000);
         });
 
         // Error handling
@@ -339,17 +371,33 @@ const HostSession = () => {
 
   const handleEndQuiz = () => {
     if (!socketRef.current || !roomCode) {
-      NotificationCenter.add({
-        type: 'error',
-        message: 'Not connected to session',
-        duration: 3000
-      });
+      toast.error('Not connected to session');
       return;
     }
+
+    // Save results before ending
+    localStorage.setItem('quizResults', JSON.stringify({
+      sessionId: sessionId,
+      roomCode: roomCode,
+      leaderboard: leaderboard,
+      totalQuestions: totalQuestions,
+      participants: participants
+    }));
 
     socketRef.current.emit('end-session', {
       roomCode: roomCode
     });
+
+    // Navigate to results immediately
+    setTimeout(() => {
+      navigate(`/results/${sessionId}`, {
+        state: {
+          roomCode: roomCode,
+          sessionId: sessionId,
+          leaderboard: leaderboard
+        }
+      });
+    }, 1000);
 
     // Also call REST API to end session
     api.post(`/api/sessions/${roomCode}/end`).catch(console.error);
@@ -553,45 +601,66 @@ const HostSession = () => {
 
                     <h3 className="text-2xl font-bold mb-6">{currentQuestion.text}</h3>
 
-                    {currentQuestion.options && (
+                    {currentQuestion.options && Array.isArray(currentQuestion.options) && (
                       <div className="space-y-3">
-                        {currentQuestion.options.map((option, i) => (
-                          <div
-                            key={i}
-                            onClick={() => {
-                              if (gameStatus === 'question' && selectedOption === null) {
-                                setSelectedOption(i); // Mark as selected
+                        {currentQuestion.options.map((option, i) => {
+                          // Safety check for option
+                          if (!option || typeof option !== 'object') {
+                            console.warn('Invalid option at index', i, option);
+                            return null;
+                          }
 
-                                // Submit answer using the socket ref
-                                // Need to calculate time taken or just send raw
-                                const timeTaken = 30 - timeRemaining;
-                                socketRef.current.emit('submit-answer', {
-                                  roomCode,
-                                  questionId: currentQuestion._id,
-                                  selectedOption: i,
-                                  timeTaken
-                                });
-                                // Optimistic update or wait for result?
-                                // PlayQuiz waits for 'answer-result'. HostSession currently doesn't listen to it?
-                                // Let's add toast for feedback
-                                toast.success('Answer submitted!');
-                              }
-                            }}
-                            className={`p-4 border rounded-lg transition cursor-pointer ${selectedOption === i
-                              ? 'bg-blue-600 border-blue-400 ring-2 ring-blue-400'
-                              : gameStatus === 'question'
-                                ? 'bg-gray-800/30 border-gray-600 hover:bg-gray-700/50 hover:border-cyan-500' // Default interactive
-                                : 'bg-gray-800/50 border-gray-700 opacity-70 cursor-not-allowed' // Disabled
-                              }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${selectedOption === i ? 'bg-white text-blue-600' : 'bg-gray-700'}`}>
-                                {String.fromCharCode(65 + i)}
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => {
+                                try {
+                                  if (gameStatus === 'question' && selectedOption === null) {
+                                    setSelectedOption(i);
+
+                                    if (!socketRef.current) {
+                                      toast.error('Not connected to session');
+                                      return;
+                                    }
+
+                                    const timeTaken = Math.max(0, 30 - timeRemaining);
+
+                                    console.log('Submitting answer:', {
+                                      roomCode,
+                                      questionId: currentQuestion._id,
+                                      selectedOption: i,
+                                      timeTaken
+                                    });
+
+                                    socketRef.current.emit('submit-answer', {
+                                      roomCode,
+                                      questionId: currentQuestion._id,
+                                      selectedOption: i,
+                                      timeTaken
+                                    });
+                                    toast.success('Answer submitted!');
+                                  }
+                                } catch (err) {
+                                  console.error('Error submitting answer:', err);
+                                  toast.error('Failed to submit answer: ' + err.message);
+                                }
+                              }}
+                              className={[
+                                'p-4 border rounded-lg transition cursor-pointer',
+                                selectedOption === i && 'bg-blue-600 border-blue-400 ring-2 ring-blue-400',
+                                selectedOption !== i && gameStatus === 'question' && 'bg-gray-800/30 border-gray-600 hover:bg-gray-700/50 hover:border-cyan-500',
+                                gameStatus !== 'question' && 'bg-gray-800/50 border-gray-700 opacity-70 cursor-not-allowed'
+                              ].filter(Boolean).join(' ')}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${selectedOption === i ? 'bg-white text-blue-600' : 'bg-gray-700'}`}>
+                                  {String.fromCharCode(65 + i)}
+                                </div>
+                                <span className="text-lg">{option.text || option || 'Option ' + (i + 1)}</span>
                               </div>
-                              <span className="text-lg">{option.text}</span>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -25,7 +25,8 @@ import {
   Crown,
   Medal,
   TrendingDown,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -66,52 +67,69 @@ const Results = () => {
   }, [results])
 
   const fetchResults = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      // In a real app, you would fetch from /api/sessions/:roomCode/results
-      // For now, we'll simulate results
-      const mockResults = {
-        sessionId: sessionId,
-        quizId: 'quiz123',
-        userId: user?._id,
-        username: user?.username,
-        score: Math.floor(Math.random() * 1000) + 500,
-        correctAnswers: Math.floor(Math.random() * 10) + 5,
-        totalQuestions: 10,
-        accuracy: Math.floor(Math.random() * 30) + 70,
-        timeSpent: Math.floor(Math.random() * 300) + 120,
-        startedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-        finishedAt: new Date().toISOString(),
-        answers: Array.from({ length: 10 }, (_, i) => ({
-          questionIndex: i,
-          selectedOption: `Option ${String.fromCharCode(65 + Math.floor(Math.random() * 4))}`,
-          correctAnswer: `Option ${String.fromCharCode(65 + Math.floor(Math.random() * 4))}`,
-          isCorrect: Math.random() > 0.3,
-          timeTaken: Math.floor(Math.random() * 20) + 5,
-          points: Math.random() > 0.3 ? 100 : 0
-        }))
+      // Get results from localStorage (saved by HostSession)
+      const savedResults = localStorage.getItem('quizResults');
+      let resultsData = null;
+
+      if (savedResults) {
+        resultsData = JSON.parse(savedResults);
       }
 
-      const mockLeaderboard = Array.from({ length: 10 }, (_, i) => ({
-        userId: `user${i}`,
-        username: i === 0 ? user?.username : `Player ${i + 1}`,
-        score: 1000 - i * 100,
-        correctAnswers: 10 - i,
-        rank: i + 1
-      })).sort((a, b) => b.score - a.score)
+      // If no saved results, create empty structure
+      if (!resultsData) {
+        resultsData = {
+          sessionId: sessionId,
+          roomCode: '',
+          leaderboard: [],
+          totalQuestions: 0,
+          participants: []
+        };
+      }
 
-      const userRankIndex = mockLeaderboard.findIndex(p => p.username === user?.username)
-      setUserRank(userRankIndex !== -1 ? userRankIndex + 1 : 1)
+      // Find current user in participants/leaderboard
+      const currentUserData = resultsData.participants?.find(p =>
+        p.username === user?.username || p.userId === user?._id
+      ) || resultsData.leaderboard?.find(p =>
+        p.username === user?.username || p.userId === user?._id
+      );
 
-      setResults(mockResults)
-      setLeaderboard(mockLeaderboard)
-      generatePerformanceData(mockResults)
+      // Use REAL data from session
+      const userScore = currentUserData?.score || 0;
+      const userCorrect = currentUserData?.correctAnswers || 0;
+      const totalQuestions = resultsData.totalQuestions || currentUserData?.answers?.length || 10;
+      const userAccuracy = totalQuestions > 0 ? (userCorrect / totalQuestions) * 100 : 0;
+      const userAnswers = currentUserData?.answers || [];
+
+      // Calculate total time from answers
+      const totalTime = userAnswers.reduce((sum, a) => sum + (a.timeTaken || 0), 0);
+
+      setResults({
+        score: userScore,
+        correctAnswers: userCorrect,
+        totalQuestions: totalQuestions,
+        accuracy: userAccuracy,
+        timeTaken: totalTime,
+        answers: userAnswers,
+        rank: resultsData.leaderboard?.findIndex(p =>
+          p.username === user?.username || p.userId === user?._id
+        ) + 1 || 0
+      });
+
+      setLeaderboard(resultsData.leaderboard || []);
+      setUserRank(resultsData.leaderboard?.findIndex(p =>
+        p.username === user?.username || p.userId === user?._id
+      ) + 1 || 0);
+
+      generatePerformanceData(resultsData);
+
     } catch (error) {
-      console.error('Failed to fetch results:', error)
+      console.error('Failed to fetch results:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const generatePerformanceData = (results) => {
     const categories = ['Speed', 'Accuracy', 'Consistency', 'Difficulty', 'Engagement']
@@ -376,11 +394,10 @@ const Results = () => {
                 <button
                   key={tab}
                   onClick={() => setSelectedTab(tab)}
-                  className={`px-6 py-3 font-medium text-lg border-b-2 transition-colors ${
-                    selectedTab === tab
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
+                  className={`px-6 py-3 font-medium text-lg border-b-2 transition-colors ${selectedTab === tab
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
@@ -479,19 +496,17 @@ const Results = () => {
                     {results.answers.map((answer, index) => (
                       <div
                         key={index}
-                        className={`p-6 rounded-xl border-2 transition-all ${
-                          answer.isCorrect
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-red-200 bg-red-50'
-                        }`}
+                        className={`p-6 rounded-xl border-2 transition-all ${answer.isCorrect
+                          ? 'border-green-200 bg-green-50'
+                          : 'border-red-200 bg-red-50'
+                          }`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              answer.isCorrect
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${answer.isCorrect
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                              }`}>
                               {answer.isCorrect ? (
                                 <CheckCircle size={20} />
                               ) : (
@@ -514,11 +529,10 @@ const Results = () => {
                             <div className="grid md:grid-cols-2 gap-4">
                               <div>
                                 <p className="text-sm text-gray-600 mb-2">Your Answer</p>
-                                <div className={`p-3 rounded-lg ${
-                                  answer.isCorrect
-                                    ? 'bg-green-100 border border-green-200'
-                                    : 'bg-red-100 border border-red-200'
-                                }`}>
+                                <div className={`p-3 rounded-lg ${answer.isCorrect
+                                  ? 'bg-green-100 border border-green-200'
+                                  : 'bg-red-100 border border-red-200'
+                                  }`}>
                                   {answer.selectedOption || 'No answer'}
                                 </div>
                               </div>
@@ -551,20 +565,18 @@ const Results = () => {
                   {leaderboard.map((participant, index) => (
                     <div
                       key={participant.userId}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        participant.username === user?.username
-                          ? 'bg-primary-50 border-primary-300'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`p-4 rounded-xl border-2 transition-all ${participant.username === user?.username
+                        ? 'bg-primary-50 border-primary-300'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${
-                            index === 0 ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${index === 0 ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
                             index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-600' :
-                            index === 2 ? 'bg-gradient-to-br from-orange-500 to-orange-700' :
-                            'bg-gradient-to-br from-gray-500 to-gray-700'
-                          }`}>
+                              index === 2 ? 'bg-gradient-to-br from-orange-500 to-orange-700' :
+                                'bg-gradient-to-br from-gray-500 to-gray-700'
+                            }`}>
                             {index === 0 ? (
                               <Crown size={20} />
                             ) : index < 3 ? (
@@ -610,12 +622,11 @@ const Results = () => {
                         </div>
                         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${
-                              index === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                            className={`h-full rounded-full ${index === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
                               index === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
-                              index === 2 ? 'bg-gradient-to-r from-orange-500 to-orange-700' :
-                              'bg-gradient-to-r from-gray-500 to-gray-700'
-                            }`}
+                                index === 2 ? 'bg-gradient-to-r from-orange-500 to-orange-700' :
+                                  'bg-gradient-to-r from-gray-500 to-gray-700'
+                              }`}
                             style={{ width: `${(participant.score / leaderboard[0].score) * 100}%` }}
                           />
                         </div>

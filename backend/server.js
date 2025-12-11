@@ -2773,6 +2773,25 @@ io.on("connection", (socket) => {
         }, 5000);
       }
 
+      // ===== FIX #1: Track scores and emit full leaderboard =====
+      // The participant object is already updated and saved above.
+      // We just need to emit the full leaderboard.
+
+      // Build and emit full leaderboard
+      const leaderboard = session.participants
+        .map(p => ({
+          username: p.username || 'Unknown',
+          userId: p.userId,
+          score: p.score || 0,
+          correctAnswers: p.correctAnswers || 0
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      io.to(roomCode).emit('leaderboard-update', {
+        leaderboard
+      });
+      // ===== END FIX #1 =====
+
       callback({ success: true });
     } catch (error) {
       logger.error("Submit answer error:", error);
@@ -7037,6 +7056,197 @@ app.post("/api/admin/moderate/:id", authenticate, authorize("admin"), async (req
   }
 });
 
+// ============================================================================
+// PDF → QUIZ AI GENERATION ROUTE (Node.js → Python Flask)
+// ============================================================================
+
+const pdfUpload = multer({ storage: multer.memoryStorage() });
+
+app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, res) => {
+  try {
+    console.log("📄 PDF received from frontend");
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No PDF uploaded" });
+    }
+
+    // Prepare PDF file for Python backend
+    const FormData = require("form-data");
+    const form = new FormData();
+    form.append("file", req.file.buffer, req.file.originalname);
+
+    console.log("🚀 Sending PDF to Python AI server (Render)...");
+    console.log("⏱️  Note: First request may take 1-2 minutes due to Render cold start");
+
+    // Send to Python AI server deployed on Render
+    const pythonResponse = await axios.post(
+      "https://quizito-fh77.onrender.com/api/upload",
+      form,
+      {
+        headers: form.getHeaders(),
+        timeout: 180000 // 3 minute timeout for Render cold starts
+      }
+    );
+
+    console.log("🤖 AI Quiz Generated Successfully");
+
+    // Log raw response from Render
+    console.log("🔍 Raw Render response:", JSON.stringify(pythonResponse.data, null, 2));
+
+    // Python Flask returns an array of questions directly
+    // We need to format it properly for the frontend
+    const questions = pythonResponse.data;
+
+    // Validate response
+    if (!Array.isArray(questions)) {
+      console.error("❌ Invalid response from Python AI:", pythonResponse.data);
+      return res.status(500).json({
+        success: false,
+        message: "Invalid response format from AI service",
+        error: "Expected array of questions"
+      });
+    }
+
+    console.log(`📊 Received ${questions.length} questions from Python AI`);
+    if (questions.length > 0) {
+      console.log(`📝 Sample question:`, JSON.stringify(questions[0], null, 2));
+    }
+
+    return res.json({
+      success: true,
+      quiz: {
+        title: "AI Generated Quiz from PDF",
+        category: "General",
+        difficulty: "medium",
+        questions: questions
+      }
+    });
+  } catch (error) {
+    console.error("❌ AI QUIZ ERROR:", error.message);
+
+    // Handle timeout specifically
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return res.status(504).json({
+        success: false,
+        message: "AI service is taking too long to respond. This usually happens on the first request when Render is starting up. Please try again in 30 seconds.",
+        error: "Request timeout",
+        code: 'TIMEOUT'
+      });
+    }
+
+    // Log more details for debugging
+    if (error.response) {
+      console.error("Python service error:", error.response.data);
+      console.error("Status:", error.response.status);
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "AI quiz generation failed",
+      error: error.message,
+      details: error.response?.data
+    });
+  }
+});
+
+
+
+
+
+const Groq = require("groq-sdk");
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Helper function for text-to-quiz generation
+function generateQuizFromText(text) {
+  const sentences = text.split(/[.?!]/).filter(s => s.trim().length > 10);
+
+  let questions = [];
+
+  for (let s of sentences.slice(0, 5)) {
+    const words = s.split(" ").filter(w => w.length > 4);
+    if (words.length < 1) continue;
+
+    const answer = words[0];
+    const question = s.replace(answer, "_______");
+
+    const options = [
+      answer,
+      answer + "ly",
+      "Not-" + answer,
+      answer.slice(0, 3) + "ment"
+    ];
+
+    questions.push({
+      question,
+      answer,
+      options
+    });
+  }
+
+  return questions;
+}
+
+// ============================================================================
+// AUDIO → QUIZ (Direct Node.js → Groq Whisper API)
+// ============================================================================
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit (Groq API limit)
+});
+
+app.post("/api/quiz-generation/from-audio", audioUpload.single("audio"), async (req, res) => {
+  try {
+    console.log("🎤 Received audio from frontend...");
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No audio uploaded" });
+    }
+
+    console.log(`📊 Audio size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    // Send audio to Groq Whisper API
+    console.log("🚀 Sending to Groq Whisper...");
+    const transcription = await groq.audio.transcriptions.create({
+      file: {
+        name: req.file.originalname,
+        data: req.file.buffer,
+      },
+      model: "whisper-large-v3",
+      response_format: "json"
+    });
+
+    const text = transcription.text;
+    console.log("📝 Transcription:", text);
+
+    // Convert text → MCQ questions (simple generator)
+    const questions = generateQuizFromText(text);
+
+    return res.json({
+      success: true,
+      quiz: questions
+    });
+
+  } catch (error) {
+    console.error("❌ AUDIO → QUIZ ERROR:", error);
+
+    // Handle Groq 413 (File too large)
+    if (error.message && error.message.includes('413')) {
+      return res.status(413).json({
+        success: false,
+        message: "Audio file is too large. Please upload a file smaller than 25MB.",
+        error: "File exceeds Groq API limit (25MB)"
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate quiz from audio",
+      error: error.message
+    });
+  }
+});
+
 // ===========================================================================
 // 19. ERROR HANDLING MIDDLEWARE
 // ===========================================================================
@@ -7360,6 +7570,7 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
 });
 
 
+
 // ===========================================================================
 // 17. SOCKET.IO HANDLERS (REAL-TIME ENGINE)
 // ===========================================================================
@@ -7396,12 +7607,37 @@ io.on('connection', (socket) => {
 
       logger.info(`👤 Client ${socket.id} joined room ${code} as ${actualName}`);
 
+      // ===== FIX #2: Add participant to session database =====
+      const session = await Session.findOne({ roomCode: code });
+      if (session) {
+        // Check if participant already exists
+        const existingParticipant = session.participants.find(
+          p => p.username === actualName || (p.userId && socket.data.userId && p.userId.toString() === socket.data.userId.toString())
+        );
+
+        if (!existingParticipant) {
+          session.participants.push({
+            userId: socket.data.userId,
+            username: actualName,
+            socketId: socket.id,
+            status: 'ready', // Set to ready immediately
+            score: 0,
+            correctAnswers: 0,
+            answers: [],
+            joinedAt: new Date()
+          });
+          await session.save();
+          logger.info(`✅ Added ${actualName} to session participants`);
+        }
+      }
+      // ===== END FIX #2 =====
+
       // Notify others
       io.to(code).emit('participant-joined', {
         participant: {
           username: actualName,
           socketId: socket.id,
-          status: 'waiting',
+          status: 'ready', // Changed from 'waiting' to 'ready'
           joinedAt: new Date()
         }
       });
@@ -7506,14 +7742,7 @@ io.on('connection', (socket) => {
 // AI QUIZ GENERATION ROUTES
 // ===========================================================================
 
-try {
-  const quizGenerationRoutes = require('./routes/quizGeneration');
-  app.use('/api/quiz-generation', quizGenerationRoutes);
-  logger.info('✅ AI Quiz Generation routes mounted at /api/quiz-generation');
-} catch (error) {
-  logger.warn('⚠️ Quiz generation routes not available:', error.message);
-  logger.warn('   Install dependencies: npm install pdf-parse multer groq-sdk');
-}
+
 
 // ===========================================================================
 // ANALYTICS ROUTES
@@ -7542,6 +7771,7 @@ try {
 // ===========================================================================
 // 20. START SERVER WITH COMPREHENSIVE LOGGING
 // ===========================================================================
+
 
 server.listen(PORT, () => {
   logger.info("================================================");

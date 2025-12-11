@@ -18,6 +18,7 @@
     "canvas-confetti": "^1.9.4",
     "chart.js": "^4.5.1",
     "framer-motion": "^10.16.5",
+    "groq-sdk": "^0.37.0",
     "gsap": "^3.14.1",
     "lucide-react": "^0.309.0",
     "qrcode.react": "^4.2.0",

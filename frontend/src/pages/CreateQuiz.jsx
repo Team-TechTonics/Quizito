@@ -256,12 +256,18 @@ const CreateQuiz = () => {
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      // Use 'audio' for audio uploads (matches new backend route), 'file' for PDF
+      if (type === 'pdf') {
+        formData.append('file', file)
+      } else {
+        formData.append('audio', file)
+      }
+
       formData.append('numberOfQuestions', '10')
       formData.append('difficulty', 'medium')
       formData.append('category', 'General')
 
-      const endpoint = type === 'pdf' ? '/api/quiz-generation/from-pdf' : '/api/quiz-generation/from-audio'
+      const endpoint = type === 'pdf' ? '/api/quiz/generate-from-pdf' : '/api/quiz-generation/from-audio'
 
       toast.loading(`Processing ${type === 'pdf' ? 'PDF' : 'audio'}...`, { id: 'upload' })
 
@@ -279,7 +285,31 @@ const CreateQuiz = () => {
       toast.dismiss('upload')
 
       if (response.data.success) {
-        const generatedQuiz = response.data.quiz
+        // Handle different response structures
+        // PDF route returns { quiz: { questions: [...] } }
+        // Audio route returns { quiz: [...] } (array of questions)
+        const rawQuiz = response.data.quiz
+        const questionsArray = Array.isArray(rawQuiz) ? rawQuiz : (rawQuiz.questions || [])
+
+        // Wrap in standard format if it's just an array
+        const generatedQuiz = Array.isArray(rawQuiz)
+          ? { title: 'Audio Quiz', questions: rawQuiz, category: 'General', difficulty: 'medium' }
+          : rawQuiz
+
+
+        // Temporary logging to see actual structure
+        console.log('🔍 Quiz structure:', {
+          hasQuiz: !!generatedQuiz,
+          hasQuestions: !!generatedQuiz?.questions,
+          quizKeys: generatedQuiz ? Object.keys(generatedQuiz) : [],
+          quiz: generatedQuiz
+        })
+
+        if (!generatedQuiz || !generatedQuiz.questions) {
+          console.error('❌ Invalid structure. Expected quiz.questions, got:', generatedQuiz)
+          throw new Error('Invalid quiz structure received from server')
+        }
+
         toast.success(`Generated ${generatedQuiz.questions.length} questions!`)
 
         // Format questions for handleCreateAndHost
@@ -288,18 +318,27 @@ const CreateQuiz = () => {
           description: `Generated from ${type === 'pdf' ? 'PDF' : 'audio'}: ${file.name}`,
           category: generatedQuiz.category || 'General',
           difficulty: generatedQuiz.difficulty || 'medium',
-          questions: generatedQuiz.questions.map(q => ({
-            text: q.question,
-            type: 'multiple-choice',
-            options: q.options.map((opt, idx) => ({
-              text: opt,
-              isCorrect: idx === q.correctAnswer
-            })),
-            correctAnswer: q.options[q.correctAnswer],
-            explanation: q.explanation,
-            timeLimit: 30,
-            points: 100
-          }))
+          questions: generatedQuiz.questions.map((q, qIndex) => {
+            // Python service returns 'answer' (text), find its index in options
+            const correctAnswerText = q.answer || q.correctAnswer
+            const correctIndex = q.options.findIndex(opt =>
+              opt.toLowerCase().trim() === (correctAnswerText || '').toLowerCase().trim()
+            )
+            const finalIndex = correctIndex >= 0 ? correctIndex : 0
+
+            return {
+              question: q.question,
+              type: 'multiple-choice',
+              options: q.options.map((opt, idx) => ({
+                text: opt,
+                isCorrect: idx === finalIndex
+              })),
+              correctAnswer: q.options[finalIndex],
+              explanation: q.explanation || `The correct answer is: ${q.options[finalIndex]}`,
+              timeLimit: 30,
+              points: 100
+            }
+          })
         }
 
         await handleCreateAndHost(quizData)
@@ -308,7 +347,8 @@ const CreateQuiz = () => {
       }
     } catch (error) {
       console.error('File upload error:', error)
-      toast.error(error.response?.data?.error || error.message || 'Failed to process file')
+      console.error('Backend error response:', error.response?.data)
+      toast.error(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to process file')
     } finally {
       setLoading(false)
       setUploadProgress(0)
