@@ -7083,8 +7083,12 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
     console.log("⏱️  Note: First request may take 1-2 minutes due to Render cold start");
 
     // Send to Python AI server deployed on Render
+    // Use env var or fallback to the known production URL
+    const pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-fh77.onrender.com";
+    const pythonEndpoint = `${pythonUrl}/api/upload`;
+
     const pythonResponse = await axios.post(
-      "https://quizito-fh77.onrender.com/api/upload",
+      pythonEndpoint,
       form,
       {
         headers: form.getHeaders(),
@@ -7158,7 +7162,12 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
 
 
 const Groq = require("groq-sdk");
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Initialize Groq logic
+const groqApiKey = process.env.GROQ_API_KEY;
+if (!groqApiKey) {
+  console.warn("⚠️ GROQ_API_KEY is missing! Audio quiz generation will fail.");
+}
+const groq = new Groq({ apiKey: groqApiKey || "dummy_key_to_prevent_crash" });
 
 // Helper function for text-to-quiz generation
 function generateQuizFromText(text) {
@@ -7208,6 +7217,16 @@ app.post("/api/quiz-generation/from-audio", audioUpload.single("audio"), async (
     }
 
     console.log(`📊 Audio size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    // Check for API key before calling
+    if (!process.env.GROQ_API_KEY) {
+      console.error("❌ Missing GROQ_API_KEY in environment variables");
+      return res.status(500).json({
+        success: false,
+        message: "Server configuration error: Missing GROQ_API_KEY. Please add it to your Render environment config.",
+        error: "Missing API Key"
+      });
+    }
 
     // Send audio to Groq Whisper API
     console.log("🚀 Sending to Groq Whisper...");
