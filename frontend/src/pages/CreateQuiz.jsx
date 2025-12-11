@@ -7,7 +7,7 @@ import AIGenerator from '../components/ai/AIGenerator'
 import QuizCreator from '../components/quiz/QuizCreator'
 import { Brain, FileText, Upload, Sparkles, Users, Rocket, Copy, Zap, Mic, Square, Play } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { api } from '../lib/api'
+import { api } from '../lib/api.js'
 
 const CreateQuiz = () => {
   const { createQuiz, generateAIQuiz } = useQuiz()

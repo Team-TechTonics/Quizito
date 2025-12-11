@@ -92,12 +92,13 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
 
             const content = response.data.choices[0].message.content;
 
-            // Clean the response - remove markdown code blocks if present
-            let cleanedContent = content.trim();
-            if (cleanedContent.startsWith('```json')) {
-                cleanedContent = cleanedContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-            } else if (cleanedContent.startsWith('```')) {
-                cleanedContent = cleanedContent.replace(/```\n?/g, '');
+            // Clean the response - find JSON array
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            let cleanedContent = jsonMatch ? jsonMatch[0] : content;
+
+            // Validate it looks like JSON
+            if (!cleanedContent.trim().startsWith('[')) {
+                throw new Error('Response does not contain a valid JSON array');
             }
 
             // Parse JSON

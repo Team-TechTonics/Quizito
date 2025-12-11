@@ -8,7 +8,8 @@ import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import QuizTimer from '../components/QuizTimer';
 import '../styles/globals.css';
-import { api } from '../lib/api';
+import { api } from '../lib/api.js';
+import useSpeech from '../hooks/useSpeech';
 
 const HostSession = () => {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ const HostSession = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [sessionId, setSessionId] = useState(null);
+  const [selectedOption, setSelectedOption] = useState(null);
 
   // Initialize session
   useEffect(() => {
@@ -185,6 +187,7 @@ const HostSession = () => {
           setCurrentQuestionIndex(data.questionIndex);
           setTimeRemaining(data.timeRemaining || 30);
           setTotalQuestions(data.totalQuestions);
+          setSelectedOption(null); // Reset selection
         });
 
         // Timer updates
@@ -199,6 +202,7 @@ const HostSession = () => {
           setCurrentQuestion(data.question);
           setCurrentQuestionIndex(data.questionIndex);
           setTimeRemaining(data.timeRemaining || 30);
+          setSelectedOption(null); // Reset selection
         });
 
         // Question completed (showing answers)
@@ -266,7 +270,7 @@ const HostSession = () => {
           toast('Session ended by host', { icon: '🛑' });
 
           setTimeout(() => {
-            navigate('/dashboard');
+            navigate('/profile');
           }, 3000);
         });
 
@@ -300,6 +304,22 @@ const HostSession = () => {
 
     initializeSession();
   }, [navigate, currentQuiz, user]);
+
+  // Speech Integration
+  const { speak, stop, toggleSpeech, speechEnabled, isSpeaking } = useSpeech();
+
+  useEffect(() => {
+    if (gameStatus === 'question' && currentQuestion && speechEnabled) {
+      // Speak the question text
+      speak(currentQuestion.text);
+
+      // Optionally speak options after a delay? 
+      // For now just the question to avoid noise.
+    } else if (gameStatus !== 'question') {
+      stop();
+    }
+  }, [currentQuestion, gameStatus, speechEnabled, speak, stop]);
+
 
   const handleStartQuiz = () => {
     if (!socketRef.current || !roomCode) {
@@ -493,7 +513,7 @@ const HostSession = () => {
                     <span>📝</span> Create New Quiz
                   </button>
                   <button
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => navigate('/profile')}
                     className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold flex items-center justify-center gap-2"
                   >
                     <span>🏠</span> Back to Dashboard
@@ -515,6 +535,13 @@ const HostSession = () => {
                         Q{currentQuestionIndex + 1}/{totalQuestions}
                       </h2>
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={toggleSpeech}
+                          className={`p-2 rounded-full transition ${speechEnabled ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                          title={speechEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech"}
+                        >
+                          {speechEnabled ? "🔊" : "🔇"}
+                        </button>
                         <span className="px-3 py-1 bg-gray-700 rounded-full text-sm">
                           {currentQuestion.difficulty || 'Medium'}
                         </span>
@@ -531,13 +558,37 @@ const HostSession = () => {
                         {currentQuestion.options.map((option, i) => (
                           <div
                             key={i}
-                            className="p-4 border border-gray-600 rounded-lg hover:bg-gray-700/50 transition cursor-pointer bg-gray-800/30"
+                            onClick={() => {
+                              if (gameStatus === 'question' && selectedOption === null) {
+                                setSelectedOption(i); // Mark as selected
+
+                                // Submit answer using the socket ref
+                                // Need to calculate time taken or just send raw
+                                const timeTaken = 30 - timeRemaining;
+                                socketRef.current.emit('submit-answer', {
+                                  roomCode,
+                                  questionId: currentQuestion._id,
+                                  selectedOption: i,
+                                  timeTaken
+                                });
+                                // Optimistic update or wait for result?
+                                // PlayQuiz waits for 'answer-result'. HostSession currently doesn't listen to it?
+                                // Let's add toast for feedback
+                                toast.success('Answer submitted!');
+                              }
+                            }}
+                            className={`p-4 border rounded-lg transition cursor-pointer ${selectedOption === i
+                              ? 'bg-blue-600 border-blue-400 ring-2 ring-blue-400'
+                              : gameStatus === 'question'
+                                ? 'bg-gray-800/30 border-gray-600 hover:bg-gray-700/50 hover:border-cyan-500' // Default interactive
+                                : 'bg-gray-800/50 border-gray-700 opacity-70 cursor-not-allowed' // Disabled
+                              }`}
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${selectedOption === i ? 'bg-white text-blue-600' : 'bg-gray-700'}`}>
                                 {String.fromCharCode(65 + i)}
                               </div>
-                              <span>{option.text}</span>
+                              <span className="text-lg">{option.text}</span>
                             </div>
                           </div>
                         ))}
@@ -629,7 +680,7 @@ const HostSession = () => {
                       }}
                       className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold"
                     >
-                      ⏩ Skip Question
+                      ⏩ Next Question
                     </button>
                   )}
 

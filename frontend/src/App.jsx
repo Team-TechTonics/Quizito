@@ -26,6 +26,8 @@ import JoinQuiz from './pages/JoinQuiz'
 import HostDashboard from './components/HostDashboard';
 import PlayerView from './components/PlayerView';
 import JoinSession from './components/JoinSession';
+import PerformanceDashboard from './pages/PerformanceDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   return (
@@ -58,6 +60,8 @@ function App() {
                     <Route path="/create-quiz" element={<CreateQuiz />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/JoinQuiz" element={<JoinQuiz />} />
+                    <Route path="/performance" element={<PerformanceDashboard />} />
+                    <Route path="/admin" element={<AdminDashboard />} />
                   </Route>
 
                   {/* Host Dashboard */}

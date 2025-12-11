@@ -14,10 +14,12 @@ import {
   ChevronRight,
   ChevronLeft,
   Volume2,
+  VolumeX,
   Flag
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Countdown from 'react-countdown'
+import { useSpeech } from '../../hooks/useSpeech'
 
 const QuestionDisplay = ({
   question,
@@ -39,10 +41,13 @@ const QuestionDisplay = ({
   const [timerActive, setTimerActive] = useState(true)
   const [answerSubmitted, setAnswerSubmitted] = useState(false)
   const [hoveredOption, setHoveredOption] = useState(null)
-  
+
   const timerRef = useRef(null)
   const questionStartTime = useRef(Date.now())
   const audioRef = useRef(null)
+
+  // Speech-to-Text hook
+  const { speak, stop, isSpeaking, speechEnabled, toggleSpeech } = useSpeech()
 
   const difficulties = {
     easy: { color: 'from-green-500 to-emerald-500', label: 'Easy', icon: '🌟' },
@@ -91,6 +96,19 @@ const QuestionDisplay = ({
     }
   }, [timeRemaining, answerSubmitted])
 
+  // Speak question when it changes (if speech is enabled)
+  useEffect(() => {
+    if (speechEnabled && question?.question) {
+      // Speak the question text
+      speak(question.question)
+    }
+
+    // Cleanup: stop speaking when component unmounts or question changes
+    return () => {
+      stop()
+    }
+  }, [question, speechEnabled])
+
   const handleTimeUp = () => {
     setIsTimeUp(true)
     setTimerActive(false)
@@ -98,7 +116,7 @@ const QuestionDisplay = ({
       const timeTaken = Math.floor((Date.now() - questionStartTime.current) / 1000)
       onTimeUp(timeTaken)
     }
-    
+
     // Auto-select if no answer chosen
     if (!selectedAnswer && question?.options?.length > 0) {
       const randomOption = question.options[0].text
@@ -114,16 +132,16 @@ const QuestionDisplay = ({
         const audioContext = new (window.AudioContext || window.webkitAudioContext)()
         const oscillator = audioContext.createOscillator()
         const gainNode = audioContext.createGain()
-        
+
         oscillator.connect(gainNode)
         gainNode.connect(audioContext.destination)
-        
+
         oscillator.frequency.value = 800
         oscillator.type = 'sine'
-        
+
         gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1)
-        
+
         oscillator.start(audioContext.currentTime)
         oscillator.stop(audioContext.currentTime + 0.1)
       } catch (error) {
@@ -134,13 +152,13 @@ const QuestionDisplay = ({
 
   const handleAnswerSelect = (option) => {
     if (answerSubmitted || isTimeUp) return
-    
+
     setAnswerSubmitted(true)
     setTimerActive(false)
     clearInterval(timerRef.current)
-    
+
     const timeTaken = Math.floor((Date.now() - questionStartTime.current) / 1000)
-    
+
     if (onAnswerSelect) {
       onAnswerSelect(option, timeTaken)
     }
@@ -175,13 +193,13 @@ const QuestionDisplay = ({
 
   const getPointsForAnswer = () => {
     if (!selectedAnswer || !question) return 0
-    
+
     const basePoints = question.points || 100
     const timeTaken = Math.floor((Date.now() - questionStartTime.current) / 1000)
     const timeBonus = Math.max(0, 10 - timeTaken) * 10 // Bonus for speed
-    
-    return selectedAnswer === question.correctAnswer 
-      ? basePoints + timeBonus 
+
+    return selectedAnswer === question.correctAnswer
+      ? basePoints + timeBonus
       : 0
   }
 
@@ -224,7 +242,7 @@ const QuestionDisplay = ({
                 {totalQuestions}
               </div>
             </div>
-            
+
             <div>
               <div className="flex items-center space-x-3 mb-2">
                 <span className={`badge bg-gradient-to-r ${difficulties[difficulty].color} text-white border-0`}>
@@ -243,8 +261,32 @@ const QuestionDisplay = ({
             </div>
           </div>
 
-          {/* Timer and Points */}
-          <div className="flex items-center space-x-6">
+          {/* Speech Control, Timer and Points */}
+          <div className="flex items-center space-x-4">
+            {/* Speech Control Button */}
+            <button
+              onClick={toggleSpeech}
+              className={`flex items-center space-x-2 px-4 py-3 rounded-xl transition-all ${speechEnabled
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              title={speechEnabled ? 'Disable question reading' : 'Enable question reading'}
+            >
+              {speechEnabled ? (
+                <>
+                  <Volume2 size={20} className={isSpeaking ? 'animate-pulse' : ''} />
+                  <span className="hidden sm:inline font-medium">
+                    {isSpeaking ? 'Speaking...' : 'Speech On'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <VolumeX size={20} />
+                  <span className="hidden sm:inline font-medium">Speech Off</span>
+                </>
+              )}
+            </button>
+
             {/* Timer */}
             <div className="text-center">
               <div className="flex items-center space-x-2 mb-2">
@@ -255,13 +297,12 @@ const QuestionDisplay = ({
               </div>
               <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
                 <motion.div
-                  className={`h-full ${
-                    timeRemaining <= 10 
-                      ? 'bg-gradient-to-r from-red-500 to-pink-500' 
-                      : timeRemaining <= 20
+                  className={`h-full ${timeRemaining <= 10
+                    ? 'bg-gradient-to-r from-red-500 to-pink-500'
+                    : timeRemaining <= 20
                       ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
                       : 'bg-gradient-to-r from-green-500 to-emerald-500'
-                  }`}
+                    }`}
                   initial={{ width: '100%' }}
                   animate={{ width: `${(timeRemaining / timeLimit) * 100}%` }}
                   transition={{ duration: 1, ease: 'linear' }}
@@ -287,7 +328,7 @@ const QuestionDisplay = ({
           <h2 className="text-3xl font-bold leading-relaxed mb-6">
             {question.question}
           </h2>
-          
+
           {question.image && (
             <div className="mb-6">
               <img
@@ -326,11 +367,10 @@ const QuestionDisplay = ({
       </div>
 
       {/* Options Grid */}
-      <div className={`grid ${
-        question.options.length <= 2 ? 'grid-cols-1 md:grid-cols-2' :
+      <div className={`grid ${question.options.length <= 2 ? 'grid-cols-1 md:grid-cols-2' :
         question.options.length <= 4 ? 'grid-cols-1 md:grid-cols-2' :
-        'grid-cols-1 md:grid-cols-2 lg:grid-cols-2'
-      } gap-4 mb-8`}>
+          'grid-cols-1 md:grid-cols-2 lg:grid-cols-2'
+        } gap-4 mb-8`}>
         {question.options.map((option, index) => (
           <motion.button
             key={index}
@@ -343,23 +383,21 @@ const QuestionDisplay = ({
             onMouseEnter={() => setHoveredOption(index)}
             onMouseLeave={() => setHoveredOption(null)}
             disabled={answerSubmitted || isTimeUp}
-            className={`quiz-option relative overflow-hidden group ${
-              getOptionClass(option.text)
-            } ${hoveredOption === index ? 'scale-[1.02]' : ''}`}
+            className={`quiz-option relative overflow-hidden group ${getOptionClass(option.text)
+              } ${hoveredOption === index ? 'scale-[1.02]' : ''}`}
           >
             {/* Option Letter */}
-            <div className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
-              selectedAnswer === option.text 
-                ? 'bg-gradient-to-br from-primary-600 to-accent-600 text-white' 
-                : 'bg-gray-100 text-gray-700'
-            }`}>
+            <div className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${selectedAnswer === option.text
+              ? 'bg-gradient-to-br from-primary-600 to-accent-600 text-white'
+              : 'bg-gray-100 text-gray-700'
+              }`}>
               {getOptionLetter(index)}
             </div>
 
             {/* Option Text */}
             <div className="pl-16 pr-12 py-4">
               <p className="text-lg font-medium">{option.text}</p>
-              
+
               {/* Option Stats (for host) */}
               {isHost && (
                 <div className="mt-2 flex items-center space-x-3 text-sm text-gray-500">
@@ -409,11 +447,10 @@ const QuestionDisplay = ({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className={`rounded-2xl p-8 mb-8 ${
-              selectedAnswer === question.correctAnswer
-                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200'
-                : 'bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-200'
-            }`}>
+            <div className={`rounded-2xl p-8 mb-8 ${selectedAnswer === question.correctAnswer
+              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200'
+              : 'bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-200'
+              }`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-4">
@@ -467,7 +504,7 @@ const QuestionDisplay = ({
                         <HelpCircle size={20} />
                         <span>{showExplanation ? 'Hide Explanation' : 'Show Explanation'}</span>
                       </button>
-                      
+
                       {showExplanation && (
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}

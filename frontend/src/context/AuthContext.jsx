@@ -1,7 +1,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import { api, setAuthToken } from "../lib/api";
+import { api, setAuthToken } from "../lib/api.js";
 
 const AuthContext = createContext();
 

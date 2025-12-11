@@ -637,7 +637,7 @@ const PlayQuiz = () => {
             ) : null}
 
             {/* Leaderboard */}
-            {gameState.leaderboard.length > 0 && (
+            {gameState.leaderboard?.length > 0 && (
               <div className="mt-6">
                 <Leaderboard
                   players={gameState.leaderboard}

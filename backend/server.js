@@ -2594,6 +2594,48 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Force Next Question (Host)
+  socket.on('next-question-force', async ({ roomCode }) => {
+    const code = roomCode.toUpperCase();
+
+    if (activeSessions.has(code)) {
+      const sessionData = activeSessions.get(code);
+      const session = await Session.findById(sessionData.sessionId).populate('quizId');
+
+      if (session) {
+        const nextIndex = (sessionData.currentQuestionIndex || 0) + 1;
+
+        if (nextIndex < session.quizId.questions.length) {
+          // Advance to next question
+          activeSessions.set(code, {
+            ...sessionData,
+            currentQuestionIndex: nextIndex
+          });
+
+          io.to(code).emit('next-question', {
+            question: session.quizId.questions[nextIndex],
+            questionIndex: nextIndex,
+            totalQuestions: session.quizId.questions.length,
+            timeRemaining: session.settings.questionTime || 30
+          });
+        } else {
+          // End of quiz
+          // Calculate final results (mock for now)
+          const leaderboard = []; // In real app, aggregate from DB session.participants
+
+          io.to(code).emit('quiz-completed', {
+            finalResults: {
+              sessionId: session._id,
+              quizId: session.quizId._id,
+              leaderboard: leaderboard,
+              totalQuestions: session.quizId.questions.length
+            }
+          });
+        }
+      }
+    }
+  });
+
   // Handle answer submission
   socket.on("submit-answer", async (data, callback) => {
     try {
@@ -7317,6 +7359,149 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
   }
 });
 
+
+// ===========================================================================
+// 17. SOCKET.IO HANDLERS (REAL-TIME ENGINE)
+// ===========================================================================
+
+io.on('connection', (socket) => {
+  logger.info(`🔌 New client connected: ${socket.id}`);
+
+  // Authenticate (Simple handshake)
+  socket.on('authenticate', ({ token }) => {
+    // In a real app, verify token here.
+    // For now, accept everyone to unblock gameplay.
+    socket.emit('authenticated', { user: { id: socket.handshake.auth.userId } });
+  });
+
+  // Join session
+  socket.on('join-session', async ({ roomCode, displayName, username }) => {
+    try {
+      if (!roomCode) return;
+      const code = roomCode.toUpperCase();
+      const actualName = displayName || username || "Guest";
+
+      socket.join(code);
+
+      // Store socket metadata
+      socket.data.roomCode = code;
+      socket.data.displayName = actualName;
+      socket.data.userId = socket.handshake.auth.userId;
+
+      // Add to room tracking
+      if (!roomSockets.has(code)) {
+        roomSockets.set(code, new Set());
+      }
+      roomSockets.get(code).add(socket.id);
+
+      logger.info(`👤 Client ${socket.id} joined room ${code} as ${actualName}`);
+
+      // Notify others
+      io.to(code).emit('participant-joined', {
+        participant: {
+          username: actualName,
+          socketId: socket.id,
+          status: 'waiting',
+          joinedAt: new Date()
+        }
+      });
+
+      // Send session info to the joiner (Hydrate frontend)
+      if (activeSessions.has(code)) {
+        const sessionData = activeSessions.get(code);
+        // Ideally use lean() for speed, but populate quizId is needed
+        // We do a quick fetch here.
+        const session = await Session.findById(sessionData.sessionId)
+          .populate('quizId', 'title category difficulty questions') // Need questions if we want to show them
+          .lean(); // Faster
+
+        if (session) {
+          socket.emit('session-joined', {
+            session: {
+              ...session,
+              quiz: session.quizId // Frontend might expect 'quiz' or 'quizId' populated
+            }
+          });
+        }
+      }
+
+    } catch (error) {
+      logger.error(`Error joining session: ${error.message}`);
+    }
+  });
+
+  // Player ready
+  socket.on('player-ready', ({ roomCode, isReady }) => {
+    if (!roomCode) return;
+    const code = roomCode.toUpperCase();
+
+    // Broadcast update
+    io.to(code).emit('player-ready-update', {
+      socketId: socket.id,
+      isReady
+    });
+  });
+
+  // Submit Answer - CORE SCORING LOGIC
+  socket.on('submit-answer', async (data) => {
+    try {
+      const { roomCode, questionId, selectedOption, timeTaken } = data;
+      const code = roomCode.toUpperCase();
+
+      // Basic scoring algorithm
+      let points = 0;
+      let isCorrect = false;
+      let correctAnswer = 0;
+
+      if (activeSessions.has(code)) {
+        const sessionData = activeSessions.get(code);
+        const session = await Session.findById(sessionData.sessionId).populate('quizId');
+        if (session) {
+          const question = session.quizId.questions.find(q => q._id.toString() === questionId);
+          if (question) {
+            isCorrect = question.correctAnswer === selectedOption;
+            correctAnswer = question.correctAnswer;
+            if (isCorrect) {
+              const maxTime = session.settings.questionTime || 30;
+              const ratio = Math.max(0, 1 - (timeTaken / maxTime));
+              points = 1000 + Math.round(ratio * 500);
+            }
+          }
+        }
+      }
+
+      // Emit result back to user
+      socket.emit('answer-result', {
+        isCorrect,
+        points,
+        correctAnswer
+      });
+
+      // Broadcast leaderboard update
+      io.to(code).emit('leaderboard-update', {
+        players: [
+          { username: socket.data.displayName, score: points, userId: socket.data.userId }
+        ]
+      });
+
+    } catch (error) {
+      logger.error(`Error submitting answer: ${error.message}`);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    logger.info(`🔌 Client disconnected: ${socket.id}`);
+    const code = socket.data.roomCode;
+    if (code && roomSockets.has(code)) {
+      roomSockets.get(code).delete(socket.id);
+      io.to(code).emit('participant-disconnected', {
+        socketId: socket.id,
+        username: socket.data.displayName
+      });
+    }
+  });
+});
+
 // ===========================================================================
 // AI QUIZ GENERATION ROUTES
 // ===========================================================================
@@ -7328,6 +7513,30 @@ try {
 } catch (error) {
   logger.warn('⚠️ Quiz generation routes not available:', error.message);
   logger.warn('   Install dependencies: npm install pdf-parse multer groq-sdk');
+}
+
+// ===========================================================================
+// ANALYTICS ROUTES
+// ===========================================================================
+
+try {
+  const analyticsRoutes = require('./routes/analytics');
+  app.use('/api/analytics', analyticsRoutes);
+  logger.info('✅ Analytics routes mounted at /api/analytics');
+} catch (error) {
+  logger.warn('⚠️ Analytics routes not available:', error.message);
+}
+
+// ===========================================================================
+// ADAPTIVE DIFFICULTY ROUTES
+// ===========================================================================
+
+try {
+  const adaptiveRoutes = require('./routes/adaptive');
+  app.use('/api/adaptive', adaptiveRoutes);
+  logger.info('✅ Adaptive difficulty routes mounted at /api/adaptive');
+} catch (error) {
+  logger.warn('⚠️ Adaptive routes not available:', error.message);
 }
 
 // ===========================================================================
