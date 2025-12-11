@@ -406,7 +406,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: "/auth/google/callback",
+        callbackURL: "/api/auth/google/callback",
         proxy: true,
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -447,12 +447,12 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
   // Routes
   app.get(
-    "/auth/google",
+    "/api/auth/google",
     passport.authenticate("google", { scope: ["profile", "email"] })
   );
 
   app.get(
-    "/auth/google/callback",
+    "/api/auth/google/callback",
     passport.authenticate("google", { session: false, failureRedirect: `${FRONTEND_URL}/login?error=auth_failed` }),
     (req, res) => {
       // Generate token
