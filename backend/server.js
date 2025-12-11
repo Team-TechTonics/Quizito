@@ -251,6 +251,8 @@ const io = socketIo(server, {
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "https://quizitottc.netlify.app",
+        "https://quizitoteamtechtonics.netlify.app",
+        "https://quizito-backend.onrender.com",
         FRONTEND_URL,
       ].filter(Boolean);
 
@@ -304,6 +306,8 @@ const corsOptions = {
       "http://localhost:3000",
       "http://127.0.0.1:5173",
       "https://quizitottc.netlify.app",
+      "https://quizitoteamtechtonics.netlify.app",
+      "https://quizito-backend.onrender.com",
       FRONTEND_URL,
     ].filter(Boolean);
 
