@@ -25,7 +25,6 @@ const express = require("express");
 const app = express();
 app.set("trust proxy", 1); // Fixes express-rate-limit X-Forwarded-For error on Render
 
-//const jwt = require("jsonwebtoken");
 const http = require("http");
 const server = http.createServer(app);
 const socketIo = require("socket.io");
@@ -42,32 +41,10 @@ const fs = require("fs").promises;
 const fsSync = require("fs");
 const { Readable } = require("stream");
 const PDFParser = require("pdf-parse");
-//const Redis = require("ioredis");
+const Redis = require("ioredis");
 const winston = require("winston");
 const axios = require("axios");
-// ===========================================================================
-// DUPLICATE CHECKER - Add this right after imports
-// ===========================================================================
-const declaredFunctions = new Set();
 
-const originalDeclare = (name, func) => {
-  if (declaredFunctions.has(name)) {
-    console.error(`❌ DUPLICATE FUNCTION: "${name}" already declared. Skipping duplicate.`);
-    return null;
-  }
-  declaredFunctions.add(name);
-  return func;
-};
-
-// Wrap your function declarations (temporary debugging)
-const wrapDeclaration = (name, func) => {
-  try {
-    return originalDeclare(name, func);
-  } catch (error) {
-    console.error(`Error declaring ${name}:`, error.message);
-    return func; // Fallback to original
-  }
-};
 // ===========================================================================
 // 1. CONFIGURATION & ENVIRONMENT
 // ===========================================================================
@@ -75,15 +52,16 @@ const wrapDeclaration = (name, func) => {
 const {
   NODE_ENV = "development",
   PORT = 10000,
-  MONGODB_URI="mongodb+srv://ramanujpatro07_db_user:cVCxtMKOSxL8Sa1q@quizito.ztdjpfy.mongodb.net/quizito?retryWrites=true&w=majority&appName=Quizito",
+  MONGODB_URI = "mongodb+srv://ramanujpatro07_db_user:cVCxtMKOSxL8Sa1q@quizito.ztdjpfy.mongodb.net/quizito?retryWrites=true&w=majority&appName=Quizito",
   JWT_SECRET = require("crypto").randomBytes(64).toString("hex"),
   OPENAI_API_KEY,
   DEEPSEEK_API_KEY,
   SPEECH_API_KEY,
   FRONTEND_URL = "http://localhost:5173",
-  ADMIN_EMAIL="admin@Quizito.com",
+  ADMIN_EMAIL = "admin@Quizito.com",
   MAX_FILE_SIZE = 50 * 1024 * 1024,
   SESSION_SECRET = require("crypto").randomBytes(64).toString("hex"),
+  REDIS_URL,
 } = process.env;
 
 // Validate required environment variables
@@ -108,13 +86,13 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: "quiz-backend" },
   transports: [
-    new winston.transports.File({ 
-      filename: "logs/error.log", 
+    new winston.transports.File({
+      filename: "logs/error.log",
       level: "error",
       maxsize: 5242880,
       maxFiles: 5,
     }),
-    new winston.transports.File({ 
+    new winston.transports.File({
       filename: "logs/combined.log",
       maxsize: 5242880,
       maxFiles: 5,
@@ -149,9 +127,9 @@ const connectWithRetry = async () => {
       w: "majority",
     });
     logger.info("✅ MongoDB connected successfully");
-    
+
     // Create indexes
-    await createDatabaseIndexes();
+    // await createDatabaseIndexes(); // Temporarily commented out to prevent startup crashes if indexes exist with issues
   } catch (err) {
     logger.error(`❌ MongoDB connection failed: ${err.message}`);
     if (NODE_ENV === "production") {
@@ -164,53 +142,68 @@ const connectWithRetry = async () => {
 
 connectWithRetry();
 
-// // Redis Connection for caching and real-time data
-// let redisClient;
-// if (REDIS_URL) {
-//   redisClient = new Redis(REDIS_URL, {
-//     retryStrategy: (times) => {
-//     const delay = Math.min(times * 50, 2000);
-//      return delay;
-//   },
-//    maxRetriesPerRequest: 3,
-//   });
+// Redis Connection for caching and real-time data
+let redisClient;
+if (REDIS_URL) {
+  redisClient = new Redis(REDIS_URL, {
+    retryStrategy: (times) => {
+      const delay = Math.min(times * 50, 2000);
+      return delay;
+    },
+    maxRetriesPerRequest: 3,
+  });
 
-//   redisClient.on("connect", () => {
-//     logger.info("✅ Redis connected successfully");
-//   });
+  redisClient.on("connect", () => {
+    logger.info("✅ Redis connected successfully");
+  });
 
-//   redisClient.on("error", (err) => {
-//     logger.error(`❌ Redis error: ${err.message}`);
-//   });
-// } else {
-//   logger.warn("⚠️ Redis not configured, using in-memory cache");
-//   // Fallback in-memory cache
-//   const memoryCache = new Map();
-//   redisClient = {
-//     get: async (key) => memoryCache.get(key),
-//     set: async (key, value, mode, duration) => {
-//       memoryCache.set(key, value);
-//       if (duration) {
-//         setTimeout(() => memoryCache.delete(key), duration * 1000);
-//       }
-//     },
-//     del: async (key) => memoryCache.delete(key),
-//     exists: async (key) => memoryCache.has(key),
-//     expire: async (key, seconds) => {
-//       setTimeout(() => memoryCache.delete(key), seconds * 1000);
-//     },
-//     sadd: async (key, member) => {
-//       if (!memoryCache.has(key)) memoryCache.set(key, new Set());
-//       memoryCache.get(key).add(member);
-//     },
-//     srem: async (key, member) => {
-//       if (memoryCache.has(key)) memoryCache.get(key).delete(member);
-//     },
-//     smembers: async (key) => {
-//       return memoryCache.has(key) ? Array.from(memoryCache.get(key)) : [];
-//     },
-//   };
-// }
+  redisClient.on("error", (err) => {
+    logger.error(`❌ Redis error: ${err.message}`);
+  });
+} else {
+  logger.warn("⚠️ Redis not configured, using in-memory cache");
+  // Fallback in-memory cache
+  const memoryCache = new Map();
+  redisClient = {
+    get: async (key) => memoryCache.get(key),
+    set: async (key, value, mode, duration) => {
+      memoryCache.set(key, value);
+      if (duration) {
+        setTimeout(() => memoryCache.delete(key), duration * 1000);
+      }
+    },
+    del: async (key) => memoryCache.delete(key),
+    setex: async (key, seconds, value) => {
+      memoryCache.set(key, value);
+      setTimeout(() => memoryCache.delete(key), seconds * 1000);
+    },
+    incr: async (key) => {
+      const val = (memoryCache.get(key) || 0) + 1;
+      memoryCache.set(key, val);
+      return val;
+    },
+    expire: async (key, seconds) => {
+      // Simple mock, assumes key exists
+      setTimeout(() => memoryCache.delete(key), seconds * 1000);
+    },
+    exists: async (key) => memoryCache.has(key),
+    sadd: async (key, member) => {
+      if (!memoryCache.has(key)) memoryCache.set(key, new Set());
+      memoryCache.get(key).add(member);
+    },
+    srem: async (key, member) => {
+      if (memoryCache.has(key)) memoryCache.get(key).delete(member);
+    },
+    smembers: async (key) => {
+      return memoryCache.has(key) ? Array.from(memoryCache.get(key)) : [];
+    },
+    keys: async (pattern) => {
+      // Very basic wildcard match
+      const regex = new RegExp(pattern.replace('*', '.*'));
+      return Array.from(memoryCache.keys()).filter(k => regex.test(k));
+    }
+  };
+}
 
 // ===========================================================================
 // 4. AI SERVICES INITIALIZATION
@@ -220,7 +213,7 @@ let openai;
 if (OPENAI_API_KEY) {
   try {
     const { OpenAI } = require("openai");
-    openai = new OpenAI({ 
+    openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
       timeout: 30000,
       maxRetries: 3,
@@ -252,7 +245,21 @@ if (DEEPSEEK_API_KEY) {
 
 const io = socketIo(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "https://quizitottc.netlify.app",
+        FRONTEND_URL,
+      ].filter(Boolean);
+
+      if (!origin || allowedOrigins.includes(origin) || NODE_ENV === "development") {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST"],
   },
@@ -464,7 +471,7 @@ const userSchema = new mongoose.Schema({
     minlength: [6, "Password must be at least 6 characters"],
     select: false,
   },
-  
+
   // Role and Permissions
   role: {
     type: String,
@@ -482,11 +489,11 @@ const userSchema = new mongoose.Schema({
     canManageUsers: { type: Boolean, default: false },
     canManageContent: { type: Boolean, default: false },
   },
-  
+
   // Profile Information
   avatar: {
     type: String,
-    default: function() {
+    default: function () {
       return `https://api.dicebear.com/7.x/avataaars/svg?seed=${this.username}`;
     },
   },
@@ -495,7 +502,7 @@ const userSchema = new mongoose.Schema({
   organization: String,
   location: String,
   website: String,
-  
+
   // Learning Preferences
   preferences: {
     theme: { type: String, default: "light", enum: ["light", "dark", "auto"] },
@@ -512,7 +519,7 @@ const userSchema = new mongoose.Schema({
       screenReader: { type: Boolean, default: false },
     },
   },
-  
+
   // Statistics and Progress
   stats: {
     totalQuizzes: { type: Number, default: 0 },
@@ -530,12 +537,12 @@ const userSchema = new mongoose.Schema({
     experience: { type: Number, default: 0 },
     badges: [String],
   },
-  
+
   // Activity Tracking
   lastActive: { type: Date, default: Date.now, index: true },
   lastLogin: { type: Date, default: Date.now },
   loginCount: { type: Number, default: 0 },
-  
+
   // Security and Verification
   emailVerified: { type: Boolean, default: false },
   verificationToken: String,
@@ -544,13 +551,13 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: Date,
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: String,
-  
+
   // Account Status
   isActive: { type: Boolean, default: true, index: true },
   isBanned: { type: Boolean, default: false },
   banReason: String,
   banExpires: Date,
-  
+
   // Social and Connections
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -559,7 +566,7 @@ const userSchema = new mongoose.Schema({
     github: String,
     linkedin: String,
   },
-  
+
   // Metadata
   metadata: {
     signupSource: String,
@@ -574,19 +581,19 @@ const userSchema = new mongoose.Schema({
 });
 
 // Virtual for follower count
-userSchema.virtual("followerCount").get(function() {
+userSchema.virtual("followerCount").get(function () {
   return this.followers?.length || 0;
 });
 
 // Virtual for following count
-userSchema.virtual("followingCount").get(function() {
+userSchema.virtual("followingCount").get(function () {
   return this.following?.length || 0;
 });
 
 // Pre-save middleware for password hashing
-userSchema.pre("save", async function(next) {
+userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
@@ -597,26 +604,26 @@ userSchema.pre("save", async function(next) {
 });
 
 // Method to compare passwords
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 // Method to generate JWT token
-userSchema.methods.generateAuthToken = function(rememberMe = false) {
+userSchema.methods.generateAuthToken = function (rememberMe = false) {
   const payload = {
     id: this._id,
     email: this.email,
     role: this.role,
     username: this.username,
   };
-  
+
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: rememberMe ? "30d" : "7d",
   });
 };
 
 // Method to generate refresh token
-userSchema.methods.generateRefreshToken = function() {
+userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     { id: this._id },
     JWT_SECRET,
@@ -625,7 +632,7 @@ userSchema.methods.generateRefreshToken = function() {
 };
 
 // Method to update user stats
-userSchema.methods.updateStats = async function(quizResult) {
+userSchema.methods.updateStats = async function (quizResult) {
   this.stats.totalQuizzes += 1;
   this.stats.totalScore += quizResult.score;
   this.stats.averageScore = this.stats.totalScore / this.stats.totalQuizzes;
@@ -633,7 +640,7 @@ userSchema.methods.updateStats = async function(quizResult) {
   this.stats.totalCorrect += quizResult.correctAnswers;
   this.stats.totalQuestions += quizResult.totalQuestions;
   this.stats.accuracy = (this.stats.totalCorrect / this.stats.totalQuestions) * 100;
-  
+
   // Update streak
   const today = new Date().toDateString();
   const lastActive = this.lastActive?.toDateString();
@@ -645,7 +652,7 @@ userSchema.methods.updateStats = async function(quizResult) {
   } else {
     this.stats.currentStreak = 1;
   }
-  
+
   // Calculate experience and level
   const expPerQuiz = Math.floor(quizResult.score / 10);
   this.stats.experience += expPerQuiz;
@@ -653,7 +660,7 @@ userSchema.methods.updateStats = async function(quizResult) {
   if (level > this.stats.level) {
     this.stats.level = level;
   }
-  
+
   this.lastActive = new Date();
   await this.save();
 };
@@ -673,7 +680,7 @@ const questionSchema = new mongoose.Schema({
     enum: ["multiple-choice", "true-false", "short-answer", "image-based", "audio-based", "code-based"],
     default: "multiple-choice",
   },
-  
+
   // Options (for multiple choice)
   options: [{
     text: { type: String, required: true },
@@ -682,7 +689,7 @@ const questionSchema = new mongoose.Schema({
     code: String,
     explanation: String,
   }],
-  
+
   // Correct answer information
   correctAnswer: String,
   correctIndex: Number,
@@ -692,7 +699,7 @@ const questionSchema = new mongoose.Schema({
     imageUrl: String,
     videoUrl: String,
   },
-  
+
   // Difficulty and Scoring
   difficulty: {
     type: String,
@@ -710,21 +717,21 @@ const questionSchema = new mongoose.Schema({
     min: [5, "Time limit must be at least 5 seconds"],
     max: [300, "Time limit cannot exceed 300 seconds"],
   },
-  
+
   // Media and Resources
   imageUrl: String,
   audioUrl: String,
   videoUrl: String,
   codeLanguage: String,
   codeSnippet: String,
-  
+
   // Metadata and Tags
   tags: [String],
   category: String,
   subcategory: String,
   learningObjectives: [String],
   prerequisites: [String],
-  
+
   // Hints and Help
   hint: String,
   hintCost: { type: Number, default: 10 }, // Points deducted for using hint
@@ -733,23 +740,23 @@ const questionSchema = new mongoose.Schema({
     url: String,
     type: String,
   }],
-  
+
   // AI and Generation Info
   aiGenerated: { type: Boolean, default: false },
   aiModel: String,
   aiConfidence: Number,
   aiFeedback: String,
-  
+
   // Statistics
   timesAttempted: { type: Number, default: 0 },
   timesCorrect: { type: Number, default: 0 },
   averageTime: { type: Number, default: 0 },
-  
+
   // Accessibility
   altText: String,
   transcript: String,
   supportsScreenReader: { type: Boolean, default: true },
-  
+
   // Validation and Status
   validated: { type: Boolean, default: false },
   validatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -781,7 +788,7 @@ const quizSchema = new mongoose.Schema({
     type: String,
     maxlength: [200, "Short description cannot exceed 200 characters"],
   },
-  
+
   // Categorization
   category: {
     type: String,
@@ -796,13 +803,13 @@ const quizSchema = new mongoose.Schema({
     default: "medium",
     index: true,
   },
-  
+
   // Content
   questions: [questionSchema],
   thumbnail: String,
   coverImage: String,
   language: { type: String, default: "en", index: true },
-  
+
   // Settings and Configuration
   settings: {
     randomizeQuestions: { type: Boolean, default: false },
@@ -821,7 +828,7 @@ const quizSchema = new mongoose.Schema({
     questionTimeLimit: { type: Boolean, default: true },
     adaptiveDifficulty: { type: Boolean, default: false },
   },
-  
+
   // Creator Information
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -834,7 +841,7 @@ const quizSchema = new mongoose.Schema({
     ref: "User",
     index: true,
   },
-  
+
   // Visibility and Access
   visibility: {
     type: String,
@@ -845,7 +852,7 @@ const quizSchema = new mongoose.Schema({
   accessCode: String,
   allowedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   allowedEmails: [String],
-  
+
   // Statistics and Popularity
   stats: {
     totalPlays: { type: Number, default: 0, index: true },
@@ -860,7 +867,7 @@ const quizSchema = new mongoose.Schema({
     shares: { type: Number, default: 0 },
     bookmarks: { type: Number, default: 0 },
   },
-  
+
   // Reviews and Ratings
   reviews: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -871,14 +878,14 @@ const quizSchema = new mongoose.Schema({
     reported: Boolean,
     createdAt: { type: Date, default: Date.now },
   }],
-  
+
   // AI Generation Information
   aiGenerated: { type: Boolean, default: false },
   aiModel: String,
   aiPrompt: String,
   sourceMaterial: String,
   generationTime: Date,
-  
+
   // Versioning
   version: { type: Number, default: 1 },
   parentVersion: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz" },
@@ -888,7 +895,7 @@ const quizSchema = new mongoose.Schema({
     changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     changedAt: { type: Date, default: Date.now },
   }],
-  
+
   // Moderation and Status
   moderated: { type: Boolean, default: false },
   moderatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -901,21 +908,21 @@ const quizSchema = new mongoose.Schema({
   },
   flaggedReason: String,
   flaggedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  
+
   // Scheduling
   scheduledPublish: Date,
   scheduledArchive: Date,
-  
+
   // SEO and Discovery
   metaTitle: String,
   metaDescription: String,
   keywords: [String],
   slug: { type: String, unique: true, index: true },
-  
+
   // Analytics
   lastPlayed: Date,
   trendingScore: { type: Number, default: 0, index: true },
-  
+
   // Accessibility
   accessibility: {
     supportsScreenReader: { type: Boolean, default: true },
@@ -934,13 +941,13 @@ const quizSchema = new mongoose.Schema({
 });
 
 // Virtual for average rating
-quizSchema.virtual("averageRating").get(function() {
+quizSchema.virtual("averageRating").get(function () {
   if (this.stats.ratingCount === 0) return 0;
   return this.stats.rating / this.stats.ratingCount;
 });
 
 // Pre-save middleware to generate slug
-quizSchema.pre("save", async function(next) {
+quizSchema.pre("save", async function (next) {
   if (!this.slug && this.title) {
     let slug = this.title
       .toLowerCase()
@@ -948,7 +955,7 @@ quizSchema.pre("save", async function(next) {
       .replace(/\s+/g, "-")
       .replace(/--+/g, "-")
       .trim();
-    
+
     // Ensure uniqueness
     let originalSlug = slug;
     let counter = 1;
@@ -956,7 +963,7 @@ quizSchema.pre("save", async function(next) {
       slug = `${originalSlug}-${counter}`;
       counter++;
     }
-    
+
     this.slug = slug;
   }
   next();
@@ -981,7 +988,7 @@ const sessionParticipantSchema = new mongoose.Schema({
     enum: ["host", "co-host", "player", "spectator"],
     default: "player",
   },
-  
+
   // Game Statistics
   score: { type: Number, default: 0 },
   streak: { type: Number, default: 0 },
@@ -990,12 +997,12 @@ const sessionParticipantSchema = new mongoose.Schema({
   incorrectAnswers: { type: Number, default: 0 },
   averageTime: { type: Number, default: 0 },
   totalTime: { type: Number, default: 0 },
-  
+
   // Current State
   isReady: { type: Boolean, default: false },
   isConnected: { type: Boolean, default: true },
   lastPing: Date,
-  
+
   // Answers History
   answers: [{
     questionIndex: Number,
@@ -1010,21 +1017,21 @@ const sessionParticipantSchema = new mongoose.Schema({
     hintsUsed: { type: Number, default: 0 },
     powerupsUsed: [String],
   }],
-  
+
   // Power-ups and Bonuses
   powerups: [{
     type: String,
     count: Number,
     lastUsed: Date,
   }],
-  
+
   // Status
   status: {
     type: String,
     enum: ["waiting", "ready", "playing", "finished", "disconnected", "kicked", "banned"],
     default: "waiting",
   },
-  
+
   // Performance Metrics
   performance: {
     accuracy: Number,
@@ -1032,7 +1039,7 @@ const sessionParticipantSchema = new mongoose.Schema({
     consistency: Number,
     rank: Number,
   },
-  
+
   // Connection Info
   deviceInfo: {
     browser: String,
@@ -1061,7 +1068,7 @@ const sessionSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  
+
   // Host Information
   hostId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -1070,7 +1077,7 @@ const sessionSchema = new mongoose.Schema({
     index: true,
   },
   coHosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  
+
   // Game Settings
   settings: {
     maxPlayers: { type: Number, default: 100, min: 1, max: 1000 },
@@ -1097,12 +1104,12 @@ const sessionSchema = new mongoose.Schema({
     backgroundMusic: String,
     theme: { type: String, default: "default" },
   },
-  
+
   // Participants
   participants: [sessionParticipantSchema],
   waitingList: [sessionParticipantSchema],
   bannedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  
+
   // Game State
   currentState: {
     phase: {
@@ -1120,7 +1127,7 @@ const sessionSchema = new mongoose.Schema({
     pauseReason: String,
     pauseTime: Date,
   },
-  
+
   // Game Statistics
   stats: {
     totalQuestions: Number,
@@ -1140,7 +1147,7 @@ const sessionSchema = new mongoose.Schema({
       streak: Number,
     },
   },
-  
+
   // Leaderboard
   leaderboard: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -1156,14 +1163,14 @@ const sessionSchema = new mongoose.Schema({
       speed: Number,
     },
   }],
-  
+
   // Timeline and Duration
   startedAt: Date,
   endedAt: Date,
   duration: Number,
   scheduledStart: Date,
   scheduledEnd: Date,
-  
+
   // Status
   status: {
     type: String,
@@ -1171,13 +1178,13 @@ const sessionSchema = new mongoose.Schema({
     default: "waiting",
     index: true,
   },
-  
+
   // Access Control
   accessCode: String,
   password: String,
   allowedDomains: [String],
   requireEmail: Boolean,
-  
+
   // Analytics
   analytics: {
     peakPlayers: { type: Number, default: 0 },
@@ -1191,7 +1198,7 @@ const sessionSchema = new mongoose.Schema({
     },
     regionBreakdown: Map,
   },
-  
+
   // Chat
   chatEnabled: { type: Boolean, default: true },
   chatMessages: [{
@@ -1206,7 +1213,7 @@ const sessionSchema = new mongoose.Schema({
     },
     reactions: Map,
   }],
-  
+
   // Moderation
   moderators: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   reportedMessages: [{
@@ -1215,7 +1222,7 @@ const sessionSchema = new mongoose.Schema({
     reason: String,
     timestamp: { type: Date, default: Date.now },
   }],
-  
+
   // Metadata
   metadata: {
     createdVia: {
@@ -1260,7 +1267,7 @@ const quizResultSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  
+
   // Performance Metrics
   score: { type: Number, default: 0, index: true },
   maxScore: Number,
@@ -1272,17 +1279,17 @@ const quizResultSchema = new mongoose.Schema({
   averageTimePerQuestion: Number,
   fastestAnswer: Number,
   slowestAnswer: Number,
-  
+
   // Timing
   startedAt: { type: Date, index: true },
   completedAt: { type: Date, index: true },
   duration: Number,
-  
+
   // Rankings
   rank: Number,
   totalParticipants: Number,
   percentile: Number,
-  
+
   // Detailed Analysis
   questionBreakdown: [{
     questionIndex: Number,
@@ -1305,7 +1312,7 @@ const quizResultSchema = new mongoose.Schema({
     hintUsed: Boolean,
     powerupUsed: String,
   }],
-  
+
   categoryBreakdown: [{
     category: String,
     correct: Number,
@@ -1313,7 +1320,7 @@ const quizResultSchema = new mongoose.Schema({
     accuracy: Number,
     averageTime: Number,
   }],
-  
+
   difficultyBreakdown: [{
     difficulty: String,
     correct: Number,
@@ -1321,7 +1328,7 @@ const quizResultSchema = new mongoose.Schema({
     accuracy: Number,
     averageTime: Number,
   }],
-  
+
   // Skill Analysis
   skills: [{
     name: String,
@@ -1330,7 +1337,7 @@ const quizResultSchema = new mongoose.Schema({
     questions: Number,
     correct: Number,
   }],
-  
+
   // AI Analysis
   aiAnalysis: {
     strengths: [String],
@@ -1349,7 +1356,7 @@ const quizResultSchema = new mongoose.Schema({
     }],
     confidenceScore: Number,
   },
-  
+
   // Comparison
   comparedToAverage: {
     score: Number,
@@ -1357,7 +1364,7 @@ const quizResultSchema = new mongoose.Schema({
     speed: Number,
     percentile: Number,
   },
-  
+
   // Feedback
   feedback: {
     rating: { type: Number, min: 1, max: 5 },
@@ -1367,7 +1374,7 @@ const quizResultSchema = new mongoose.Schema({
     wouldRetake: Boolean,
     submittedAt: Date,
   },
-  
+
   // Session Context
   sessionType: {
     type: String,
@@ -1379,7 +1386,7 @@ const quizResultSchema = new mongoose.Schema({
     enum: ["timed", "untimed", "survival", "marathon"],
     default: "timed",
   },
-  
+
   // Device and Environment
   deviceInfo: {
     platform: String,
@@ -1387,7 +1394,7 @@ const quizResultSchema = new mongoose.Schema({
     screenSize: String,
     connectionType: String,
   },
-  
+
   // Proctoring (for exams)
   proctoring: {
     enabled: Boolean,
@@ -1402,7 +1409,7 @@ const quizResultSchema = new mongoose.Schema({
     tabSwitches: Number,
     averageAttention: Number,
   },
-  
+
   // Certificates and Awards
   certificate: {
     issued: Boolean,
@@ -1411,7 +1418,7 @@ const quizResultSchema = new mongoose.Schema({
     downloadUrl: String,
     metadata: Map,
   },
-  
+
   awards: [{
     type: String,
     name: String,
@@ -1419,7 +1426,7 @@ const quizResultSchema = new mongoose.Schema({
     icon: String,
     achievedAt: Date,
   }],
-  
+
   // Status
   status: {
     type: String,
@@ -1429,10 +1436,10 @@ const quizResultSchema = new mongoose.Schema({
   flaggedReason: String,
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   reviewNotes: String,
-  
+
   // Versioning
   quizVersion: Number,
-  
+
   // Metadata
   metadata: {
     ipAddress: String,
@@ -1467,7 +1474,7 @@ const analyticsSchema = new mongoose.Schema({
     enum: ["hourly", "daily", "weekly", "monthly"],
     default: "daily",
   },
-  
+
   // User Metrics
   userMetrics: {
     totalUsers: { type: Number, default: 0 },
@@ -1479,7 +1486,7 @@ const analyticsSchema = new mongoose.Schema({
     usersByRegion: Map,
     usersByDevice: Map,
   },
-  
+
   // Quiz Metrics
   quizMetrics: {
     totalQuizzes: { type: Number, default: 0 },
@@ -1489,7 +1496,7 @@ const analyticsSchema = new mongoose.Schema({
     quizzesByDifficulty: Map,
     averageQuestionsPerQuiz: { type: Number, default: 0 },
   },
-  
+
   // Session Metrics
   sessionMetrics: {
     totalSessions: { type: Number, default: 0 },
@@ -1499,7 +1506,7 @@ const analyticsSchema = new mongoose.Schema({
     peakConcurrentSessions: { type: Number, default: 0 },
     sessionsByType: Map,
   },
-  
+
   // Performance Metrics
   performanceMetrics: {
     totalAttempts: { type: Number, default: 0 },
@@ -1509,7 +1516,7 @@ const analyticsSchema = new mongoose.Schema({
     completionRate: { type: Number, default: 0 },
     retentionRate: { type: Number, default: 0 },
   },
-  
+
   // AI Metrics
   aiMetrics: {
     totalGenerations: { type: Number, default: 0 },
@@ -1519,7 +1526,7 @@ const analyticsSchema = new mongoose.Schema({
     tokensUsed: { type: Number, default: 0 },
     cost: { type: Number, default: 0 },
   },
-  
+
   // Engagement Metrics
   engagementMetrics: {
     pageViews: { type: Number, default: 0 },
@@ -1528,7 +1535,7 @@ const analyticsSchema = new mongoose.Schema({
     bounceRate: { type: Number, default: 0 },
     conversionRate: { type: Number, default: 0 },
   },
-  
+
   // Revenue Metrics (if applicable)
   revenueMetrics: {
     totalRevenue: { type: Number, default: 0 },
@@ -1537,7 +1544,7 @@ const analyticsSchema = new mongoose.Schema({
     churnRate: { type: Number, default: 0 },
     ltv: { type: Number, default: 0 },
   },
-  
+
   // System Metrics
   systemMetrics: {
     uptime: { type: Number, default: 100 },
@@ -1547,14 +1554,14 @@ const analyticsSchema = new mongoose.Schema({
     databaseQueries: { type: Number, default: 0 },
     cacheHitRate: { type: Number, default: 0 },
   },
-  
+
   // Custom Events
   customEvents: [{
     name: String,
     count: Number,
     metadata: Map,
   }],
-  
+
   // Anomalies
   anomalies: [{
     type: String,
@@ -1563,7 +1570,7 @@ const analyticsSchema = new mongoose.Schema({
     detectedAt: Date,
     resolvedAt: Date,
   }],
-  
+
   // Predictions
   predictions: {
     nextDayUsers: Number,
@@ -1589,7 +1596,7 @@ async function createDatabaseIndexes() {
       { key: { "stats.level": -1 } },
       { key: { "stats.experience": -1 } },
     ]);
-    
+
     await Quiz.collection.createIndexes([
       { key: { slug: 1 }, unique: true },
       { key: { createdBy: 1 } },
@@ -1599,20 +1606,20 @@ async function createDatabaseIndexes() {
       { key: { "stats.popularity": -1 } },
       { key: { "stats.totalPlays": -1 } },
     ]);
-    
+
     await Session.collection.createIndexes([
       { key: { roomCode: 1 }, unique: true },
       { key: { hostId: 1 } },
       { key: { status: 1 } },
       { key: { "participants.userId": 1 } },
     ]);
-    
+
     await QuizResult.collection.createIndexes([
       { key: { userId: 1, completedAt: -1 } },
       { key: { quizId: 1, score: -1 } },
       { key: { percentage: -1 } },
     ]);
-    
+
     logger.info("✅ Database indexes created successfully");
   } catch (error) {
     logger.error("❌ Error creating database indexes:", error);
@@ -1627,7 +1634,7 @@ async function createDatabaseIndexes() {
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
@@ -1637,7 +1644,7 @@ const authenticate = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    
+
     // Check Redis cache for blacklisted tokens
     // if (redisClient) {
     //   const isBlacklisted = await redisClient.get(`blacklist:${token}`);
@@ -1651,18 +1658,18 @@ const authenticate = async (req, res, next) => {
     // }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     // Get user from database (with caching)
     const cacheKey = `user:${decoded.id}`;
     let user = null;
-    
+
     // if (redisClient) {
     //   const cachedUser = await redisClient.get(cacheKey);
     //   if (cachedUser) {
     //     user = JSON.parse(cachedUser);
     //   }
     // }
-    
+
     if (!user) {
       user = await User.findById(decoded.id).select("-password");
       if (!user) {
@@ -1672,7 +1679,7 @@ const authenticate = async (req, res, next) => {
           code: "USER_NOT_FOUND",
         });
       }
-      
+
       // Cache user for 5 minutes
       // if (redisClient) {
       //   await redisClient.setex(cacheKey, 300, JSON.stringify(user.toObject()));
@@ -1701,7 +1708,7 @@ const authenticate = async (req, res, next) => {
         code: "TOKEN_EXPIRED",
       });
     }
-    
+
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
@@ -1709,7 +1716,7 @@ const authenticate = async (req, res, next) => {
         code: "INVALID_TOKEN",
       });
     }
-    
+
     logger.error("Authentication error:", error);
     res.status(500).json({
       success: false,
@@ -1755,7 +1762,7 @@ const hasPermission = (...permissions) => {
       });
     }
 
-    const hasAllPermissions = permissions.every(permission => 
+    const hasAllPermissions = permissions.every(permission =>
       req.user.permissions[permission] === true
     );
 
@@ -1798,9 +1805,9 @@ const generateRoomCode = async () => {
 // Calculate adaptive difficulty
 const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
   const { accuracy, averageTime, streak } = userPerformance;
-  
+
   let newDifficulty = currentDifficulty;
-  
+
   if (accuracy > 80 && averageTime < 15 && streak > 3) {
     // User is doing very well, increase difficulty
     const difficulties = ["easy", "medium", "hard", "expert"];
@@ -1816,7 +1823,7 @@ const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
       newDifficulty = difficulties[currentIndex - 1];
     }
   }
-  
+
   return newDifficulty;
 };
 
@@ -1873,7 +1880,7 @@ const generateQuestionsWithAI = async (content, options = {}) => {
 
   try {
     const aiService = aiModel.includes("deepseek") && deepseek ? deepseek : openai;
-    
+
     if (!aiService) {
       throw new Error("AI service not available");
     }
@@ -1919,9 +1926,9 @@ Return format:
     const completion = await aiService.chat.completions.create({
       model: aiModel.includes("gpt-4") ? "gpt-4" : "gpt-3.5-turbo",
       messages: [
-        { 
-          role: "system", 
-          content: "You are an expert quiz generator and educator. Create engaging, educational questions that test understanding and application." 
+        {
+          role: "system",
+          content: "You are an expert quiz generator and educator. Create engaging, educational questions that test understanding and application."
         },
         { role: "user", content: prompt }
       ],
@@ -1942,9 +1949,9 @@ Return format:
         .replace(/```json\s*/g, '')
         .replace(/```\s*/g, '')
         .trim();
-      
+
       quizData = JSON.parse(cleanedContent);
-      
+
       if (!quizData.questions || !Array.isArray(quizData.questions)) {
         throw new Error("Invalid response format: missing questions array");
       }
@@ -1959,10 +1966,10 @@ Return format:
       while (options.length < 4) {
         options.push(`Option ${String.fromCharCode(65 + options.length)}`);
       }
-      
+
       const correctIndex = options.findIndex(opt => opt === q.correctAnswer);
       const validCorrectIndex = correctIndex >= 0 ? correctIndex : 0;
-      
+
       return {
         question: q.question || `Question ${index + 1}`,
         type: q.type || "multiple-choice",
@@ -2028,7 +2035,7 @@ const generateFallbackQuestions = (numQuestions, category, difficulty) => {
     aiGenerated: true,
     aiModel: "fallback",
   }));
-  
+
   return {
     title: `Quiz: ${category}`,
     description: `Learn about ${category}`,
@@ -2043,7 +2050,7 @@ const processSpeechToText = async (audioBuffer, language = "en-US") => {
   try {
     // This is a placeholder for actual speech-to-text service
     // In production, integrate with Google Speech-to-Text, AWS Transcribe, etc.
-    
+
     if (SPEECH_API_KEY) {
       // Example with a hypothetical speech API
       const response = await axios.post(
@@ -2060,7 +2067,7 @@ const processSpeechToText = async (audioBuffer, language = "en-US") => {
           },
         }
       );
-      
+
       return {
         success: true,
         text: response.data.transcript,
@@ -2104,7 +2111,7 @@ const processTextToSpeech = async (text, options = {}) => {
   try {
     // This is a placeholder for actual text-to-speech service
     // In production, integrate with Google Text-to-Speech, AWS Polly, etc.
-    
+
     if (SPEECH_API_KEY) {
       const response = await axios.post(
         "https://api.speech-service.com/v1/synthesize",
@@ -2128,7 +2135,7 @@ const processTextToSpeech = async (text, options = {}) => {
           responseType: "arraybuffer",
         }
       );
-      
+
       return {
         success: true,
         audio: response.data,
@@ -2163,18 +2170,18 @@ const processTextToSpeech = async (text, options = {}) => {
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
-    
+
     if (!token) {
       return next(new Error("Authentication token required"));
     }
-    
+
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id).select("_id username email avatar role displayName");
-    
+
     if (!user) {
       return next(new Error("User not found"));
     }
-    
+
     socket.user = {
       _id: user._id,
       username: user.username,
@@ -2183,7 +2190,7 @@ io.use(async (socket, next) => {
       role: user.role,
       displayName: user.displayName || user.username,
     };
-    
+
     next();
   } catch (error) {
     next(new Error("Authentication failed: " + error.message));
@@ -2192,35 +2199,35 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
   logger.info(`Socket connected: ${socket.id} - User: ${socket.user?.username}`);
-  
+
   // Join user to their personal room
   socket.join(`user:${socket.user._id}`);
-  
+
   // ===========================================
   // MAIN SESSION HANDLERS
   // ===========================================
-  
+
   // Handle session creation
   socket.on("create-session", async (data, callback) => {
     try {
       const { quizId, settings = {} } = data;
-      
+
       // Validate quiz
       const quiz = await Quiz.findById(quizId);
       if (!quiz) {
         return callback({ success: false, message: "Quiz not found" });
       }
-      
+
       // Check permissions
-      if (quiz.visibility === "private" && 
-          !quiz.createdBy.equals(socket.user._id) && 
-          !quiz.allowedUsers.includes(socket.user._id)) {
+      if (quiz.visibility === "private" &&
+        !quiz.createdBy.equals(socket.user._id) &&
+        !quiz.allowedUsers.includes(socket.user._id)) {
         return callback({ success: false, message: "Not authorized to use this quiz" });
       }
-      
+
       // Generate room code
       const roomCode = await generateRoomCode();
-      
+
       // Create session
       const session = await Session.create({
         roomCode,
@@ -2258,11 +2265,11 @@ io.on("connection", (socket) => {
         }],
         status: "waiting",
       });
-      
+
       // Join socket room
       socket.join(roomCode);
       socket.currentRoom = roomCode;
-      
+
       // Store in active sessions
       activeSessions.set(roomCode, {
         sessionId: session._id,
@@ -2270,12 +2277,12 @@ io.on("connection", (socket) => {
         quizId: quizId,
         participants: new Map([[socket.user._id.toString(), socket.id]]),
       });
-      
+
       // Initialize room sockets
       roomSockets.set(roomCode, new Set([socket.id]));
-      
+
       logger.info(`Session created: ${roomCode} by ${socket.user.username}`);
-      
+
       callback({
         success: true,
         session: {
@@ -2300,44 +2307,44 @@ io.on("connection", (socket) => {
       callback({ success: false, message: "Failed to create session" });
     }
   });
-  
+
   // Handle session joining
   socket.on("join-session", async (data, callback) => {
     try {
       const { roomCode, displayName } = data;
-      
+
       // Check if session exists
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
-      
+
       // Check if session is joinable
       if (session.status !== "waiting" && !session.settings.allowLateJoin) {
         return callback({ success: false, message: "Session has already started" });
       }
-      
+
       // Check if user is banned
       if (session.bannedUsers.includes(socket.user._id)) {
         return callback({ success: false, message: "You are banned from this session" });
       }
-      
+
       // Check if session is full
-      const activeParticipants = session.participants.filter(p => 
+      const activeParticipants = session.participants.filter(p =>
         p.status === "waiting" || p.status === "ready" || p.status === "playing"
       );
-      
+
       if (activeParticipants.length >= session.settings.maxPlayers) {
         return callback({ success: false, message: "Session is full" });
       }
-      
+
       // Check if already joined
       const existingParticipant = session.participants.find(
         p => p.userId && p.userId.equals(socket.user._id)
       );
-      
+
       let participant;
-      
+
       if (existingParticipant) {
         // Update existing participant
         existingParticipant.socketId = socket.id;
@@ -2358,30 +2365,30 @@ io.on("connection", (socket) => {
         };
         session.participants.push(participant);
       }
-      
+
       await session.save();
-      
+
       // Join socket room
       socket.join(roomCode);
       socket.currentRoom = roomCode;
-      
+
       // Update active sessions
       if (activeSessions.has(roomCode)) {
         const sessionData = activeSessions.get(roomCode);
         sessionData.participants.set(socket.user._id.toString(), socket.id);
       }
-      
+
       // Update room sockets
       if (!roomSockets.has(roomCode)) {
         roomSockets.set(roomCode, new Set());
       }
       roomSockets.get(roomCode).add(socket.id);
-      
+
       // Get quiz info
       const quiz = await Quiz.findById(session.quizId)
         .select("title category difficulty questions")
         .lean();
-      
+
       // Prepare response
       const response = {
         success: true,
@@ -2412,7 +2419,7 @@ io.on("connection", (socket) => {
           status: participant.status,
         },
       };
-      
+
       // Notify others
       socket.to(roomCode).emit("participant-joined", {
         participant: {
@@ -2424,126 +2431,126 @@ io.on("connection", (socket) => {
         },
         totalParticipants: session.participants.length,
       });
-      
+
       // Update leaderboard
       updateSessionLeaderboard(roomCode);
-      
+
       logger.info(`User ${socket.user.username} joined session ${roomCode}`);
-      
+
       callback(response);
     } catch (error) {
       logger.error("Join session error:", error);
       callback({ success: false, message: "Failed to join session" });
     }
   });
-  
+
   // Handle player ready status
   socket.on("player-ready", async (data, callback) => {
     try {
       const { roomCode, isReady } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
-      
+
       const participant = session.participants.find(
         p => p.userId && p.userId.equals(socket.user._id)
       );
-      
+
       if (!participant) {
         return callback({ success: false, message: "Not a participant" });
       }
-      
+
       participant.isReady = isReady;
       await session.save();
-      
+
       // Broadcast to room
       io.to(roomCode).emit("player-ready-update", {
         userId: socket.user._id,
         username: socket.user.username,
         isReady: isReady,
       });
-      
+
       // Check if all players are ready
-      const allReady = session.participants.every(p => 
+      const allReady = session.participants.every(p =>
         (p.userId.equals(session.hostId) && p.role === "host") || p.isReady
       );
-      
+
       if (allReady && session.participants.length >= 2) {
         io.to(roomCode).emit("all-players-ready");
       }
-      
+
       callback({ success: true });
     } catch (error) {
       logger.error("Player ready error:", error);
       callback({ success: false, message: "Failed to update ready status" });
     }
   });
-  
+
   // Handle quiz start
   socket.on("start-quiz", async (data, callback) => {
     try {
       const { roomCode } = data;
-      
+
       const session = await Session.findOne({ roomCode }).populate("quizId");
       if (!session || !session.quizId) {
         return callback({ success: false, message: "Session not found" });
       }
-      
+
       // Verify host
       const hostParticipant = session.participants.find(
         p => p.userId && p.userId.equals(socket.user._id) && p.role === "host"
       );
-      
+
       if (!hostParticipant) {
         return callback({ success: false, message: "Only host can start the quiz" });
       }
-      
+
       // Update session status
       session.status = "starting";
       session.startedAt = new Date();
       session.currentState.phase = "starting";
-      
+
       // Update participants status
       session.participants.forEach(p => {
         if (p.status === "waiting") {
           p.status = "ready";
         }
       });
-      
+
       await session.save();
-      
+
       // Clean up existing timers
       if (sessionTimers.has(roomCode)) {
         clearTimeout(sessionTimers.get(roomCode));
       }
-      
+
       // Start countdown
       let countdown = 5;
-      
+
       const countdownInterval = setInterval(() => {
         io.to(roomCode).emit("countdown", { countdown });
-        
+
         if (countdown === 0) {
           clearInterval(countdownInterval);
-          
+
           // Start the quiz
           session.status = "active";
           session.currentState.phase = "question";
           session.currentState.questionIndex = 0;
           session.currentState.questionStartTime = new Date();
-          
+
           // Calculate question end time
           const questionTime = session.settings.questionTime || 30;
           session.currentState.questionEndTime = new Date(Date.now() + questionTime * 1000);
           session.currentState.timeRemaining = questionTime;
-          
+
           session.save().then(() => {
             // Get first question (without answers)
             const quiz = session.quizId;
             const firstQuestion = quiz.questions[0];
-            
+
             const safeQuestion = {
               index: 0,
               text: firstQuestion.question,
@@ -2561,75 +2568,75 @@ io.on("connection", (socket) => {
               hint: firstQuestion.hint,
               totalQuestions: quiz.questions.length,
             };
-            
+
             io.to(roomCode).emit("quiz-started", {
               question: safeQuestion,
               questionIndex: 0,
               totalQuestions: quiz.questions.length,
               timeRemaining: session.currentState.timeRemaining,
             });
-            
+
             // Start question timer
             startQuestionTimer(roomCode, session);
           });
         }
-        
+
         countdown--;
       }, 1000);
-      
+
       // Store interval for cleanup
       sessionTimers.set(roomCode, countdownInterval);
-      
+
       callback({ success: true });
     } catch (error) {
       logger.error("Start quiz error:", error);
       callback({ success: false, message: "Failed to start quiz" });
     }
   });
-  
+
   // Handle answer submission
   socket.on("submit-answer", async (data, callback) => {
     try {
       const { roomCode, questionIndex, answer, timeTaken } = data;
-      
+
       const session = await Session.findOne({ roomCode }).populate("quizId");
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
-      
+
       // Check if question is active
       if (session.currentState.questionIndex !== questionIndex ||
-          session.currentState.phase !== "question") {
+        session.currentState.phase !== "question") {
         return callback({ success: false, message: "Question is not active" });
       }
-      
+
       const participant = session.participants.find(
         p => p.userId && p.userId.equals(socket.user._id)
       );
-      
+
       if (!participant) {
         return callback({ success: false, message: "Not a participant" });
       }
-      
+
       // Check if already answered
       const alreadyAnswered = participant.answers.some(
         a => a.questionIndex === questionIndex
       );
-      
+
       if (alreadyAnswered) {
         return callback({ success: false, message: "Already answered this question" });
       }
-      
+
       // Get question
       const question = session.quizId.questions[questionIndex];
       if (!question) {
         return callback({ success: false, message: "Question not found" });
       }
-      
+
       // Check answer
       let isCorrect = false;
       let correctAnswer = "";
-      
+
       if (question.type === "multiple-choice") {
         const correctOption = question.options.find(opt => opt.isCorrect);
         isCorrect = correctOption && answer === correctOption.text;
@@ -2638,21 +2645,21 @@ io.on("connection", (socket) => {
         isCorrect = answer === question.correctAnswer;
         correctAnswer = question.correctAnswer;
       }
-      
+
       // Calculate points
       const userPerformance = {
         accuracy: participant.correctAnswers / Math.max(participant.answers.length, 1),
         averageTime: participant.averageTime || 0,
         streak: participant.streak,
       };
-      
+
       const points = isCorrect ? calculatePoints(question, {
         timeTaken,
         isCorrect,
         streak: participant.streak,
         hintUsed: false, // Implement hint system
       }, userPerformance) : 0;
-      
+
       // Update participant
       participant.answers.push({
         questionIndex,
@@ -2663,7 +2670,7 @@ io.on("connection", (socket) => {
         pointsEarned: points,
         answeredAt: new Date(),
       });
-      
+
       if (isCorrect) {
         participant.score += points;
         participant.correctAnswers += 1;
@@ -2671,18 +2678,18 @@ io.on("connection", (socket) => {
       } else {
         participant.streak = 0;
       }
-      
+
       participant.totalTime += timeTaken;
       participant.averageTime = participant.totalTime / participant.answers.length;
-      
+
       // Update session state
       session.currentState.answersReceived += 1;
       if (isCorrect) {
         session.currentState.correctAnswers += 1;
       }
-      
+
       await session.save();
-      
+
       // Send feedback to player
       socket.emit("answer-feedback", {
         questionIndex,
@@ -2693,20 +2700,20 @@ io.on("connection", (socket) => {
         streak: participant.streak,
         timeTaken,
       });
-      
+
       // Update leaderboard
       updateSessionLeaderboard(roomCode);
-      
+
       // Check if all players have answered
-      const activePlayers = session.participants.filter(p => 
+      const activePlayers = session.participants.filter(p =>
         p.status === "ready" || p.status === "playing"
       );
-      
+
       if (session.currentState.answersReceived >= activePlayers.length) {
         // All players have answered
         session.currentState.phase = "answer";
         await session.save();
-        
+
         io.to(roomCode).emit("question-completed", {
           questionIndex,
           correctAnswer,
@@ -2717,34 +2724,34 @@ io.on("connection", (socket) => {
             accuracy: (session.currentState.correctAnswers / session.currentState.answersReceived) * 100,
           },
         });
-        
+
         // Move to next question after delay
         setTimeout(() => {
           nextQuestion(roomCode, session);
         }, 5000);
       }
-      
+
       callback({ success: true });
     } catch (error) {
       logger.error("Submit answer error:", error);
       callback({ success: false, message: "Failed to submit answer" });
     }
   });
-  
+
   // Handle chat messages
   socket.on("chat-message", async (data, callback) => {
     try {
       const { roomCode, message } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
-      
+
       if (!session.chatEnabled) {
         return callback({ success: false, message: "Chat is disabled" });
       }
-      
+
       // Add message to session
       session.chatMessages.push({
         userId: socket.user._id,
@@ -2752,9 +2759,9 @@ io.on("connection", (socket) => {
         message: message,
         type: "message",
       });
-      
+
       await session.save();
-      
+
       // Broadcast to room
       io.to(roomCode).emit("chat-message", {
         userId: socket.user._id,
@@ -2763,23 +2770,23 @@ io.on("connection", (socket) => {
         timestamp: new Date(),
         avatar: socket.user.avatar,
       });
-      
+
       callback({ success: true });
     } catch (error) {
       logger.error("Chat message error:", error);
       callback({ success: false, message: "Failed to send message" });
     }
   });
-  
+
   // ===========================================
   // NEW HANDLERS
   // ===========================================
-  
+
   // Handle player kicking
   socket.on("kick-player", async (data, callback) => {
     try {
       const { roomCode, userId } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
@@ -2801,10 +2808,10 @@ io.on("connection", (socket) => {
 
       // Add to banned users
       session.bannedUsers.push(userId);
-      
+
       // Remove from participants
       const kickedParticipant = session.participants.splice(participantIndex, 1)[0];
-      
+
       await session.save();
 
       // Notify kicked player
@@ -2838,7 +2845,7 @@ io.on("connection", (socket) => {
   socket.on("update-settings", async (data, callback) => {
     try {
       const { roomCode, settings } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
@@ -2870,7 +2877,7 @@ io.on("connection", (socket) => {
   socket.on("use-powerup", async (data, callback) => {
     try {
       const { roomCode, powerupType } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
@@ -2906,7 +2913,7 @@ io.on("connection", (socket) => {
           participant.multiplier = Math.min((participant.multiplier || 1) * 2, 5);
           participant.powerups[powerupIndex].lastUsed = new Date();
           break;
-        
+
         case "time-freeze":
           // Add extra time
           if (sessionTimers.has(roomCode)) {
@@ -2916,12 +2923,12 @@ io.on("connection", (socket) => {
           }
           participant.powerups[powerupIndex].lastUsed = new Date();
           break;
-        
+
         case "remove-wrong":
           // Remove one wrong option (simulated - frontend will handle visual effect)
           participant.powerups[powerupIndex].lastUsed = new Date();
           break;
-          
+
         case "hint":
           // Show hint
           participant.powerups[powerupIndex].lastUsed = new Date();
@@ -2964,7 +2971,7 @@ io.on("connection", (socket) => {
   socket.on("end-session", async (data, callback) => {
     try {
       const { roomCode } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
@@ -2978,18 +2985,18 @@ io.on("connection", (socket) => {
       // Update session status
       session.status = "finished";
       session.endedAt = new Date();
-      session.duration = session.startedAt ? 
+      session.duration = session.startedAt ?
         (session.endedAt - session.startedAt) / 1000 : 0;
-      
+
       await session.save();
 
       // Clean up active session
       activeSessions.delete(roomCode);
-      
+
       if (roomSockets.has(roomCode)) {
         roomSockets.delete(roomCode);
       }
-      
+
       if (sessionTimers.has(roomCode)) {
         clearTimeout(sessionTimers.get(roomCode));
         sessionTimers.delete(roomCode);
@@ -3016,7 +3023,7 @@ io.on("connection", (socket) => {
   socket.on("next-question-force", async (data, callback) => {
     try {
       const { roomCode } = data;
-      
+
       const session = await Session.findOne({ roomCode });
       if (!session) {
         return callback({ success: false, message: "Session not found" });
@@ -3046,7 +3053,7 @@ io.on("connection", (socket) => {
   socket.on("get-session-info", async (data, callback) => {
     try {
       const { roomCode } = data;
-      
+
       const session = await Session.findOne({ roomCode })
         .populate("quizId", "title category difficulty questions")
         .populate("hostId", "username avatar")
@@ -3058,7 +3065,7 @@ io.on("connection", (socket) => {
 
       // Hide sensitive info if not host
       const isHost = session.hostId._id.toString() === socket.user._id.toString();
-      
+
       const safeSession = {
         ...session,
         settings: {
@@ -3094,42 +3101,42 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async (reason) => {
     try {
       logger.info(`Socket disconnected: ${socket.id} - Reason: ${reason} - User: ${socket.user?.username}`);
-      
+
       // Clean up all rooms this socket was in
       const rooms = Array.from(socket.rooms);
-      
+
       for (const room of rooms) {
         if (room !== socket.id) { // Skip personal room
           const session = await Session.findOne({ roomCode: room });
-          
+
           if (session) {
             // Update participant status
             const participant = session.participants.find(
               p => p.socketId === socket.id
             );
-            
+
             if (participant) {
               participant.isConnected = false;
               participant.status = "disconnected";
               participant.lastPing = new Date();
               await session.save();
-              
+
               // Notify others
               socket.to(room).emit("participant-disconnected", {
                 userId: participant.userId,
                 username: participant.username,
               });
             }
-            
+
             // Update room sockets
             if (roomSockets.has(room)) {
               roomSockets.get(room).delete(socket.id);
-              
+
               // Clean up if room is empty
               if (roomSockets.get(room).size === 0) {
                 roomSockets.delete(room);
                 activeSessions.delete(room);
-                
+
                 // Update session status if no one is left
                 if (session.status === "active" || session.status === "starting") {
                   session.status = "cancelled";
@@ -3155,41 +3162,41 @@ io.on("connection", (socket) => {
 const startQuestionTimer = async (roomCode, session) => {
   const questionTime = session.settings.questionTime || 30;
   let timeRemaining = questionTime;
-  
+
   const timerInterval = setInterval(async () => {
     timeRemaining--;
-    
+
     // Update session state
     session.currentState.timeRemaining = timeRemaining;
-    
+
     // Broadcast to room
     io.to(roomCode).emit("timer-update", { timeRemaining });
-    
+
     if (timeRemaining <= 0) {
       clearInterval(timerInterval);
-      
+
       // Time's up - process unanswered questions
       session.currentState.phase = "answer";
       await session.save();
-      
+
       // Get current question
       const quiz = await Quiz.findById(session.quizId);
       const question = quiz.questions[session.currentState.questionIndex];
       const correctOption = question.options?.find(opt => opt.isCorrect);
-      
+
       io.to(roomCode).emit("question-time-up", {
         questionIndex: session.currentState.questionIndex,
         correctAnswer: correctOption?.text || question.correctAnswer,
         explanation: question.explanation,
       });
-      
+
       // Move to next question after delay
       setTimeout(() => {
         nextQuestion(roomCode, session);
       }, 5000);
     }
   }, 1000);
-  
+
   // Store timer for cleanup
   if (sessionTimers.has(roomCode)) {
     clearInterval(sessionTimers.get(roomCode));
@@ -3202,29 +3209,29 @@ const nextQuestion = async (roomCode, session) => {
   try {
     const quiz = await Quiz.findById(session.quizId);
     const nextIndex = session.currentState.questionIndex + 1;
-    
+
     if (nextIndex >= quiz.questions.length) {
       // Quiz completed
       completeQuiz(roomCode, session);
       return;
     }
-    
+
     // Reset state for next question
     session.currentState.phase = "question";
     session.currentState.questionIndex = nextIndex;
     session.currentState.questionStartTime = new Date();
     session.currentState.answersReceived = 0;
     session.currentState.correctAnswers = 0;
-    
+
     const questionTime = session.settings.questionTime || 30;
     session.currentState.questionEndTime = new Date(Date.now() + questionTime * 1000);
     session.currentState.timeRemaining = questionTime;
-    
+
     await session.save();
-    
+
     // Get next question
     const nextQuestion = quiz.questions[nextIndex];
-    
+
     const safeQuestion = {
       index: nextIndex,
       text: nextQuestion.question,
@@ -3242,14 +3249,14 @@ const nextQuestion = async (roomCode, session) => {
       hint: nextQuestion.hint,
       totalQuestions: quiz.questions.length,
     };
-    
+
     io.to(roomCode).emit("next-question", {
       question: safeQuestion,
       questionIndex: nextIndex,
       totalQuestions: quiz.questions.length,
       timeRemaining: session.currentState.timeRemaining,
     });
-    
+
     // Start timer for new question
     startQuestionTimer(roomCode, session);
   } catch (error) {
@@ -3262,15 +3269,15 @@ const completeQuiz = async (roomCode, session) => {
   try {
     session.status = "finished";
     session.endedAt = new Date();
-    session.duration = session.startedAt ? 
+    session.duration = session.startedAt ?
       (session.endedAt - session.startedAt) / 1000 : 0;
     session.currentState.phase = "finished";
-    
+
     // Calculate final leaderboard
     const sortedParticipants = [...session.participants]
       .filter(p => p.userId)
       .sort((a, b) => b.score - a.score);
-    
+
     session.leaderboard = sortedParticipants.map((p, index) => ({
       userId: p.userId,
       username: p.username,
@@ -3284,12 +3291,12 @@ const completeQuiz = async (roomCode, session) => {
         speed: p.averageTime || 0,
       },
     }));
-    
+
     await session.save();
-    
+
     // Save quiz results to database
     saveQuizResults(session);
-    
+
     // Send final results
     io.to(roomCode).emit("quiz-completed", {
       finalResults: {
@@ -3301,19 +3308,19 @@ const completeQuiz = async (roomCode, session) => {
         endedAt: session.endedAt,
       },
     });
-    
+
     // Clean up after delay
     setTimeout(() => {
       io.in(roomCode).socketsLeave(roomCode);
       roomSockets.delete(roomCode);
       activeSessions.delete(roomCode);
-      
+
       if (sessionTimers.has(roomCode)) {
         clearInterval(sessionTimers.get(roomCode));
         sessionTimers.delete(roomCode);
       }
     }, 30000); // 30 seconds for clients to view results
-    
+
     logger.info(`Quiz completed for session ${roomCode}`);
   } catch (error) {
     logger.error("Complete quiz error:", error);
@@ -3325,11 +3332,11 @@ const updateSessionLeaderboard = async (roomCode) => {
   try {
     const session = await Session.findOne({ roomCode });
     if (!session) return;
-    
-    const activeParticipants = session.participants.filter(p => 
+
+    const activeParticipants = session.participants.filter(p =>
       p.status === "ready" || p.status === "playing"
     );
-    
+
     const sortedParticipants = [...activeParticipants]
       .sort((a, b) => b.score - a.score)
       .map((p, index) => ({
@@ -3341,11 +3348,11 @@ const updateSessionLeaderboard = async (roomCode) => {
         streak: p.streak || 0,
         rank: index + 1,
       }));
-    
+
     // Update session leaderboard
     session.leaderboard = sortedParticipants;
     await session.save();
-    
+
     // Broadcast to room
     io.to(roomCode).emit("leaderboard-update", {
       leaderboard: sortedParticipants,
@@ -3360,7 +3367,7 @@ const updateSessionLeaderboard = async (roomCode) => {
 const saveQuizResults = async (session) => {
   try {
     const quiz = await Quiz.findById(session.quizId);
-    
+
     const savePromises = session.participants
       .filter(p => p.userId && p.answers.length > 0)
       .map(async (participant) => {
@@ -3372,17 +3379,17 @@ const saveQuizResults = async (session) => {
             username: participant.username,
             score: participant.score,
             maxScore: quiz.questions.length * 100,
-            percentage: quiz.questions.length > 0 ? 
+            percentage: quiz.questions.length > 0 ?
               (participant.score / (quiz.questions.length * 100)) * 100 : 0,
             correctAnswers: participant.correctAnswers,
             incorrectAnswers: participant.answers.length - participant.correctAnswers,
             totalQuestions: quiz.questions.length,
             timeSpent: participant.totalTime,
-            averageTimePerQuestion: participant.answers.length > 0 ? 
+            averageTimePerQuestion: participant.answers.length > 0 ?
               participant.totalTime / participant.answers.length : 0,
             startedAt: session.startedAt,
             completedAt: new Date(),
-            rank: session.leaderboard.find(l => 
+            rank: session.leaderboard.find(l =>
               l.userId && l.userId.equals(participant.userId)
             )?.rank || 0,
             totalParticipants: session.participants.filter(p => p.userId).length,
@@ -3390,7 +3397,7 @@ const saveQuizResults = async (session) => {
             questionBreakdown: participant.answers.map(ans => {
               const question = quiz.questions[ans.questionIndex];
               const correctOption = question?.options?.find(opt => opt.isCorrect);
-              
+
               return {
                 questionIndex: ans.questionIndex,
                 question: question?.question,
@@ -3403,7 +3410,7 @@ const saveQuizResults = async (session) => {
               };
             }),
           });
-          
+
           // Update user stats
           await User.findByIdAndUpdate(participant.userId, {
             $inc: {
@@ -3421,16 +3428,16 @@ const saveQuizResults = async (session) => {
               lastActive: new Date(),
             },
           });
-          
+
           return result;
         } catch (err) {
           logger.error(`Error saving result for user ${participant.userId}:`, err);
           return null;
         }
       });
-    
+
     await Promise.all(savePromises);
-    
+
     // Update quiz stats
     await Quiz.findByIdAndUpdate(session.quizId, {
       $inc: {
@@ -3438,7 +3445,7 @@ const saveQuizResults = async (session) => {
         "stats.totalCompletions": 1,
       },
     });
-    
+
   } catch (error) {
     logger.error("Save quiz results error:", error);
   }
@@ -3448,19 +3455,19 @@ const saveQuizResults = async (session) => {
 const calculatePoints = (question, answerData, userPerformance) => {
   const basePoints = question.points || 100;
   const { timeTaken, isCorrect, streak, hintUsed } = answerData;
-  
+
   if (!isCorrect) return 0;
-  
+
   let points = basePoints;
-  
+
   // Speed bonus (faster = more points)
   const maxTime = question.timeLimit || 30;
   const timeRatio = Math.max(0.1, 1 - (timeTaken / maxTime));
   const speedBonus = Math.round(basePoints * 0.3 * timeRatio);
-  
+
   // Streak bonus
   const streakBonus = streak >= 3 ? Math.round(basePoints * (streak - 2) * 0.05) : 0;
-  
+
   // Difficulty multiplier
   const difficultyMultipliers = {
     easy: 0.8,
@@ -3469,15 +3476,15 @@ const calculatePoints = (question, answerData, userPerformance) => {
     expert: 1.6,
   };
   const difficultyMultiplier = difficultyMultipliers[question.difficulty] || 1.0;
-  
+
   // Hint penalty
   const hintPenalty = hintUsed ? Math.round(basePoints * 0.1) : 0;
-  
+
   // Calculate total points
   points = Math.round(
     (basePoints + speedBonus + streakBonus - hintPenalty) * difficultyMultiplier
   );
-  
+
   // Ensure minimum points
   return Math.max(points, 10);
 };
@@ -3521,7 +3528,7 @@ app.get("/health", async (req, res) => {
   try {
     const dbStatus = mongoose.connection.readyState === 1 ? "healthy" : "unhealthy";
     //const redisStatus = redisClient && redisClient.status === "ready" ? "healthy" : "unhealthy";
-    
+
     const health = {
       status: "healthy",
       timestamp: new Date().toISOString(),
@@ -3562,13 +3569,13 @@ app.get("/health", async (req, res) => {
         active: req.app.get("activeRequests") || 0,
       },
     };
-    
+
     // Check if any critical service is down
     if (dbStatus === "unhealthy") {
       health.status = "unhealthy";
       health.message = "Database connection failed";
     }
-    
+
     res.json(health);
   } catch (error) {
     logger.error("Health check failed:", error);
@@ -3588,7 +3595,7 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     // ✅ CRITICAL FIX: Map role "user" to "student"
     let { username, email, password, role = "student", organization, displayName } = req.body;
-    
+
     // Accept legacy role name "user" from frontend and map to "student"
     if (role === "user") role = "student";
 
@@ -3635,11 +3642,11 @@ app.post("/api/auth/register", async (req, res) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: existingUser.email === email.toLowerCase() 
-          ? "Email already exists" 
+        message: existingUser.email === email.toLowerCase()
+          ? "Email already exists"
           : "Username already taken",
-        code: existingUser.email === email.toLowerCase() 
-          ? "EMAIL_EXISTS" 
+        code: existingUser.email === email.toLowerCase()
+          ? "EMAIL_EXISTS"
           : "USERNAME_EXISTS",
       });
     }
@@ -3649,7 +3656,7 @@ app.post("/api/auth/register", async (req, res) => {
       username,
       email: email.toLowerCase(),
       password,
-      role:"student",
+      role: role, // Use the mapped role variable instead of hardcoded "student"
       displayName: displayName || username,
       organization,
       metadata: {
@@ -3688,7 +3695,7 @@ app.post("/api/auth/register", async (req, res) => {
     });
   } catch (error) {
     logger.error("Registration error:", error);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({
@@ -3698,7 +3705,7 @@ app.post("/api/auth/register", async (req, res) => {
         code: "VALIDATION_ERROR",
       });
     }
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -3706,7 +3713,7 @@ app.post("/api/auth/register", async (req, res) => {
         code: "DUPLICATE_KEY",
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Registration failed",
@@ -3727,7 +3734,7 @@ app.post("/api/auth/login", async (req, res) => {
         code: "CREDENTIALS_REQUIRED",
       });
     }
-    
+
     // Find user with password
     const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
     if (user) {
@@ -3772,7 +3779,7 @@ app.post("/api/auth/login", async (req, res) => {
       // Track failed login attempts
       user.loginAttempts = (user.loginAttempts || 0) + 1;
       await user.save();
-      
+
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -3793,7 +3800,7 @@ app.post("/api/auth/login", async (req, res) => {
     // Update user cache
     const userResponse = user.toObject();
     delete userResponse.password;
-    
+
     // if (redisClient) {
     //   await redisClient.setex(`user:${user._id}`, 300, JSON.stringify(userResponse));
     // }
@@ -3826,7 +3833,7 @@ app.post("/api/auth/login", async (req, res) => {
 app.post("/api/auth/refresh", async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-    
+
     if (!refreshToken) {
       return res.status(401).json({
         success: false,
@@ -3868,7 +3875,7 @@ app.post("/api/auth/refresh", async (req, res) => {
         code: "REFRESH_TOKEN_EXPIRED",
       });
     }
-    
+
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
@@ -3876,7 +3883,7 @@ app.post("/api/auth/refresh", async (req, res) => {
         code: "INVALID_REFRESH_TOKEN",
       });
     }
-    
+
     logger.error("Refresh token error:", error);
     res.status(500).json({
       success: false,
@@ -3893,7 +3900,7 @@ app.post("/api/auth/logout", authenticate, async (req, res) => {
     // if (redisClient) {
     //   const tokenExp = req.user.exp || Math.floor(Date.now() / 1000) + 3600;
     //   const ttl = tokenExp - Math.floor(Date.now() / 1000);
-      
+
     //   if (ttl > 0) {
     //     await redisClient.setex(`blacklist:${req.token}`, ttl, "true");
     //   }
@@ -3950,10 +3957,10 @@ app.put("/api/auth/profile", authenticate, async (req, res) => {
   try {
     const updates = req.body;
     const allowedUpdates = [
-      "displayName", "bio", "organization", "location", 
+      "displayName", "bio", "organization", "location",
       "website", "preferences", "avatar", "socialLinks"
     ];
-    
+
     // Filter updates
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
@@ -4101,7 +4108,7 @@ app.get("/api/quizzes", async (req, res) => {
     // Try cache first
     const cacheKey = `quizzes:${JSON.stringify(query)}:${page}:${limit}:${sortBy}:${sortOrder}`;
     let cachedResult = null;
-    
+
     // if (redisClient) {
     //   cachedResult = await redisClient.get(cacheKey);
     // }
@@ -4124,7 +4131,7 @@ app.get("/api/quizzes", async (req, res) => {
     // Calculate additional stats
     const enhancedQuizzes = quizzes.map(quiz => ({
       ...quiz,
-      averageRating: quiz.stats.ratingCount > 0 
+      averageRating: quiz.stats.ratingCount > 0
         ? (quiz.stats.rating / quiz.stats.ratingCount).toFixed(1)
         : 0,
       completionRate: quiz.stats.totalPlays > 0
@@ -4179,7 +4186,7 @@ app.get("/api/quizzes/:id", async (req, res) => {
     // Try cache first
     const cacheKey = `quiz:${id}:${showAnswers}`;
     let cachedQuiz = null;
-    
+
     // if (redisClient) {
     //   cachedQuiz = await redisClient.get(cacheKey);
     // }
@@ -4203,7 +4210,7 @@ app.get("/api/quizzes/:id", async (req, res) => {
 
     // Check permissions
     const canSeeAnswers = showAnswers === "true" && req.user && (
-      req.user._id.toString() === quiz.createdBy._id.toString() || 
+      req.user._id.toString() === quiz.createdBy._id.toString() ||
       req.user.role === "admin" ||
       (quiz.organization && req.user._id.toString() === quiz.organization._id.toString())
     );
@@ -4218,7 +4225,7 @@ app.get("/api/quizzes/:id", async (req, res) => {
     if (!canSeeAnswers) {
       quiz.questions = quiz.questions.map(q => ({
         ...q,
-        options: q.options.map(opt => ({ 
+        options: q.options.map(opt => ({
           text: opt.text,
           imageUrl: opt.imageUrl,
           code: opt.code,
@@ -4231,7 +4238,7 @@ app.get("/api/quizzes/:id", async (req, res) => {
     }
 
     // Add calculated fields
-    quiz.averageRating = quiz.stats.ratingCount > 0 
+    quiz.averageRating = quiz.stats.ratingCount > 0
       ? (quiz.stats.rating / quiz.stats.ratingCount).toFixed(1)
       : 0;
     quiz.completionRate = quiz.stats.totalPlays > 0
@@ -4245,12 +4252,12 @@ app.get("/api/quizzes/:id", async (req, res) => {
       canSeeAnswers,
       permissions: {
         canEdit: req.user && (
-          req.user._id.toString() === quiz.createdBy._id.toString() || 
+          req.user._id.toString() === quiz.createdBy._id.toString() ||
           req.user.role === "admin" ||
           (quiz.organization && req.user._id.toString() === quiz.organization._id.toString())
         ),
         canDelete: req.user && (
-          req.user._id.toString() === quiz.createdBy._id.toString() || 
+          req.user._id.toString() === quiz.createdBy._id.toString() ||
           req.user.role === "admin"
         ),
         canDuplicate: true,
@@ -4298,11 +4305,11 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       sourceMaterial,
     } = req.body;
 
-    console.log("Quiz creation request received:", { 
-      title, 
-      category, 
+    console.log("Quiz creation request received:", {
+      title,
+      category,
       questionCount: questions?.length,
-      userId: req.user?._id 
+      userId: req.user?._id
     });
     // Validation
     if (!title || !title.trim()) {
@@ -4332,7 +4339,7 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
     // Validate each question
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      
+
       if (!q.question || !q.question.trim()) {
         return res.status(400).json({
           success: false,
@@ -4373,252 +4380,257 @@ app.post("/api/quizzes", authenticate, hasPermission("canCreateQuizzes"), async 
       organizationId = req.user._id;
     }
     // ===========================================================================
-// 22.5. AUTO ROOM GENERATION AFTER QUIZ CREATION
-// ===========================================================================
+    // 22.5. AUTO ROOM GENERATION AFTER QUIZ CREATION
+    // ===========================================================================
 
-// Create quiz and auto-generate room immediately
-app.post("/api/quizzes/create-and-host", authenticate, hasPermission("canCreateQuizzes"), async (req, res) => {
-  try {
-    const { quizData, sessionSettings = {} } = req.body;
+    // Create quiz and auto-generate room immediately
+    app.post("/api/quizzes/create-and-host", authenticate, hasPermission("canCreateQuizzes"), async (req, res) => {
+      try {
+        const { quizData, sessionSettings = {} } = req.body;
 
-    console.log("Create and host request received:", { 
-      title: quizData?.title,
-      userId: req.user?._id 
+        console.log("Create and host request received:", {
+          title: quizData?.title,
+          userId: req.user?._id
+        });
+
+        // 1. Create the quiz first
+        const quizResponse = await axios.post(
+          `http://localhost:${PORT}/api/quizzes`,
+          quizData,
+          {
+            headers: {
+              'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        ).catch(async (error) => {
+          // If internal call fails, create quiz directly
+          console.log("Direct quiz creation fallback");
+
+          // Validate quiz data
+          if (!quizData.title || !quizData.title.trim()) {
+            throw new Error("Quiz title is required");
+          }
+
+          if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
+            throw new Error("At least one question is required");
+          }
+
+          if (!quizData.category) {
+            throw new Error("Category is required");
+          }
+
+          // Generate slug manually to avoid duplicate key errors
+          let slug = quizData.title.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").trim();
+          slug = `${slug}-${Date.now()}`; // Ensure uniqueness with timestamp
+
+          // Create quiz directly
+          const quiz = await Quiz.create({
+            title: quizData.title.trim(),
+            description: quizData.description?.trim(),
+            shortDescription: quizData.shortDescription?.trim(),
+            category: quizData.category,
+            subcategory: quizData.subcategory,
+            difficulty: quizData.difficulty || "medium",
+            questions: quizData.questions,
+            createdBy: req.user._id,
+            organization: req.user.role === "organization" ? req.user._id : null,
+            settings: {
+              randomizeQuestions: false,
+              randomizeOptions: false,
+              showProgress: true,
+              showTimer: true,
+              showResults: true,
+              showExplanations: true,
+              showLeaderboard: true,
+              allowRetake: true,
+              allowReview: true,
+              requireLogin: true,
+              passingScore: 60,
+              maxAttempts: 0,
+              timeLimit: null,
+              questionTimeLimit: true,
+              adaptiveDifficulty: false,
+              ...quizData.settings,
+            },
+            tags: quizData.tags || [],
+            visibility: "private",
+            status: "draft",
+            aiGenerated: quizData.aiGenerated || false,
+            aiModel: quizData.aiModel,
+            sourceMaterial: quizData.sourceMaterial,
+            generationTime: quizData.aiGenerated ? new Date() : null,
+            slug: slug,
+          });
+
+          return { data: { quiz } };
+        });
+
+        const quiz = quizResponse.data.quiz;
+
+        // 2. Generate room code
+        const roomCode = await generateRoomCode();
+
+        // 3. Create session immediately
+        const session = await Session.create({
+          roomCode,
+          quizId: quiz._id,
+          hostId: req.user._id,
+          name: quiz.title || `Quiz Room - ${roomCode}`,
+          description: quiz.description || "Join this quiz session!",
+          settings: {
+            maxPlayers: 100,
+            questionTime: 30,
+            showLeaderboard: true,
+            showCorrectAnswers: true,
+            randomizeQuestions: false,
+            randomizeOptions: false,
+            allowLateJoin: true,
+            requireApproval: false,
+            privateMode: false,
+            adaptiveDifficulty: false,
+            powerupsEnabled: true,
+            hintsEnabled: true,
+            teamMode: false,
+            musicEnabled: true,
+            soundEffects: true,
+            ...sessionSettings,
+          },
+          participants: [{
+            userId: req.user._id,
+            username: req.user.username,
+            displayName: req.user.displayName || req.user.username,
+            avatar: req.user.avatar,
+            role: "host",
+            isReady: true,
+            status: "waiting",
+            score: 0,
+            correctAnswers: 0,
+            streak: 0,
+            multiplier: 1,
+          }],
+          status: "waiting",
+          currentState: {
+            phase: "lobby",
+            questionIndex: -1,
+            answersReceived: 0,
+            correctAnswers: 0,
+            paused: false,
+          },
+          stats: {
+            totalQuestions: quiz.questions?.length || 0,
+            completedQuestions: 0,
+            averageScore: 0,
+          },
+          metadata: {
+            createdVia: "web",
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent"),
+          },
+        });
+
+        // 4. Store in active sessions
+        activeSessions.set(roomCode, {
+          sessionId: session._id,
+          hostId: req.user._id,
+          quizId: quiz._id,
+          participants: new Map([[req.user._id.toString(), null]]),
+          settings: session.settings,
+        });
+
+        // 5. Initialize room sockets
+        roomSockets.set(roomCode, new Set());
+
+        console.log("Quiz created and room generated:", {
+          quizId: quiz._id,
+          roomCode: roomCode,
+          host: req.user.username
+        });
+
+        res.status(201).json({
+          success: true,
+          message: "Quiz created and room ready!",
+          quiz: {
+            _id: quiz._id,
+            title: quiz.title,
+            category: quiz.category,
+            difficulty: quiz.difficulty,
+            totalQuestions: quiz.questions?.length || 0,
+          },
+          session: {
+            _id: session._id,
+            roomCode: session.roomCode,
+            name: session.name,
+            hostId: session.hostId,
+            settings: session.settings,
+            participants: session.participants,
+            status: session.status,
+            createdAt: session.createdAt,
+          },
+          joinLinks: {
+            playerLink: `${FRONTEND_URL}/join/${roomCode}`,
+            hostDashboard: `${FRONTEND_URL}/host/${roomCode}`,
+            embedCode: `<iframe src="${FRONTEND_URL}/embed/${roomCode}" width="800" height="600"></iframe>`,
+          },
+        });
+
+      } catch (error) {
+        console.error("Create and host error:", error);
+        res.status(500).json({
+          success: false,
+          message: error.message || "Failed to create quiz and room",
+          code: "CREATE_AND_HOST_FAILED",
+        });
+      }
     });
 
-    // 1. Create the quiz first
-    const quizResponse = await axios.post(
-      `http://localhost:${PORT}/api/quizzes`,
-      quizData,
-      {
-        headers: {
-          'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}`,
-          'Content-Type': 'application/json'
+    // Quick join session check
+    app.get("/api/sessions/quick/:code", async (req, res) => {
+      try {
+        const { code } = req.params;
+        const session = await Session.findOne({ roomCode: code.toUpperCase() })
+          .populate("hostId", "username avatar")
+          .populate("quizId", "title category difficulty")
+          .lean();
+
+        if (!session) {
+          return res.status(404).json({
+            success: false,
+            message: "Room not found",
+            code: "ROOM_NOT_FOUND",
+          });
         }
+
+        const isActive = activeSessions.has(code.toUpperCase());
+        const participantCount = session.participants?.filter(p =>
+          ["waiting", "ready", "playing"].includes(p.status)
+        ).length || 0;
+
+        res.json({
+          success: true,
+          session: {
+            roomCode: session.roomCode,
+            name: session.name,
+            host: session.hostId,
+            quiz: session.quizId,
+            status: session.status,
+            participantCount,
+            maxPlayers: session.settings?.maxPlayers || 100,
+            isActive,
+            currentState: session.currentState,
+          },
+          canJoin: session.status === "waiting" ||
+            (session.status === "active" && session.settings?.allowLateJoin),
+        });
+      } catch (error) {
+        logger.error("Quick join check error:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to check room",
+          code: "ROOM_CHECK_FAILED",
+        });
       }
-    ).catch(async (error) => {
-      // If internal call fails, create quiz directly
-      console.log("Direct quiz creation fallback");
-      
-      // Validate quiz data
-      if (!quizData.title || !quizData.title.trim()) {
-        throw new Error("Quiz title is required");
-      }
-
-      if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
-        throw new Error("At least one question is required");
-      }
-
-      if (!quizData.category) {
-        throw new Error("Category is required");
-      }
-
-      // Create quiz directly
-      const quiz = await Quiz.create({
-        title: quizData.title.trim(),
-        description: quizData.description?.trim(),
-        shortDescription: quizData.shortDescription?.trim(),
-        category: quizData.category,
-        subcategory: quizData.subcategory,
-        difficulty: quizData.difficulty || "medium",
-        questions: quizData.questions,
-        createdBy: req.user._id,
-        organization: req.user.role === "organization" ? req.user._id : null,
-        settings: {
-          randomizeQuestions: false,
-          randomizeOptions: false,
-          showProgress: true,
-          showTimer: true,
-          showResults: true,
-          showExplanations: true,
-          showLeaderboard: true,
-          allowRetake: true,
-          allowReview: true,
-          requireLogin: true,
-          passingScore: 60,
-          maxAttempts: 0,
-          timeLimit: null,
-          questionTimeLimit: true,
-          adaptiveDifficulty: false,
-          ...quizData.settings,
-        },
-        tags: quizData.tags || [],
-        visibility: "private",
-        status: "draft",
-        aiGenerated: quizData.aiGenerated || false,
-        aiModel: quizData.aiModel,
-        sourceMaterial: quizData.sourceMaterial,
-        generationTime: quizData.aiGenerated ? new Date() : null,
-      });
-
-      return { data: { quiz } };
     });
-
-    const quiz = quizResponse.data.quiz;
-
-    // 2. Generate room code
-    const roomCode = await generateRoomCode();
-
-    // 3. Create session immediately
-    const session = await Session.create({
-      roomCode,
-      quizId: quiz._id,
-      hostId: req.user._id,
-      name: quiz.title || `Quiz Room - ${roomCode}`,
-      description: quiz.description || "Join this quiz session!",
-      settings: {
-        maxPlayers: 100,
-        questionTime: 30,
-        showLeaderboard: true,
-        showCorrectAnswers: true,
-        randomizeQuestions: false,
-        randomizeOptions: false,
-        allowLateJoin: true,
-        requireApproval: false,
-        privateMode: false,
-        adaptiveDifficulty: false,
-        powerupsEnabled: true,
-        hintsEnabled: true,
-        teamMode: false,
-        musicEnabled: true,
-        soundEffects: true,
-        ...sessionSettings,
-      },
-      participants: [{
-        userId: req.user._id,
-        username: req.user.username,
-        displayName: req.user.displayName || req.user.username,
-        avatar: req.user.avatar,
-        role: "host",
-        isReady: true,
-        status: "waiting",
-        score: 0,
-        correctAnswers: 0,
-        streak: 0,
-        multiplier: 1,
-      }],
-      status: "waiting",
-      currentState: {
-        phase: "lobby",
-        questionIndex: -1,
-        answersReceived: 0,
-        correctAnswers: 0,
-        paused: false,
-      },
-      stats: {
-        totalQuestions: quiz.questions?.length || 0,
-        completedQuestions: 0,
-        averageScore: 0,
-      },
-      metadata: {
-        createdVia: "web",
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
-      },
-    });
-
-    // 4. Store in active sessions
-    activeSessions.set(roomCode, {
-      sessionId: session._id,
-      hostId: req.user._id,
-      quizId: quiz._id,
-      participants: new Map([[req.user._id.toString(), null]]),
-      settings: session.settings,
-    });
-
-    // 5. Initialize room sockets
-    roomSockets.set(roomCode, new Set());
-
-    console.log("Quiz created and room generated:", {
-      quizId: quiz._id,
-      roomCode: roomCode,
-      host: req.user.username
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Quiz created and room ready!",
-      quiz: {
-        _id: quiz._id,
-        title: quiz.title,
-        category: quiz.category,
-        difficulty: quiz.difficulty,
-        totalQuestions: quiz.questions?.length || 0,
-      },
-      session: {
-        _id: session._id,
-        roomCode: session.roomCode,
-        name: session.name,
-        hostId: session.hostId,
-        settings: session.settings,
-        participants: session.participants,
-        status: session.status,
-        createdAt: session.createdAt,
-      },
-      joinLinks: {
-        playerLink: `${FRONTEND_URL}/join/${roomCode}`,
-        hostDashboard: `${FRONTEND_URL}/host/${roomCode}`,
-        embedCode: `<iframe src="${FRONTEND_URL}/embed/${roomCode}" width="800" height="600"></iframe>`,
-      },
-    });
-
-  } catch (error) {
-    console.error("Create and host error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to create quiz and room",
-      code: "CREATE_AND_HOST_FAILED",
-    });
-  }
-});
-
-// Quick join session check
-app.get("/api/sessions/quick/:code", async (req, res) => {
-  try {
-    const { code } = req.params;
-    const session = await Session.findOne({ roomCode: code.toUpperCase() })
-      .populate("hostId", "username avatar")
-      .populate("quizId", "title category difficulty")
-      .lean();
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Room not found",
-        code: "ROOM_NOT_FOUND",
-      });
-    }
-
-    const isActive = activeSessions.has(code.toUpperCase());
-    const participantCount = session.participants?.filter(p => 
-      ["waiting", "ready", "playing"].includes(p.status)
-    ).length || 0;
-
-    res.json({
-      success: true,
-      session: {
-        roomCode: session.roomCode,
-        name: session.name,
-        host: session.hostId,
-        quiz: session.quizId,
-        status: session.status,
-        participantCount,
-        maxPlayers: session.settings?.maxPlayers || 100,
-        isActive,
-        currentState: session.currentState,
-      },
-      canJoin: session.status === "waiting" || 
-               (session.status === "active" && session.settings?.allowLateJoin),
-    });
-  } catch (error) {
-    logger.error("Quick join check error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to check room",
-      code: "ROOM_CHECK_FAILED",
-    });
-  }
-});
     // Create quiz with minimal required fields first
     const quizData = {
       title: title.trim(),
@@ -4661,12 +4673,13 @@ app.get("/api/sessions/quick/:code", async (req, res) => {
       sourceMaterial,
       generationTime: aiGenerated ? new Date() : null,
       status: "draft", // Always start as draft
+      slug: `${title.trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").trim()}-${Date.now()}`,
     };
 
-    console.log("Creating quiz with data:", { 
+    console.log("Creating quiz with data:", {
       title: quizData.title,
       createdBy: quizData.createdBy,
-      questionCount: quizData.questions.length 
+      questionCount: quizData.questions.length
     });
 
     const quiz = await Quiz.create(quizData);
@@ -4679,7 +4692,7 @@ app.get("/api/sessions/quick/:code", async (req, res) => {
     //     "quizzes:*",
     //     `user:quizzes:${req.user._id}:*`,
     //   ];
-      
+
     //   for (const pattern of cachePatterns) {
     //     const keys = await redisClient.keys(pattern);
     //     if (keys.length > 0) {
@@ -4696,7 +4709,7 @@ app.get("/api/sessions/quick/:code", async (req, res) => {
   } catch (error) {
     console.error("Create quiz error details:", error);
     logger.error("Create quiz error:", error);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({
@@ -4706,7 +4719,7 @@ app.get("/api/sessions/quick/:code", async (req, res) => {
         code: "VALIDATION_ERROR",
       });
     }
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -4714,7 +4727,7 @@ app.get("/api/sessions/quick/:code", async (req, res) => {
         code: "DUPLICATE_QUIZ",
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: error.message || "Failed to create quiz",
@@ -4741,8 +4754,8 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
     }
 
     // Check permissions
-     const canEdit = req.user._id && (
-      req.user._id.toString() === quiz.createdBy.toString() || 
+    const canEdit = req.user._id && (
+      req.user._id.toString() === quiz.createdBy.toString() ||
       req.user.role === "admin" ||
       (quiz.organization && req.user._id.toString() === quiz.organization.toString())
     );
@@ -4780,7 +4793,7 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
         changedAt: new Date(),
       },
     ];
-    
+
     filteredUpdates.version = (quiz.version || 0) + 1;
 
     const updatedQuiz = await Quiz.findByIdAndUpdate(
@@ -4796,7 +4809,7 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
     //     `quizzes:*`,
     //     `user:quizzes:${req.user._id}:*`,
     //   ];
-      
+
     //   for (const pattern of cacheKeys) {
     //     const keys = await redisClient.keys(pattern);
     //     if (keys.length > 0) {
@@ -4812,7 +4825,7 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
     });
   } catch (error) {
     logger.error("Update quiz error:", error);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({
@@ -4822,7 +4835,7 @@ app.put("/api/quizzes/:id", authenticate, async (req, res) => {
         code: "VALIDATION_ERROR",
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Failed to update quiz",
@@ -4845,8 +4858,8 @@ app.delete("/api/quizzes/:id", authenticate, async (req, res) => {
     }
 
     // Check permissions
-    const canDelete = req.user._id.toString() === quiz.createdBy.toString() || 
-                     req.user.role === "admin";
+    const canDelete = req.user._id.toString() === quiz.createdBy.toString() ||
+      req.user.role === "admin";
 
     if (!canDelete) {
       return res.status(403).json({
@@ -4868,7 +4881,7 @@ app.delete("/api/quizzes/:id", authenticate, async (req, res) => {
     //     `quizzes:*`,
     //     `user:quizzes:${req.user._id}:*`,
     //   ];
-      
+
     //   for (const pattern of cacheKeys) {
     //     const keys = await redisClient.keys(pattern);
     //     if (keys.length > 0) {
@@ -4905,9 +4918,9 @@ app.post("/api/quizzes/:id/duplicate", authenticate, hasPermission("canCreateQui
     }
 
     // Check if user can access the quiz
-    if (originalQuiz.visibility === "private" && 
-        !originalQuiz.createdBy.equals(req.user._id) && 
-        !originalQuiz.allowedUsers.includes(req.user._id)) {
+    if (originalQuiz.visibility === "private" &&
+      !originalQuiz.createdBy.equals(req.user._id) &&
+      !originalQuiz.allowedUsers.includes(req.user._id)) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to duplicate this quiz",
@@ -4956,7 +4969,7 @@ app.post("/api/quizzes/:id/duplicate", authenticate, hasPermission("canCreateQui
     //     "quizzes:*",
     //     `user:quizzes:${req.user._id}:*`,
     //   ];
-      
+
     //   for (const pattern of cachePatterns) {
     //     const keys = await redisClient.keys(pattern);
     //     if (keys.length > 0) {
@@ -4995,8 +5008,8 @@ app.get("/api/quizzes/user/:userId", authenticate, async (req, res) => {
       });
     }
 
-    const query = { 
-      createdBy: userId, 
+    const query = {
+      createdBy: userId,
       isActive: true,
     };
 
@@ -5013,7 +5026,7 @@ app.get("/api/quizzes/user/:userId", authenticate, async (req, res) => {
     // Try cache first
     const cacheKey = `user:quizzes:${userId}:${page}:${limit}:${status}:${visibility}`;
     let cachedResult = null;
-    
+
     // if (redisClient) {
     //   cachedResult = await redisClient.get(cacheKey);
     // }
@@ -5096,7 +5109,7 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
     if (existingReviewIndex !== -1) {
       // Update existing review
       const oldRating = quiz.reviews[existingReviewIndex].rating;
-      
+
       quiz.reviews[existingReviewIndex] = {
         userId: req.user._id,
         rating,
@@ -5105,7 +5118,7 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
         createdAt: quiz.reviews[existingReviewIndex].createdAt,
         updatedAt: new Date(),
       };
-      
+
       // Update stats
       quiz.stats.rating = quiz.stats.rating - oldRating + rating;
     } else {
@@ -5117,7 +5130,7 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
         difficulty,
         createdAt: new Date(),
       });
-      
+
       // Update stats
       quiz.stats.rating += rating;
       quiz.stats.ratingCount += 1;
@@ -5133,7 +5146,7 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
     res.json({
       success: true,
       message: "Rating submitted successfully",
-      averageRating: quiz.stats.ratingCount > 0 
+      averageRating: quiz.stats.ratingCount > 0
         ? (quiz.stats.rating / quiz.stats.ratingCount).toFixed(1)
         : 0,
       totalRatings: quiz.stats.ratingCount,
@@ -5155,9 +5168,9 @@ app.post("/api/quizzes/:id/rate", authenticate, async (req, res) => {
 // Generate quiz from text/topic
 app.post("/api/ai/generate", authenticate, hasPermission("canUseAI"), async (req, res) => {
   try {
-    const { 
-      type, 
-      content, 
+    const {
+      type,
+      content,
       options = {},
       aiModel = "gpt-3.5-turbo",
     } = req.body;
@@ -5203,28 +5216,38 @@ app.post("/api/ai/generate", authenticate, hasPermission("canUseAI"), async (req
           ...options,
           aiModel,
         });
-        
+
         if (!result.success) {
-          throw new Error(result.error);
+          if (result.fallback) {
+            console.warn("AI generation failed, using fallback:", result.error);
+            quizData = result.fallback;
+          } else {
+            throw new Error(result.error);
+          }
+        } else {
+          quizData = result.data;
         }
-        
-        quizData = result.data;
         break;
-        
+
       case "topic":
         generationSource = "topic";
         const topicResult = await generateQuestionsWithAI(
           `Generate questions about: ${content}`,
           { ...options, aiModel }
         );
-        
+
         if (!topicResult.success) {
-          throw new Error(topicResult.error);
+          if (topicResult.fallback) {
+            console.warn("AI topic generation failed, using fallback:", topicResult.error);
+            quizData = topicResult.fallback;
+          } else {
+            throw new Error(topicResult.error);
+          }
+        } else {
+          quizData = topicResult.data;
         }
-        
-        quizData = topicResult.data;
         break;
-        
+
       case "url":
         // Web scraping for URL content (simplified)
         generationSource = "url";
@@ -5235,23 +5258,28 @@ app.post("/api/ai/generate", authenticate, hasPermission("canUseAI"), async (req
             .replace(/\s+/g, ' ')
             .trim()
             .substring(0, 5000);
-          
+
           const urlResult = await generateQuestionsWithAI(textContent, {
             ...options,
             aiModel,
           });
-          
+
           if (!urlResult.success) {
-            throw new Error(urlResult.error);
+            if (urlResult.fallback) {
+              console.warn("AI URL generation failed, using fallback:", urlResult.error);
+              quizData = urlResult.fallback;
+            } else {
+              throw new Error(urlResult.error);
+            }
+          } else {
+            quizData = urlResult.data;
           }
-          
-          quizData = urlResult.data;
           quizData.sourceMaterial = content;
         } catch (urlError) {
           throw new Error(`Failed to fetch URL content: ${urlError.message}`);
         }
         break;
-        
+
       default:
         return res.status(400).json({
           success: false,
@@ -5324,7 +5352,7 @@ app.post("/api/ai/upload", authenticate, hasPermission("canUseAI"), upload.singl
 
     const options = req.body.options ? JSON.parse(req.body.options) : {};
     const aiModel = req.body.aiModel || "gpt-3.5-turbo";
-    
+
     let quizData;
     let fileError = null;
     let extractedText = "";
@@ -5342,7 +5370,7 @@ app.post("/api/ai/upload", authenticate, hasPermission("canUseAI"), upload.singl
         // Process audio files (speech to text)
         const audioBuffer = await fs.readFile(req.file.path);
         const speechResult = await processSpeechToText(audioBuffer);
-        
+
         if (speechResult.success) {
           extractedText = speechResult.text;
         } else {
@@ -5363,10 +5391,15 @@ app.post("/api/ai/upload", authenticate, hasPermission("canUseAI"), upload.singl
       });
 
       if (!generationResult.success) {
-        throw new Error(generationResult.error);
+        if (generationResult.fallback) {
+          console.warn("AI file generation failed, using fallback:", generationResult.error);
+          quizData = generationResult.fallback;
+        } else {
+          throw new Error(generationResult.error);
+        }
+      } else {
+        quizData = generationResult.data;
       }
-
-      quizData = generationResult.data;
       quizData.sourceMaterial = req.file.originalname;
     } catch (genError) {
       fileError = genError.message;
@@ -5412,7 +5445,7 @@ app.post("/api/ai/upload", authenticate, hasPermission("canUseAI"), upload.singl
     });
   } catch (error) {
     logger.error("File upload generation error:", error);
-    
+
     // Clean up file if it exists
     if (req.file?.path) {
       try {
@@ -5421,7 +5454,7 @@ app.post("/api/ai/upload", authenticate, hasPermission("canUseAI"), upload.singl
         // Ignore cleanup errors
       }
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Failed to generate quiz from file",
@@ -5456,8 +5489,8 @@ app.post("/api/ai/adaptive", authenticate, async (req, res) => {
     const newDifficulty = calculateAdaptiveDifficulty(userPerformance, quiz.difficulty);
 
     // Get questions filtered by new difficulty
-    const filteredQuestions = quiz.questions.filter(q => 
-      q.difficulty === newDifficulty || 
+    const filteredQuestions = quiz.questions.filter(q =>
+      q.difficulty === newDifficulty ||
       (newDifficulty === "mixed" && Math.random() > 0.5) // Mix for "mixed" difficulty
     );
 
@@ -5537,7 +5570,7 @@ app.post("/api/speech/transcribe", authenticate, upload.single("audio"), async (
     });
   } catch (error) {
     logger.error("Speech transcription error:", error);
-    
+
     if (req.file?.path) {
       try {
         await fs.unlink(req.file.path);
@@ -5545,7 +5578,7 @@ app.post("/api/speech/transcribe", authenticate, upload.single("audio"), async (
         // Ignore cleanup errors
       }
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Failed to transcribe audio",
@@ -5618,7 +5651,7 @@ app.post("/api/sessions", authenticate, hasPermission("canHostSessions"), async 
     }
 
     // Verify quiz exists and user can access it
-    const quiz = await Quiz.findById(quizId).select("title description category difficulty questions");
+    const quiz = await Quiz.findById(quizId).select("title description category difficulty questions createdBy visibility allowedUsers organization");
     if (!quiz) {
       return res.status(404).json({
         success: false,
@@ -5629,9 +5662,9 @@ app.post("/api/sessions", authenticate, hasPermission("canHostSessions"), async 
 
     // Check permissions
     const canUseQuiz = quiz.visibility === "public" ||
-                      quiz.createdBy.equals(req.user._id) ||
-                      quiz.allowedUsers.includes(req.user._id) ||
-                      (quiz.organization && quiz.organization.equals(req.user._id));
+      quiz.createdBy.equals(req.user._id) ||
+      quiz.allowedUsers.includes(req.user._id) ||
+      (quiz.organization && quiz.organization.equals(req.user._id));
 
     if (!canUseQuiz) {
       return res.status(403).json({
@@ -5821,7 +5854,7 @@ app.post("/api/sessions/:code/join", authenticate, async (req, res) => {
         role: "player",
         status: "waiting",
       };
-      
+
       session.waitingList.push(waitingParticipant);
       await session.save();
 
@@ -5851,10 +5884,10 @@ app.post("/api/sessions/:code/join", authenticate, async (req, res) => {
     }
 
     // Check if session is full
-    const activeParticipants = session.participants.filter(p => 
+    const activeParticipants = session.participants.filter(p =>
       p.status === "waiting" || p.status === "ready" || p.status === "playing"
     );
-    
+
     if (activeParticipants.length >= session.settings.maxPlayers) {
       return res.status(400).json({
         success: false,
@@ -5943,7 +5976,7 @@ app.get("/api/sessions", async (req, res) => {
     const { page = 1, limit = 20, status = "waiting" } = req.query;
 
     const query = { status: { $in: ["waiting", "starting", "active"] } };
-    
+
     if (status !== "all") {
       query.status = status;
     }
@@ -5965,7 +5998,7 @@ app.get("/api/sessions", async (req, res) => {
     const enhancedSessions = sessions.map(session => ({
       ...session,
       isActive: activeSessions.has(session.roomCode),
-      participantCount: session.participants.filter(p => 
+      participantCount: session.participants.filter(p =>
         p.status === "waiting" || p.status === "ready" || p.status === "playing"
       ).length,
     }));
@@ -6006,7 +6039,7 @@ app.get("/api/sessions/user/:userId", authenticate, async (req, res) => {
       });
     }
 
-    const query = { 
+    const query = {
       $or: [
         { hostId: userId },
         { "participants.userId": userId },
@@ -6032,15 +6065,15 @@ app.get("/api/sessions/user/:userId", authenticate, async (req, res) => {
 
     // Add user's role in each session
     const enhancedSessions = sessions.map(session => {
-      const participant = session.participants.find(p => 
+      const participant = session.participants.find(p =>
         p.userId && p.userId.toString() === userId
       );
-      
+
       return {
         ...session,
         userRole: participant?.role || "spectator",
         userStatus: participant?.status,
-        participantCount: session.participants.filter(p => 
+        participantCount: session.participants.filter(p =>
           p.status === "waiting" || p.status === "ready" || p.status === "playing"
         ).length,
         isActive: activeSessions.has(session.roomCode),
@@ -6059,7 +6092,7 @@ app.get("/api/sessions/user/:userId", authenticate, async (req, res) => {
       stats: {
         total,
         hosted: await Session.countDocuments({ hostId: userId }),
-        participated: await Session.countDocuments({ 
+        participated: await Session.countDocuments({
           "participants.userId": userId,
           hostId: { $ne: userId },
         }),
@@ -6091,8 +6124,8 @@ app.post("/api/sessions/:code/end", authenticate, async (req, res) => {
     }
 
     // Check permissions
-    const canEnd = req.user._id.toString() === session.hostId.toString() || 
-                  req.user.role === "admin";
+    const canEnd = req.user._id.toString() === session.hostId.toString() ||
+      req.user.role === "admin";
 
     if (!canEnd) {
       return res.status(403).json({
@@ -6105,18 +6138,18 @@ app.post("/api/sessions/:code/end", authenticate, async (req, res) => {
     // Update session status
     session.status = "finished";
     session.endedAt = new Date();
-    session.duration = session.startedAt ? 
+    session.duration = session.startedAt ?
       (session.endedAt - session.startedAt) / 1000 : 0;
-    
+
     await session.save();
 
     // Clean up active session
     activeSessions.delete(code.toUpperCase());
-    
+
     if (roomSockets.has(code.toUpperCase())) {
       roomSockets.delete(code.toUpperCase());
     }
-    
+
     if (sessionTimers.has(code.toUpperCase())) {
       clearTimeout(sessionTimers.get(code.toUpperCase()));
       sessionTimers.delete(code.toUpperCase());
@@ -6171,7 +6204,7 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
     // Calculate date range
     const endDate = new Date();
     let startDate = new Date();
-    
+
     switch (period) {
       case "7d":
         startDate.setDate(endDate.getDate() - 7);
@@ -6192,7 +6225,7 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
     // Try cache first
     const cacheKey = `analytics:user:${userId}:${period}`;
     let cachedResult = null;
-    
+
     // if (redisClient) {
     //   cachedResult = await redisClient.get(cacheKey);
     // }
@@ -6216,10 +6249,10 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
       userId,
       completedAt: { $gte: startDate, $lte: endDate },
     })
-    .populate("quizId", "title category")
-    .sort({ completedAt: -1 })
-    .limit(100)
-    .lean();
+      .populate("quizId", "title category")
+      .sort({ completedAt: -1 })
+      .limit(100)
+      .lean();
 
     // Get sessions hosted
     const sessionsHosted = await Session.find({
@@ -6267,8 +6300,8 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
         category,
         quizzesTaken: stats.count,
         averageScore: stats.count > 0 ? Math.round(stats.totalScore / stats.count) : 0,
-        accuracy: stats.totalQuestions > 0 
-          ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
+        accuracy: stats.totalQuestions > 0
+          ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100)
           : 0,
         averageTime: stats.count > 0 ? Math.round(stats.totalTime / stats.count) : 0,
       })
@@ -6277,26 +6310,26 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
     // Time series data (daily performance)
     const timeSeriesData = [];
     const currentDate = new Date(startDate);
-    
+
     while (currentDate <= endDate) {
       const dateStr = currentDate.toISOString().split('T')[0];
-      const dayResults = results.filter(r => 
+      const dayResults = results.filter(r =>
         r.completedAt && r.completedAt.toISOString().split('T')[0] === dateStr
       );
-      
+
       const dayScore = dayResults.reduce((sum, r) => sum + (r.score || 0), 0);
-      const dayAccuracy = dayResults.length > 0 
-        ? dayResults.reduce((sum, r) => sum + (r.correctAnswers || 0), 0) / 
-          dayResults.reduce((sum, r) => sum + (r.totalQuestions || 0), 0) * 100
+      const dayAccuracy = dayResults.length > 0
+        ? dayResults.reduce((sum, r) => sum + (r.correctAnswers || 0), 0) /
+        dayResults.reduce((sum, r) => sum + (r.totalQuestions || 0), 0) * 100
         : 0;
-      
+
       timeSeriesData.push({
         date: dateStr,
         quizzesTaken: dayResults.length,
         averageScore: dayResults.length > 0 ? dayScore / dayResults.length : 0,
         accuracy: dayAccuracy,
       });
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -6310,7 +6343,7 @@ app.get("/api/analytics/user/:userId", authenticate, async (req, res) => {
           if (cat.accuracy >= 70) level = "intermediate";
           if (cat.accuracy >= 85) level = "advanced";
           if (cat.accuracy >= 95) level = "expert";
-          
+
           skills.push({
             category: cat.category,
             level,
@@ -6418,7 +6451,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
     // Calculate date range
     const endDate = new Date();
     let startDate = new Date();
-    
+
     switch (period) {
       case "7d":
         startDate.setDate(endDate.getDate() - 7);
@@ -6439,7 +6472,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
     // Try cache first
     const cacheKey = `analytics:platform:${period}`;
     let cachedResult = null;
-    
+
     // if (redisClient) {
     //   cachedResult = await redisClient.get(cacheKey);
     // }
@@ -6472,24 +6505,24 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
       User.countDocuments(),
       User.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } }),
       User.countDocuments({ lastActive: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }),
-      
+
       // Quiz metrics
       Quiz.countDocuments({ isActive: true }),
       Quiz.countDocuments({ createdAt: { $gte: startDate, $lte: endDate }, isActive: true }),
-      
+
       // Session metrics
       Session.countDocuments(),
       Session.countDocuments({ status: { $in: ["waiting", "starting", "active"] } }),
-      
+
       // Performance metrics
       QuizResult.countDocuments({ completedAt: { $gte: startDate, $lte: endDate } }),
-      
+
       // AI metrics
-      Quiz.countDocuments({ 
-        aiGenerated: true, 
-        createdAt: { $gte: startDate, $lte: endDate } 
+      Quiz.countDocuments({
+        aiGenerated: true,
+        createdAt: { $gte: startDate, $lte: endDate }
       }),
-      
+
       // Growth trends
       User.aggregate([
         {
@@ -6503,12 +6536,12 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         },
         { $sort: { _id: 1 } }
       ]),
-      
+
       Quiz.aggregate([
         {
-          $match: { 
+          $match: {
             createdAt: { $gte: startDate, $lte: endDate },
-            isActive: true 
+            isActive: true
           }
         },
         {
@@ -6519,7 +6552,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         },
         { $sort: { _id: 1 } }
       ]),
-      
+
       Session.aggregate([
         {
           $match: { createdAt: { $gte: startDate, $lte: endDate } }
@@ -6532,7 +6565,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         },
         { $sort: { _id: 1 } }
       ]),
-      
+
       // Category distribution
       Quiz.aggregate([
         {
@@ -6548,7 +6581,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         { $sort: { count: -1 } },
         { $limit: 10 }
       ]),
-      
+
       // Difficulty distribution
       Quiz.aggregate([
         {
@@ -6561,7 +6594,7 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
           }
         }
       ]),
-      
+
       // Top quizzes by plays
       Quiz.find({ isActive: true })
         .select("title category difficulty stats.totalPlays stats.averageScore createdBy")
@@ -6569,20 +6602,20 @@ app.get("/api/analytics/platform", authenticate, authorize("admin"), async (req,
         .sort({ "stats.totalPlays": -1 })
         .limit(10)
         .lean(),
-      
+
       // Top users by score
       User.find({ isActive: true })
         .select("username avatar stats.totalScore stats.totalQuizzes stats.averageScore stats.level")
         .sort({ "stats.totalScore": -1 })
         .limit(10)
         .lean(),
-      
+
       // System metrics
       Promise.resolve({
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-       // redis: redisClient && redisClient.status === "ready" ? "connected" : "disconnected",
+        // redis: redisClient && redisClient.status === "ready" ? "connected" : "disconnected",
         socketConnections: io.engine.clientsCount,
       }),
     ]);
@@ -6732,7 +6765,7 @@ app.put("/api/admin/users/:id", authenticate, authorize("admin"), async (req, re
 
     // Filter allowed updates
     const allowedUpdates = [
-      "role", "permissions", "isActive", "isBanned", 
+      "role", "permissions", "isActive", "isBanned",
       "banReason", "banExpires", "emailVerified",
     ];
 
@@ -6781,7 +6814,7 @@ app.get("/api/admin/moderation", authenticate, authorize("admin"), async (req, r
     switch (type) {
       case "quizzes":
         model = Quiz;
-        query = { 
+        query = {
           $or: [
             { status: "flagged" },
             { moderated: false, visibility: "public" },
@@ -6796,7 +6829,7 @@ app.get("/api/admin/moderation", authenticate, authorize("admin"), async (req, r
         break;
       case "users":
         model = User;
-        query = { 
+        query = {
           $or: [
             { isBanned: true },
             { reportedCount: { $gt: 0 } },
@@ -6979,7 +7012,7 @@ app.use((req, res) => {
 // Global error handler
 app.use((error, req, res, next) => {
   const requestId = req.requestId || uuidv4();
-  
+
   logger.error({
     requestId,
     error: error.message,
@@ -7072,11 +7105,11 @@ app.use((error, req, res, next) => {
 app.get("/api/analytics/leaderboard", async (req, res) => {
   try {
     const { limit = 20, period = "weekly" } = req.query;
-    
+
     // Calculate date range based on period
     const endDate = new Date();
     let startDate = new Date();
-    
+
     switch (period) {
       case "daily":
         startDate.setDate(endDate.getDate() - 1);
@@ -7166,14 +7199,14 @@ app.get("/api/analytics/leaderboard", async (req, res) => {
     // Calculate stats
     const stats = {
       totalPlayers: leaderboard.length,
-      averageScore: leaderboard.length > 0 
-        ? leaderboard.reduce((sum, user) => sum + user.score, 0) / leaderboard.length 
+      averageScore: leaderboard.length > 0
+        ? leaderboard.reduce((sum, user) => sum + user.score, 0) / leaderboard.length
         : 0,
-      averageAccuracy: leaderboard.length > 0 
-        ? leaderboard.reduce((sum, user) => sum + user.accuracy, 0) / leaderboard.length 
+      averageAccuracy: leaderboard.length > 0
+        ? leaderboard.reduce((sum, user) => sum + user.accuracy, 0) / leaderboard.length
         : 0,
-      averageTime: leaderboard.length > 0 
-        ? leaderboard.reduce((sum, user) => sum + user.averageTime, 0) / leaderboard.length 
+      averageTime: leaderboard.length > 0
+        ? leaderboard.reduce((sum, user) => sum + user.averageTime, 0) / leaderboard.length
         : 0,
     };
 
@@ -7198,7 +7231,7 @@ app.get("/api/analytics/leaderboard", async (req, res) => {
 app.get("/api/sessions/:code/leaderboard", async (req, res) => {
   try {
     const { code } = req.params;
-    
+
     const session = await Session.findOne({ roomCode: code.toUpperCase() })
       .select("leaderboard participants quizId settings")
       .lean();
@@ -7213,7 +7246,7 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
 
     // Use session leaderboard if available, otherwise calculate from participants
     let leaderboard = session.leaderboard || [];
-    
+
     if (leaderboard.length === 0 && session.participants) {
       leaderboard = session.participants
         .filter(p => p.userId && p.score !== undefined)
@@ -7237,7 +7270,7 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
     // Get current user from token if available
     const token = req.headers.authorization?.split(" ")[1];
     let currentUserId = null;
-    
+
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -7256,11 +7289,11 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
     // Calculate session stats
     const stats = {
       totalPlayers: leaderboard.length,
-      averageScore: leaderboard.length > 0 
-        ? leaderboard.reduce((sum, p) => sum + p.score, 0) / leaderboard.length 
+      averageScore: leaderboard.length > 0
+        ? leaderboard.reduce((sum, p) => sum + p.score, 0) / leaderboard.length
         : 0,
-      averageAccuracy: leaderboard.length > 0 
-        ? leaderboard.reduce((sum, p) => sum + p.accuracy, 0) / leaderboard.length 
+      averageAccuracy: leaderboard.length > 0
+        ? leaderboard.reduce((sum, p) => sum + p.accuracy, 0) / leaderboard.length
         : 0,
       averageTime: session.settings?.questionTime || 30,
     };
@@ -7283,6 +7316,19 @@ app.get("/api/sessions/:code/leaderboard", async (req, res) => {
     });
   }
 });
+
+// ===========================================================================
+// AI QUIZ GENERATION ROUTES
+// ===========================================================================
+
+try {
+  const quizGenerationRoutes = require('./routes/quizGeneration');
+  app.use('/api/quiz-generation', quizGenerationRoutes);
+  logger.info('✅ AI Quiz Generation routes mounted at /api/quiz-generation');
+} catch (error) {
+  logger.warn('⚠️ Quiz generation routes not available:', error.message);
+  logger.warn('   Install dependencies: npm install pdf-parse multer groq-sdk');
+}
 
 // ===========================================================================
 // 20. START SERVER WITH COMPREHENSIVE LOGGING
@@ -7315,23 +7361,23 @@ server.listen(PORT, () => {
 
 const shutdown = async (signal) => {
   logger.info(`${signal} received. Starting graceful shutdown...`);
-  
+
   try {
     // Close all active sessions
     const activeSessionCodes = Array.from(activeSessions.keys());
-    
+
     if (activeSessionCodes.length > 0) {
       logger.info(`Closing ${activeSessionCodes.length} active sessions...`);
-      
+
       await Session.updateMany(
         { roomCode: { $in: activeSessionCodes } },
-        { 
-          status: "cancelled", 
+        {
+          status: "cancelled",
           endedAt: new Date(),
           "currentState.phase": "finished"
         }
       );
-      
+
       // Notify all connected clients
       activeSessionCodes.forEach(roomCode => {
         io.to(roomCode).emit("server-shutdown", {
@@ -7340,35 +7386,35 @@ const shutdown = async (signal) => {
         });
       });
     }
-    
+
     // Close HTTP server
     server.close(async () => {
       logger.info("✅ HTTP server closed");
-      
+
       // Close Socket.IO
       io.close(() => {
         logger.info("✅ WebSocket server closed");
       });
-      
+
       // Close database connections
       await mongoose.connection.close();
       logger.info("✅ MongoDB connection closed");
-      
+
       // if (redisClient && redisClient.status === "ready") {
       //   await redisClient.quit();
       //   logger.info("✅ Redis connection closed");
       // }
-      
+
       logger.info("✅ Graceful shutdown complete");
       process.exit(0);
     });
-    
+
     // Force close after 30 seconds
     setTimeout(() => {
       logger.error("❌ Could not close connections in time, forcefully shutting down");
       process.exit(1);
     }, 30000);
-    
+
   } catch (error) {
     logger.error("❌ Error during shutdown:", error);
     process.exit(1);
@@ -7397,9 +7443,9 @@ process.on("unhandledRejection", (reason, promise) => {
 // 22. EXPORT FOR TESTING
 // ===========================================================================
 
-module.exports = { 
-  app, 
-  server, 
+module.exports = {
+  app,
+  server,
   io,
   mongoose,
   activeSessions,

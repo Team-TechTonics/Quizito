@@ -24,7 +24,7 @@ import toast from 'react-hot-toast'
 const Explore = () => {
   const { quizzes, fetchQuizzes, loading } = useQuiz()
   const { user } = useAuth()
-  
+
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState('all')
@@ -79,7 +79,7 @@ const Explore = () => {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(quiz => 
+      filtered = filtered.filter(quiz =>
         quiz.title.toLowerCase().includes(query) ||
         quiz.description.toLowerCase().includes(query) ||
         quiz.category.toLowerCase().includes(query) ||
@@ -89,14 +89,14 @@ const Explore = () => {
 
     // Category filter
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(quiz => 
+      filtered = filtered.filter(quiz =>
         quiz.category === selectedCategory
       )
     }
 
     // Difficulty filter
     if (selectedDifficulty !== 'all') {
-      filtered = filtered.filter(quiz => 
+      filtered = filtered.filter(quiz =>
         quiz.difficulty === selectedDifficulty
       )
     }
@@ -167,7 +167,7 @@ const Explore = () => {
               Discover thousands of quizzes created by educators, students, and quiz enthusiasts worldwide.
               Test your knowledge, learn something new, and compete with others!
             </p>
-            
+
             {/* Search Bar */}
             <div className="max-w-2xl mx-auto">
               <div className="relative">
@@ -223,11 +223,10 @@ const Explore = () => {
                     <button
                       key={option.id}
                       onClick={() => setSortBy(option.id)}
-                      className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
-                        sortBy === option.id
+                      className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${sortBy === option.id
                           ? 'bg-primary-50 text-primary-700 border-2 border-primary-200'
                           : 'hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {option.icon}
                       <span>{option.label}</span>
@@ -244,11 +243,10 @@ const Explore = () => {
                     <button
                       key={category}
                       onClick={() => setSelectedCategory(category === 'All Categories' ? 'all' : category)}
-                      className={`w-full text-left p-3 rounded-lg transition-all ${
-                        selectedCategory === (category === 'All Categories' ? 'all' : category)
+                      className={`w-full text-left p-3 rounded-lg transition-all ${selectedCategory === (category === 'All Categories' ? 'all' : category)
                           ? 'bg-primary-50 text-primary-700 font-semibold'
                           : 'hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {category}
                     </button>
@@ -264,11 +262,10 @@ const Explore = () => {
                     <button
                       key={diff.id}
                       onClick={() => setSelectedDifficulty(diff.id)}
-                      className={`w-full text-left p-3 rounded-lg transition-all ${
-                        selectedDifficulty === diff.id
+                      className={`w-full text-left p-3 rounded-lg transition-all ${selectedDifficulty === diff.id
                           ? `${diff.color} font-semibold ring-2 ring-offset-2 ring-opacity-50`
                           : 'hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {diff.label}
                     </button>
@@ -323,7 +320,7 @@ const Explore = () => {
                   {selectedDifficulty !== 'all' && ` • ${selectedDifficulty} difficulty`}
                 </p>
               </div>
-              
+
               {user && (
                 <Link
                   to="/create-quiz"
@@ -410,7 +407,7 @@ const Explore = () => {
                           <QuizCard key={quiz._id} quiz={quiz} />
                         ))}
                       </div>
-                      
+
                       {/* Load More (Pagination would go here) */}
                       {filteredQuizzes.length > 12 && (
                         <div className="text-center mt-12">
@@ -427,7 +424,7 @@ const Explore = () => {
                       </div>
                       <h3 className="text-2xl font-bold mb-3">No quizzes found</h3>
                       <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                        {searchQuery 
+                        {searchQuery
                           ? `No quizzes match "${searchQuery}". Try a different search term.`
                           : 'No quizzes match your current filters. Try clearing some filters.'
                         }
@@ -497,7 +494,7 @@ const Explore = () => {
                   <span>Create a Quiz</span>
                 </Link>
                 <Link
-                  to="/host-session"
+                  to="/create-quiz"
                   className="bg-transparent border-2 border-white text-white hover:bg-white/10 px-8 py-4 rounded-xl font-bold text-lg transition-colors inline-flex items-center justify-center space-x-2"
                 >
                   <Users size={24} />

@@ -23,7 +23,7 @@ export const QuizProvider = ({ children }) => {
 
   useEffect(() => {
     // Optionally fetch a public list on mount — you can remove if not wanted
-    fetchQuizzes().catch(() => {});
+    fetchQuizzes().catch(() => { });
   }, []);
 
   const fetchQuizzes = async (opts = {}) => {
@@ -57,24 +57,24 @@ export const QuizProvider = ({ children }) => {
   };
 
   const generateAIQuiz = async ({ topic, numQuestions, difficulty }) => {
-  setLoading(true);
-  try {
-    const response = await axios.post(`${API_URL}/api/ai/generate`, {
-      topic,
-      numQuestions,
-      difficulty
-    });
+    setLoading(true);
+    try {
+      const response = await api.post("/api/ai/generate", {
+        topic,
+        numQuestions,
+        difficulty
+      });
 
-    toast.success("AI quiz generated successfully");
-    return response.data.quiz;
-  } catch (error) {
-    console.error("AI Generation Error:", error);
-    toast.error(error.response?.data?.message || "Failed to generate AI quiz");
-    throw error;
-  } finally {
-    setLoading(false);
-  }
-};
+      toast.success("AI quiz generated successfully");
+      return response.data.quiz;
+    } catch (error) {
+      console.error("AI Generation Error:", error);
+      toast.error(error.response?.data?.message || "Failed to generate AI quiz");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const createSession = async (quizId, settings = {}) => {
     setLoading(true);

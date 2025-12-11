@@ -2,14 +2,14 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { 
-  Home, 
-  Compass, 
-  PlusCircle, 
-  Trophy, 
-  User, 
-  LogOut, 
-  Menu, 
+import {
+  Home,
+  Compass,
+  PlusCircle,
+  Trophy,
+  User,
+  LogOut,
+  Menu,
   X,
   Zap
 } from 'lucide-react'
@@ -29,7 +29,7 @@ const Navbar = () => {
     { name: 'Home', path: '/', icon: <Home size={20} /> },
     { name: 'Explore', path: '/explore', icon: <Compass size={20} /> },
     { name: 'Create', path: '/create-quiz', icon: <PlusCircle size={20} /> },
-    { name: 'Host', path: '/host-session', icon: <Trophy size={20} /> },
+    { name: 'Host', path: '/create-quiz', icon: <Trophy size={20} /> },
   ]
 
   return (

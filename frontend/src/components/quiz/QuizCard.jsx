@@ -82,11 +82,10 @@ const QuizCard = ({ quiz, featured = false }) => {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -5 }}
       transition={{ duration: 0.3 }}
-      className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
-        featured
+      className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${featured
           ? 'border-primary-300 bg-gradient-to-br from-primary-50 to-white shadow-xl'
           : 'border-gray-200 bg-white hover:border-primary-200 hover:shadow-xl'
-      }`}
+        }`}
     >
       {/* Featured Badge */}
       {featured && (
@@ -222,13 +221,12 @@ const QuizCard = ({ quiz, featured = false }) => {
             {[1, 2, 3, 4, 5].map((star) => (
               <div
                 key={star}
-                className={`w-full h-2 rounded-full ${
-                  star <= Math.floor(rating)
+                className={`w-full h-2 rounded-full ${star <= Math.floor(rating)
                     ? 'bg-yellow-500'
                     : star === Math.ceil(rating) && rating % 1 > 0
-                    ? 'bg-gradient-to-r from-yellow-500 to-gray-300'
-                    : 'bg-gray-200'
-                }`}
+                      ? 'bg-gradient-to-r from-yellow-500 to-gray-300'
+                      : 'bg-gray-200'
+                  }`}
               />
             ))}
           </div>
@@ -237,7 +235,7 @@ const QuizCard = ({ quiz, featured = false }) => {
         {/* Action Buttons */}
         <div className="flex gap-3">
           <Link
-            to={`/host-session?quizId=${quiz._id}`}
+            to={`/create-quiz?quizId=${quiz._id}`}
             className="flex-1 btn-primary py-3 flex items-center justify-center space-x-2"
           >
             <Play size={18} />
@@ -258,7 +256,7 @@ const QuizCard = ({ quiz, featured = false }) => {
             <span className="font-bold text-green-600">89%</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden mt-2">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
               style={{ width: '89%' }}
             />

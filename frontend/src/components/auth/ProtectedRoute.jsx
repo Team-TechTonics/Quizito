@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 
 // Enhanced ProtectedRoute with role-based access control
-const ProtectedRoute = ({ 
+const ProtectedRoute = ({
   roles = [], // Array of allowed roles (e.g., ['admin', 'educator'])
   redirectTo = '/login',
   showUnauthorized = true
@@ -33,13 +33,13 @@ const ProtectedRoute = ({
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return (
-      <Navigate 
-        to={redirectTo} 
-        state={{ 
+      <Navigate
+        to={redirectTo}
+        state={{
           from: location,
           message: 'Please log in to access this page'
-        }} 
-        replace 
+        }}
+        replace
       />
     )
   }
@@ -56,7 +56,7 @@ const ProtectedRoute = ({
               </div>
               <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
               <p className="text-gray-600 mb-6">
-                You don't have permission to access this page. 
+                You don't have permission to access this page.
                 This area requires {roles.join(' or ')} privileges.
               </p>
               <div className="flex gap-4 justify-center">
@@ -87,22 +87,22 @@ const ProtectedRoute = ({
 
 // Route-specific protected components
 export const AdminRoute = () => (
-  <ProtectedRoute 
-    roles={['admin']} 
+  <ProtectedRoute
+    roles={['admin']}
     showUnauthorized={true}
   />
 )
 
 export const EducatorRoute = () => (
-  <ProtectedRoute 
-    roles={['educator', 'admin']} 
+  <ProtectedRoute
+    roles={['educator', 'admin']}
     showUnauthorized={true}
   />
 )
 
 export const VerifiedUserRoute = ({ children }) => {
   const { user, isAuthenticated } = useAuth()
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
@@ -122,7 +122,7 @@ export const VerifiedUserRoute = ({ children }) => {
               Check your inbox for the verification link.
             </p>
             <button
-              onClick={() => {/* Resend verification email */}}
+              onClick={() => {/* Resend verification email */ }}
               className="btn-primary"
             >
               Resend Verification Email
@@ -154,40 +154,5 @@ export const AuthCheck = ({ children, fallback = null, roles = [] }) => {
 
   return children
 }
-
-// Usage in App.jsx:
-/*
-<Routes>
-  {/* Public routes *//*}
-  <Route path="/" element={<Home />} />
-  <Route path="/login" element={<Login />} />
-  <Route path="/register" element={<Register />} />
-  <Route path="/explore" element={<Explore />} />
-
-  {/* Protected routes - requires authentication *//*}
-  <Route element={<ProtectedRoute />}>
-    <Route path="/create-quiz" element={<CreateQuiz />} />
-    <Route path="/host-session" element={<HostSession />} />
-    <Route path="/profile" element={<Profile />} />
-  </Route>
-
-  {/* Educator only routes *//*}
-  <Route element={<EducatorRoute />}>
-    <Route path="/educator/dashboard" element={<EducatorDashboard />} />
-    <Route path="/educator/analytics" element={<EducatorAnalytics />} />
-  </Route>
-
-  {/* Admin only routes *//*}
-  <Route element={<AdminRoute />}>
-    <Route path="/admin" element={<AdminDashboard />} />
-    <Route path="/admin/users" element={<UserManagement />} />
-  </Route>
-
-  {/* Verified users only *//*}
-  <Route element={<VerifiedUserRoute />}>
-    <Route path="/premium" element={<PremiumFeatures />} />
-  </Route>
-</Routes>
-*/
 
 export default ProtectedRoute;

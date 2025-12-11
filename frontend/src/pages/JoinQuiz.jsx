@@ -10,14 +10,14 @@ const JoinQuiz = () => {
   const { roomCode } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const [username, setUsername] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [roomInfo, setRoomInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [socket, setSocket] = useState(null);
-  
+
   useEffect(() => {
     // Check if user is logged in
     if (!user && !localStorage.getItem('token')) {
@@ -26,41 +26,42 @@ const JoinQuiz = () => {
       navigate('/login', { state: { from: `/join/${roomCode}` } });
       return;
     }
-    
+
     // Set username from user or localStorage
     const savedUsername = user?.username || localStorage.getItem('username');
     if (savedUsername) {
       setUsername(savedUsername);
     }
-    
+
     // Initialize socket
-    const socketInstance = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:10000', {
+    // Initialize socket
+    const socketInstance = io(import.meta.env.VITE_API_URL || 'http://localhost:10000', {
       auth: {
         token: localStorage.getItem('token'),
         userId: user?.id
       }
     });
-    
+
     setSocket(socketInstance);
-    
+
     // Check if room exists
     socketInstance.emit('check-room', { roomCode });
-    
+
     socketInstance.on('room-info', (data) => {
       setRoomInfo(data);
       setLoading(false);
     });
-    
+
     socketInstance.on('room-not-found', () => {
       setError('Room not found or has expired');
       setLoading(false);
     });
-    
+
     socketInstance.on('room-full', () => {
       setError('Room is full');
       setLoading(false);
     });
-    
+
     socketInstance.on('quiz-started', () => {
       NotificationCenter.add({
         type: 'info',
@@ -71,7 +72,7 @@ const JoinQuiz = () => {
         navigate(`/play/${roomCode}`);
       }, 2000);
     });
-    
+
     socketInstance.on('joined-room', (data) => {
       setIsJoining(false);
       NotificationCenter.add({
@@ -81,38 +82,38 @@ const JoinQuiz = () => {
       });
       navigate(`/play/${roomCode}`);
     });
-    
+
     socketInstance.on('error', (errorMsg) => {
       setError(errorMsg);
       setIsJoining(false);
     });
-    
+
     return () => {
       if (socketInstance) {
         socketInstance.disconnect();
       }
     };
   }, [roomCode, navigate, user]);
-  
+
   const handleJoin = (e) => {
     e.preventDefault();
-    
+
     if (!username.trim()) {
       setError('Please enter your name');
       return;
     }
-    
+
     if (!roomCode || roomCode.length !== 4) {
       setError('Invalid room code');
       return;
     }
-    
+
     setIsJoining(true);
     setError('');
-    
+
     // Save username
     localStorage.setItem('username', username);
-    
+
     // Join room
     if (socket) {
       socket.emit('join-room', {
@@ -125,11 +126,11 @@ const JoinQuiz = () => {
       setIsJoining(false);
     }
   };
-  
+
   if (loading) {
     return <LoadingSpinner message="Checking room..." />;
   }
-  
+
   if (error && !roomInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center p-4">
@@ -150,7 +151,7 @@ const JoinQuiz = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center p-4">
       <div className="max-w-lg w-full bg-gray-800/30 backdrop-blur-lg rounded-2xl border border-gray-700/50 p-8">
@@ -164,7 +165,7 @@ const JoinQuiz = () => {
           </h1>
           <div className="mt-2 text-gray-400">Enter your details to join the quiz</div>
         </div>
-        
+
         {/* Room Info Card */}
         {roomInfo && (
           <div className="mb-8 p-6 bg-gray-800/40 rounded-xl border border-gray-700">
@@ -177,7 +178,7 @@ const JoinQuiz = () => {
                 {roomInfo.status === 'waiting' ? 'Waiting' : 'Active'}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-gray-400">Host</div>
@@ -198,7 +199,7 @@ const JoinQuiz = () => {
             </div>
           </div>
         )}
-        
+
         {/* Join Form */}
         <form onSubmit={handleJoin} className="space-y-6">
           <div>
@@ -216,13 +217,13 @@ const JoinQuiz = () => {
               This is how other players will see you
             </div>
           </div>
-          
+
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300">
               ⚠️ {error}
             </div>
           )}
-          
+
           <button
             type="submit"
             disabled={isJoining || !username.trim()}
@@ -237,7 +238,7 @@ const JoinQuiz = () => {
               '🎮 Join Now'
             )}
           </button>
-          
+
           <div className="text-center">
             <Link
               to="/"
@@ -247,7 +248,7 @@ const JoinQuiz = () => {
             </Link>
           </div>
         </form>
-        
+
         {/* Game Tips */}
         <div className="mt-8 pt-6 border-t border-gray-700/50">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">

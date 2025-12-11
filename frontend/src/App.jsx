@@ -44,40 +44,38 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/leaderboard" element={<Leaderboard />} />
-                  <Route path="/host-session" element={<HostSession />} />
+                  {/* <Route path="/host-session" element={<HostSession />} /> */}
                   <Route path="/join-quiz" element={<JoinQuiz />} />
+
+                  {/* Play Quiz - Allow guest access */}
+                  <Route path="/play/:roomCode" element={<PlayQuiz />} />
+
+                  {/* Results - Allow guest access */}
+                  <Route path="/results/:sessionId" element={<Results />} />
+
                   {/* PROTECTED ROUTES */}
                   <Route element={<ProtectedRoute />}>
                     <Route path="/create-quiz" element={<CreateQuiz />} />
-                    
-                    <Route path="/play/:roomCode" element={<PlayQuiz />} />
-                    <Route path="/results/:sessionId" element={<Results />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/JoinQuiz" element={<JoinQuiz />} />
                   </Route>
+
                   {/* Host Dashboard */}
-        <Route path="/host/:roomCode" element={
-          <ProtectedRoute>
-            <HostDashboard />
-          </ProtectedRoute>
-        } />
-        
-        {/* Player View */}
-        <Route path="/play/:roomCode" element={
-          <ProtectedRoute>
-            <PlayerView />
-          </ProtectedRoute>
-        } />
-        
-        {/* Quick Join */}
-        <Route path="/join/:roomCode" element={<JoinSession />} />
-        
-        {/* Embed View */}
-        <Route path="/embed/:roomCode" element={<PlayerView embedMode={true} />} />
+                  {/* HOST SESSION */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/host/:roomCode" element={<HostSession />} />
+                  </Route>
+
+
+                  {/* Quick Join */}
+                  <Route path="/join/:roomCode" element={<JoinSession />} />
+
+                  {/* Embed View */}
+                  <Route path="/embed/:roomCode" element={<PlayerView embedMode={true} />} />
                 </Routes>
               </main>
               <Footer />
-              <Toaster 
+              <Toaster
                 position="top-right"
                 toastOptions={{
                   duration: 4000,

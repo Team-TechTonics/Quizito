@@ -22,7 +22,7 @@ const PlayQuiz = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const socketRef = useRef(null);
-  
+
   // Game state
   const [gameState, setGameState] = useState({
     status: 'connecting', // connecting, waiting, question, feedback, ended
@@ -39,29 +39,51 @@ const PlayQuiz = () => {
     players: [],
     roomInfo: null
   });
-  
+
   // Initialize connection
   useEffect(() => {
     const username = user?.username || localStorage.getItem('username') || `Player${Math.floor(Math.random() * 1000)}`;
     const userId = user?.id || `guest_${Date.now()}`;
-    
+
     // Save username if not already saved
     if (!localStorage.getItem('username')) {
       localStorage.setItem('username', username);
     }
-    
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:10000', {
+
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:10000', {
       auth: {
-        token: localStorage.getItem('token'),
+        token: localStorage.getItem('quizito_token'),
         userId,
         username
       },
       reconnection: true,
       reconnectionAttempts: 5
     });
-    
+
     socketRef.current = socket;
-    
+
+    console.log('[PlayQuiz] Socket initialized, connecting to:', import.meta.env.VITE_API_URL || 'http://localhost:10000');
+    console.log('[PlayQuiz] Room code:', roomCode);
+    console.log('[PlayQuiz] Username:', username);
+
+    // Connection events
+    socket.on('connect', () => {
+      console.log('[PlayQuiz] Socket connected!', socket.id);
+      // Immediately set to waiting state as fallback
+      setGameState(prev => ({
+        ...prev,
+        status: 'waiting'
+      }));
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('[PlayQuiz] Connection error:', error);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('[PlayQuiz] Socket disconnected:', reason);
+    });
+
     // Authenticate first
     socket.emit('authenticate', {
       token: localStorage.getItem('quizito_token')
@@ -69,13 +91,29 @@ const PlayQuiz = () => {
 
     // After authentication, join session
     socket.on('authenticated', () => {
+      console.log('[PlayQuiz] Authenticated! Joining session...');
       socket.emit('join-session', {
-        roomCode
+        roomCode,
+        username,
+        userId
       });
     });
 
+    // Fallback: If not authenticated after 2 seconds, try joining anyway
+    setTimeout(() => {
+      if (gameState.status === 'connecting') {
+        console.log('[PlayQuiz] Authentication timeout, attempting direct join...');
+        socket.emit('join-session', {
+          roomCode,
+          username,
+          userId
+        });
+      }
+    }, 2000);
+
     // Successfully joined
     socket.on('session-joined', (data) => {
+      console.log('[PlayQuiz] Session joined successfully!', data);
       setGameState(prev => ({
         ...prev,
         status: 'waiting',
@@ -83,7 +121,7 @@ const PlayQuiz = () => {
         players: data.session.participants || []
       }));
     });
-    
+
     // New question
     socket.on('new-question', (data) => {
       setGameState(prev => ({
@@ -98,11 +136,11 @@ const PlayQuiz = () => {
         feedbackData: null,
         timer: data.question.timeLimit || 30
       }));
-      
+
       // Start local timer
       startTimer(data.question.timeLimit || 30);
     });
-    
+
     // Answer feedback
     socket.on('answer-feedback', (data) => {
       setGameState(prev => ({
@@ -134,7 +172,7 @@ const PlayQuiz = () => {
         setGameState(prev => ({ ...prev, showFeedback: false }));
       }, 3000);
     });
-    
+
     // Leaderboard update
     socket.on('leaderboard-update', (data) => {
       setGameState(prev => ({
@@ -142,7 +180,7 @@ const PlayQuiz = () => {
         leaderboard: data.players
       }));
     });
-    
+
     // Participant joined/left
     socket.on('participant-joined', (data) => {
       setGameState(prev => ({
@@ -173,7 +211,7 @@ const PlayQuiz = () => {
         }));
       }
     });
-    
+
     // Quiz completed
     socket.on('quiz-completed', (data) => {
       setGameState(prev => ({
@@ -192,7 +230,8 @@ const PlayQuiz = () => {
 
       // Navigate to results after delay
       setTimeout(() => {
-        navigate('/results', {
+        const sessionId = data.sessionId || roomCode || 'unknown';
+        navigate(`/results/${sessionId}`, {
           state: {
             roomCode,
             scores: data.finalLeaderboard || data.participants || [],
@@ -202,9 +241,10 @@ const PlayQuiz = () => {
         });
       }, 3000);
     });
-    
+
     // Errors
     socket.on('error', (data) => {
+      console.error('[PlayQuiz] Socket error:', data);
       const errorMsg = typeof data === 'string' ? data : data?.message || 'Connection error';
       if (errorMsg.includes('Session not found') || errorMsg.includes('Room')) {
         NotificationCenter.add({
@@ -221,7 +261,18 @@ const PlayQuiz = () => {
         });
       }
     });
-    
+
+    // Join error
+    socket.on('join-error', (data) => {
+      console.error('[PlayQuiz] Join error:', data);
+      NotificationCenter.add({
+        type: 'error',
+        message: data.message || 'Failed to join session',
+        duration: 5000
+      });
+      setTimeout(() => navigate('/'), 3000);
+    });
+
     socket.on('countdown', (data) => {
       if (data.count === 1) {
         NotificationCenter.add({
@@ -231,14 +282,15 @@ const PlayQuiz = () => {
         });
       }
     });
-    
+
     return () => {
+      console.log('[PlayQuiz] Cleaning up socket connection');
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
-  }, [roomCode, navigate, user]);
-  
+  }, [roomCode]); // Removed navigate and user from dependencies
+
   const startTimer = (duration) => {
     let timeLeft = duration;
     const timer = setInterval(() => {
@@ -256,12 +308,26 @@ const PlayQuiz = () => {
 
     return () => clearInterval(timer);
   };
-  
+
   const handleOptionSelect = (optionIndex) => {
-    if (gameState.selectedOption !== null || gameState.status !== 'question') return;
-    if (!gameState.currentQuestion || !gameState.currentQuestion.options) return;
+    console.log('Option clicked:', optionIndex);
+    console.log('Current state:', {
+      selectedOption: gameState.selectedOption,
+      status: gameState.status,
+      hasQuestion: !!gameState.currentQuestion
+    });
+
+    if (gameState.selectedOption !== null || gameState.status !== 'question') {
+      console.log('Selection blocked - already selected or wrong status');
+      return;
+    }
+    if (!gameState.currentQuestion || !gameState.currentQuestion.options) {
+      console.log('Selection blocked - no question or options');
+      return;
+    }
 
     const selectedOption = gameState.currentQuestion.options[optionIndex]?.text || null;
+    console.log('Submitting answer:', selectedOption);
 
     setGameState(prev => ({ ...prev, selectedOption: optionIndex }));
 
@@ -275,8 +341,10 @@ const PlayQuiz = () => {
       answer: selectedOption,
       timeTaken: Math.max(0, timeTaken)
     });
+
+    console.log('Answer submitted to server');
   };
-  
+
   // Render different states
   if (gameState.status === 'connecting') {
     return (
@@ -285,7 +353,7 @@ const PlayQuiz = () => {
       </div>
     );
   }
-  
+
   if (gameState.status === 'ended') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center p-4">
@@ -303,7 +371,7 @@ const PlayQuiz = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white p-4">
       <div className="max-w-7xl mx-auto">
@@ -322,7 +390,7 @@ const PlayQuiz = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="mt-4 md:mt-0">
             <div className="flex items-center gap-4">
               <QuizTimer time={gameState.timer} isActive={gameState.status === 'question'} />
@@ -335,21 +403,49 @@ const PlayQuiz = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Players & Info */}
           <div className="lg:col-span-1 space-y-6">
             {/* Participants */}
             <div className="bg-gray-800/40 backdrop-blur-lg rounded-2xl border border-gray-700 p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
-                <span>👥 Players ({gameState.players.length})</span>
+                <span>👥 Players ({(gameState.players || []).length})</span>
                 <span className="text-sm font-normal px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full">
                   Live
                 </span>
               </h2>
-              <Participants players={gameState.players} />
+
+              {/* Simple player list */}
+              <div className="space-y-2">
+                {(gameState.players || []).length > 0 ? (
+                  (gameState.players || []).map((player, index) => (
+                    <div
+                      key={player.userId || player.id || index}
+                      className="flex items-center gap-3 p-3 bg-gray-900/30 rounded-lg"
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {(player.username || player.displayName || player.name || 'P').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-white">
+                          {player.username || player.displayName || player.name || `Player ${index + 1}`}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {player.isReady ? '✓ Ready' : 'Not Ready'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <div className="text-4xl mb-2">👥</div>
+                    <div>No players yet</div>
+                  </div>
+                )}
+              </div>
             </div>
-            
+
             {/* Game Status */}
             <div className="bg-gray-800/40 backdrop-blur-lg rounded-2xl border border-gray-700 p-6">
               <h3 className="text-lg font-bold mb-4">📊 Game Status</h3>
@@ -366,18 +462,18 @@ const PlayQuiz = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Players</span>
-                  <span className="font-bold">{gameState.players.length}</span>
+                  <span className="font-bold">{(gameState.players || []).length}</span>
                 </div>
                 {gameState.roomInfo && (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Host</span>
-                    <span className="font-medium">{gameState.roomInfo.hostName}</span>
+                    <span className="font-medium">{gameState.roomInfo.hostName || 'Unknown'}</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
-          
+
           {/* Center Column - Question */}
           <div className="lg:col-span-2">
             {gameState.status === 'waiting' ? (
@@ -391,7 +487,7 @@ const PlayQuiz = () => {
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span className="font-medium">Connected to room</span>
                 </div>
-                
+
                 <div className="mt-8 grid grid-cols-3 gap-4">
                   <div className="p-4 bg-gray-900/30 rounded-xl">
                     <div className="text-2xl font-bold text-cyan-300">
@@ -425,17 +521,17 @@ const PlayQuiz = () => {
                       {gameState.currentQuestion.category}
                     </div>
                   </div>
-                  <ProgressBar 
+                  <ProgressBar
                     current={gameState.questionIndex + 1}
                     total={gameState.totalQuestions}
                   />
                 </div>
-                
+
                 {/* Question */}
                 <h2 className="text-2xl font-bold mb-8">
                   {gameState.currentQuestion.text}
                 </h2>
-                
+
                 {/* Options */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {gameState.currentQuestion.options?.map((option, idx) => {
@@ -450,36 +546,34 @@ const PlayQuiz = () => {
                         optionState = 'correct-other';
                       }
                     }
-                    
+
                     return (
                       <button
                         key={idx}
                         onClick={() => handleOptionSelect(idx)}
                         disabled={gameState.selectedOption !== null}
-                        className={`p-6 text-left rounded-xl border transition-all duration-300 ${
-                          optionState === 'selected' 
-                            ? 'border-cyan-500 bg-cyan-500/10' 
-                            : optionState === 'correct'
+                        className={`p-6 text-left rounded-xl border transition-all duration-300 ${optionState === 'selected'
+                          ? 'border-cyan-500 bg-cyan-500/10'
+                          : optionState === 'correct'
                             ? 'border-green-500 bg-green-500/10'
                             : optionState === 'incorrect'
-                            ? 'border-red-500 bg-red-500/10'
-                            : optionState === 'correct-other'
-                            ? 'border-green-500/30 bg-green-500/5'
-                            : 'border-gray-700 bg-gray-900/30 hover:border-cyan-500/50'
-                        } ${gameState.selectedOption === null ? 'hover:scale-[1.02]' : ''}`}
+                              ? 'border-red-500 bg-red-500/10'
+                              : optionState === 'correct-other'
+                                ? 'border-green-500/30 bg-green-500/5'
+                                : 'border-gray-700 bg-gray-900/30 hover:border-cyan-500/50'
+                          } ${gameState.selectedOption === null ? 'hover:scale-[1.02]' : ''}`}
                       >
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 flex items-center justify-center rounded-lg font-bold text-lg ${
-                            optionState === 'selected'
-                              ? 'bg-cyan-600 text-white'
-                              : optionState === 'correct'
+                          <div className={`w-12 h-12 flex items-center justify-center rounded-lg font-bold text-lg ${optionState === 'selected'
+                            ? 'bg-cyan-600 text-white'
+                            : optionState === 'correct'
                               ? 'bg-green-600 text-white'
                               : optionState === 'incorrect'
-                              ? 'bg-red-600 text-white'
-                              : optionState === 'correct-other'
-                              ? 'bg-green-600/30 text-green-300'
-                              : 'bg-gray-800 text-gray-300'
-                          }`}>
+                                ? 'bg-red-600 text-white'
+                                : optionState === 'correct-other'
+                                  ? 'bg-green-600/30 text-green-300'
+                                  : 'bg-gray-800 text-gray-300'
+                            }`}>
                             {String.fromCharCode(65 + idx)}
                           </div>
                           <div className="font-medium flex-1">{option.text}</div>
@@ -494,7 +588,7 @@ const PlayQuiz = () => {
                     );
                   })}
                 </div>
-                
+
                 {/* Timer & Status */}
                 <div className="mt-8 text-center text-gray-400">
                   {gameState.selectedOption === null ? (
@@ -511,11 +605,10 @@ const PlayQuiz = () => {
               </div>
             ) : gameState.status === 'feedback' && gameState.feedbackData ? (
               <div className="bg-gray-800/40 backdrop-blur-lg rounded-2xl border border-gray-700 p-8">
-                <div className={`text-center p-8 rounded-2xl ${
-                  gameState.isCorrect 
-                    ? 'bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/30'
-                    : 'bg-gradient-to-br from-red-500/10 to-rose-600/10 border border-red-500/30'
-                }`}>
+                <div className={`text-center p-8 rounded-2xl ${gameState.isCorrect
+                  ? 'bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/30'
+                  : 'bg-gradient-to-br from-red-500/10 to-rose-600/10 border border-red-500/30'
+                  }`}>
                   <div className="text-6xl mb-6">
                     {gameState.isCorrect ? '🎉' : '💡'}
                   </div>
@@ -542,12 +635,12 @@ const PlayQuiz = () => {
                 </div>
               </div>
             ) : null}
-            
+
             {/* Leaderboard */}
             {gameState.leaderboard.length > 0 && (
               <div className="mt-6">
-                <Leaderboard 
-                  players={gameState.leaderboard} 
+                <Leaderboard
+                  players={gameState.leaderboard}
                   showHeader={true}
                   currentUserId={user?.id}
                 />

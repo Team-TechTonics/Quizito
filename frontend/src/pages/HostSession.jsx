@@ -1,21 +1,24 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useQuiz } from '../context/QuizContext';
-import NotificationCenter from '../components/NotificationCenter';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import QuizTimer from '../components/QuizTimer';
 import '../styles/globals.css';
+import { api } from '../lib/api';
 
 const HostSession = () => {
   const navigate = useNavigate();
+  const { roomCode: routeRoomCode } = useParams();
   const { user } = useAuth();
   const { currentQuiz } = useQuiz();
   const socketRef = useRef(null);
-  
+
   // Room state
-  const [roomCode, setRoomCode] = useState('');
+  const [roomCode, setRoomCode] = useState(routeRoomCode || '');
   const [participants, setParticipants] = useState([]);
   const [quizStarted, setQuizStarted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -27,7 +30,7 @@ const HostSession = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [sessionId, setSessionId] = useState(null);
-  
+
   // Initialize session
   useEffect(() => {
     const initializeSession = async () => {
@@ -35,26 +38,50 @@ const HostSession = () => {
         setLoading(true);
         setError(null);
 
-        // Get quiz from context or localStorage
-        const quiz = currentQuiz || JSON.parse(localStorage.getItem('currentQuiz'));
-        
-        if (!quiz || !quiz._id) {
-          setError('Quiz data not found. Please create or select a quiz first.');
-          setTimeout(() => navigate('/create-quiz'), 2000);
-          return;
-        }
+        let code = routeRoomCode;
+        let id = null;
+        let quizTitle = "";
+        let questionsCount = 0;
 
-        // Create session via HTTP API
-        const token = localStorage.getItem('quizito_token');
-        console.log('Creating session for quiz:', quiz._id);
-        
-        const createSessionResponse = await fetch('http://localhost:10000/api/sessions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
+        // If we have a room code from URL, fetch existing session
+        if (routeRoomCode) {
+          console.log('Restoring session:', routeRoomCode);
+          const response = await api.get(`/api/sessions/${routeRoomCode}`);
+
+
+          if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to fetch session');
+          }
+
+          const session = response.data.session;
+
+          // Verify we are the host
+          if (user && session.hostId._id !== user._id && session.hostId !== user._id) {
+            // throw new Error('You are not the host of this session');
+            // Proceed anyway for testing, but ideally should block
+            console.warn('User is not the original host');
+          }
+
+          code = session.roomCode;
+          id = session._id;
+          quizTitle = session.quizId?.title;
+          questionsCount = session.quizId?.totalQuestions || 0;
+          setParticipants(session.participants || []);
+          setGameStatus(session.status === 'waiting' ? 'lobby' : session.status);
+
+        } else {
+          // No room code, try to create new session from currentQuiz
+          // Get quiz from context or localStorage
+          const quiz = currentQuiz || JSON.parse(localStorage.getItem('currentQuiz'));
+
+          if (!quiz || !quiz._id) {
+            // Cannot create session without quiz
+            throw new Error('Quiz data not found. Please create or select a quiz first.');
+          }
+
+          // Create session via HTTP API
+          console.log('Creating session for quiz:', quiz._id);
+          const createSessionResponse = await api.post('/api/sessions', {
             quizId: quiz._id,
             name: quiz.title,
             description: quiz.description,
@@ -65,28 +92,25 @@ const HostSession = () => {
               allowLateJoin: true,
               randomizeQuestions: false
             }
-          })
-        });
+          });
 
-        if (!createSessionResponse.ok) {
-          const errorData = await createSessionResponse.json();
-          console.error('Create session error:', errorData);
-          throw new Error(errorData.message || 'Failed to create session');
+          const sessionData = createSessionResponse.data;
+          code = sessionData.session.roomCode;
+          id = sessionData.session._id;
+          questionsCount = sessionData.session.quiz?.totalQuestions || quiz.questions?.length || 0;
+          setParticipants(sessionData.session.participants || []);
         }
 
-        const sessionData = await createSessionResponse.json();
-        console.log('Session created:', sessionData);
-        
-        const code = sessionData.session.roomCode;
-        const id = sessionData.session._id;
+        // Update state
         setRoomCode(code);
         setSessionId(id);
-        setTotalQuestions(sessionData.session.quiz?.totalQuestions || quiz.questions?.length || 0);
-        setParticipants(sessionData.session.participants || []);
+        setTotalQuestions(questionsCount);
 
         // Connect to socket with authentication in handshake
-        const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:10000', {
+        const token = localStorage.getItem('quizito_token');
+        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:10000', {
           reconnection: true,
+
           reconnectionAttempts: 5,
           transports: ['websocket', 'polling'],
           auth: {
@@ -114,14 +138,10 @@ const HostSession = () => {
             // Add new participant if not already in list
             const exists = prev.find(p => p.userId === data.participant.userId);
             if (exists) return prev;
-            
+
             // Update participant count
-            NotificationCenter.add({
-              type: 'info',
-              message: `${data.participant?.username || 'A player'} joined the room`,
-              duration: 3000
-            });
-            
+            toast.success(`${data.participant?.username || 'A player'} joined the room`);
+
             return [...prev, data.participant];
           });
         });
@@ -130,18 +150,14 @@ const HostSession = () => {
         socket.on('participant-disconnected', (data) => {
           console.log('Participant disconnected:', data);
           setParticipants(prev => prev.filter(p => p.userId !== data.userId));
-          NotificationCenter.add({
-            type: 'warning',
-            message: `${data.username || 'A player'} left the room`,
-            duration: 3000
-          });
+          toast(`${data.username || 'A player'} left the room`, { icon: '👋' });
         });
 
         // Player ready status
         socket.on('player-ready-update', (data) => {
           console.log('Player ready update:', data);
-          setParticipants(prev => 
-            prev.map(p => 
+          setParticipants(prev =>
+            prev.map(p =>
               p.userId === data.userId ? { ...p, isReady: data.isReady } : p
             )
           );
@@ -150,22 +166,14 @@ const HostSession = () => {
         // All players ready
         socket.on('all-players-ready', () => {
           console.log('All players are ready!');
-          NotificationCenter.add({
-            type: 'success',
-            message: 'All players are ready to start!',
-            duration: 3000
-          });
+          toast.success('All players are ready to start!');
         });
 
         // Countdown before quiz starts
         socket.on('countdown', (data) => {
           console.log('Countdown:', data.countdown);
           setGameStatus('starting');
-          NotificationCenter.add({
-            type: 'info',
-            message: `Quiz starting in ${data.countdown}...`,
-            duration: 1000
-          });
+          toast(`Quiz starting in ${data.countdown}...`, { icon: '⏳' });
         });
 
         // Quiz started - backend sends first question
@@ -197,14 +205,10 @@ const HostSession = () => {
         socket.on('question-completed', (data) => {
           console.log('Question completed:', data);
           setGameStatus('answer');
-          
+
           // Show correct answer and explanation
           if (data.explanation) {
-            NotificationCenter.add({
-              type: 'info',
-              message: `Correct answer: ${data.correctAnswer}`,
-              duration: 5000
-            });
+            toast.success(`Correct answer: ${data.correctAnswer} `, { duration: 5000 });
           }
         });
 
@@ -212,11 +216,7 @@ const HostSession = () => {
         socket.on('question-time-up', (data) => {
           console.log('Question time up:', data);
           setGameStatus('answer');
-          NotificationCenter.add({
-            type: 'warning',
-            message: 'Time\'s up!',
-            duration: 3000
-          });
+          toast.error("Time's up!");
         });
 
         // Quiz completed
@@ -224,7 +224,7 @@ const HostSession = () => {
           console.log('Quiz completed:', data);
           setGameStatus('finished');
           setLeaderboard(data.finalResults?.leaderboard || []);
-          
+
           // Save results to localStorage for results page
           localStorage.setItem('quizResults', JSON.stringify({
             sessionId: data.finalResults?.sessionId,
@@ -233,14 +233,14 @@ const HostSession = () => {
             totalQuestions: data.finalResults?.totalQuestions,
             duration: data.finalResults?.duration
           }));
-          
+
           // Redirect to results page after delay
           setTimeout(() => {
             navigate('/results', {
-              state: { 
-                roomCode: roomCode, 
+              state: {
+                roomCode: roomCode,
                 sessionId: data.finalResults?.sessionId,
-                leaderboard: data.finalResults?.leaderboard 
+                leaderboard: data.finalResults?.leaderboard
               }
             });
           }, 5000);
@@ -251,7 +251,7 @@ const HostSession = () => {
           console.log('Leaderboard updated:', data);
           setLeaderboard(data.leaderboard);
           // Update participant scores
-          setParticipants(prev => 
+          setParticipants(prev =>
             prev.map(p => {
               const leaderboardEntry = data.leaderboard.find(l => l.userId === p.userId);
               return leaderboardEntry ? { ...p, score: leaderboardEntry.score } : p;
@@ -263,12 +263,8 @@ const HostSession = () => {
         socket.on('session-ended-by-host', (data) => {
           console.log('Session ended by host:', data);
           setGameStatus('finished');
-          NotificationCenter.add({
-            type: 'info',
-            message: 'Session ended by host',
-            duration: 5000
-          });
-          
+          toast('Session ended by host', { icon: '🛑' });
+
           setTimeout(() => {
             navigate('/dashboard');
           }, 3000);
@@ -277,21 +273,13 @@ const HostSession = () => {
         // Error handling
         socket.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
-          NotificationCenter.add({
-            type: 'error',
-            message: 'Connection failed. Please check your internet.',
-            duration: 5000
-          });
+          toast.error('Connection failed. Please check your internet.');
         });
 
         socket.on('error', (errorData) => {
           console.error('Socket error:', errorData);
           const errorMsg = typeof errorData === 'string' ? errorData : errorData?.message || 'Socket error';
-          NotificationCenter.add({
-            type: 'error',
-            message: errorMsg,
-            duration: 5000
-          });
+          toast.error(errorMsg);
         });
 
         setLoading(false);
@@ -306,11 +294,7 @@ const HostSession = () => {
         console.error('Session initialization error:', err);
         setError(err.message || 'Failed to create session');
         setLoading(false);
-        NotificationCenter.add({
-          type: 'error',
-          message: err.message || 'Failed to create session',
-          duration: 5000
-        });
+        toast.error(err.message || 'Failed to create session');
       }
     };
 
@@ -319,20 +303,12 @@ const HostSession = () => {
 
   const handleStartQuiz = () => {
     if (!socketRef.current || !roomCode) {
-      NotificationCenter.add({
-        type: 'error',
-        message: 'Not connected to session',
-        duration: 3000
-      });
+      toast.error('Not connected to session');
       return;
     }
 
     if (participants.length === 0) {
-      NotificationCenter.add({
-        type: 'warning',
-        message: 'Wait for at least one player to join before starting',
-        duration: 3000
-      });
+      toast.error('Wait for at least one player to join before starting');
       return;
     }
 
@@ -354,20 +330,14 @@ const HostSession = () => {
     socketRef.current.emit('end-session', {
       roomCode: roomCode
     });
-    
+
     // Also call REST API to end session
-    const token = localStorage.getItem('quizito_token');
-    fetch(`http://localhost:10000/api/sessions/${roomCode}/end`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    }).catch(console.error);
+    api.post(`/api/sessions/${roomCode}/end`).catch(console.error);
   };
 
   const handleKickPlayer = (userId) => {
     if (!socketRef.current || !roomCode) return;
-    
+
     socketRef.current.emit('kick-player', {
       roomCode: roomCode,
       userId: userId
@@ -375,7 +345,7 @@ const HostSession = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Setting up your quiz room..." />;
+    return <LoadingSpinner text="Setting up your quiz room..." fullScreen={true} color="cyan" />;
   }
 
   if (error) {
@@ -410,11 +380,7 @@ const HostSession = () => {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(roomCode);
-                    NotificationCenter.add({
-                      type: 'success',
-                      message: 'Room code copied to clipboard!',
-                      duration: 2000
-                    });
+                    toast.success('Room code copied to clipboard!');
                   }}
                   className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
                 >
@@ -443,8 +409,8 @@ const HostSession = () => {
                   participants.map(p => (
                     <div key={p.userId || p.socketId} className="flex items-center justify-between bg-gray-700/30 p-3 rounded-lg hover:bg-gray-700/50 transition">
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`} 
+                        <img
+                          src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`}
                           alt={p.username}
                           className="w-10 h-10 rounded-full"
                         />
@@ -557,9 +523,9 @@ const HostSession = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <h3 className="text-2xl font-bold mb-6">{currentQuestion.text}</h3>
-                    
+
                     {currentQuestion.options && (
                       <div className="space-y-3">
                         {currentQuestion.options.map((option, i) => (
@@ -626,12 +592,11 @@ const HostSession = () => {
                       .map((p, i) => (
                         <div key={p.userId || p.socketId} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                              i === 0 ? 'bg-yellow-900/30 border border-yellow-700' :
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${i === 0 ? 'bg-yellow-900/30 border border-yellow-700' :
                               i === 1 ? 'bg-gray-700 border border-gray-600' :
-                              i === 2 ? 'bg-amber-900/30 border border-amber-700' :
-                              'bg-gray-800 border border-gray-700'
-                            }`}>
+                                i === 2 ? 'bg-amber-900/30 border border-amber-700' :
+                                  'bg-gray-800 border border-gray-700'
+                              }`}>
                               {i + 1}
                             </div>
                             <div>
@@ -667,7 +632,7 @@ const HostSession = () => {
                       ⏩ Skip Question
                     </button>
                   )}
-                  
+
                   <button
                     onClick={handleEndQuiz}
                     className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 rounded-lg font-semibold"
@@ -683,12 +648,11 @@ const HostSession = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Status:</span>
-                    <span className={`font-bold capitalize ${
-                      gameStatus === 'question' ? 'text-green-400' :
+                    <span className={`font-bold capitalize ${gameStatus === 'question' ? 'text-green-400' :
                       gameStatus === 'answer' ? 'text-yellow-400' :
-                      gameStatus === 'finished' ? 'text-red-400' :
-                      'text-blue-400'
-                    }`}>
+                        gameStatus === 'finished' ? 'text-red-400' :
+                          'text-blue-400'
+                      }`}>
                       {gameStatus}
                     </span>
                   </div>

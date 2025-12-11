@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, Container, Typography, Paper, Grid, 
-  Button, TextField, Card, CardContent, 
+import {
+  Box, Container, Typography, Paper, Grid,
+  Button, TextField, Card, CardContent,
   Avatar, Chip, Alert, LinearProgress,
-  Dialog, DialogTitle, DialogContent, 
+  Dialog, DialogTitle, DialogContent,
   DialogActions, IconButton, List,
   ListItem, ListItemAvatar, ListItemText,
   Divider, Snackbar
@@ -22,7 +22,7 @@ import { QRCodeCanvas } from "qrcode.react";
 const JoinSession = () => {
   const { roomCode: paramRoomCode } = useParams();
   const navigate = useNavigate();
-  
+
   const [roomCode, setRoomCode] = useState(paramRoomCode || '');
   const [displayName, setDisplayName] = useState('');
   const [session, setSession] = useState(null);
@@ -62,21 +62,21 @@ const JoinSession = () => {
 
     setLoading(true);
     setError('');
-    
+
     try {
       const response = await axios.get(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:10000'}/api/sessions/quick/${code.toUpperCase()}`
+        `${import.meta.env.VITE_API_URL || 'http://localhost:10000'}/api/sessions/${code.toUpperCase()}`
       );
 
       if (response.data.success) {
         setSession(response.data.session);
-        
+
         // Check if password is required
-        if (response.data.session.settings?.privateMode && 
-            response.data.session.password) {
+        if (response.data.session.settings?.privateMode &&
+          response.data.session.password) {
           setRequiresPassword(true);
         }
-        
+
         // If auto-join is enabled and no password required, join immediately
         if (autoJoin && !requiresPassword && user) {
           handleJoin();
@@ -110,20 +110,28 @@ const JoinSession = () => {
     }
 
     setLoading(true);
-    
+
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('quizito_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
+      // Create guest user ID if no token
+      const guestId = !token ? `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : null;
+
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:10000'}/api/sessions/${session.roomCode}/join`,
-        { displayName, password },
+        `${import.meta.env.VITE_API_URL || 'http://localhost:10000'}/api/sessions/${session.roomCode}/join`,
+        {
+          displayName,
+          password,
+          isGuest: !token,
+          guestId: guestId
+        },
         { headers }
       );
 
       if (response.data.success) {
         setSuccess('Successfully joined the session!');
-        
+
         // Store participant info
         localStorage.setItem('currentSession', JSON.stringify({
           roomCode: session.roomCode,
@@ -137,9 +145,11 @@ const JoinSession = () => {
         }, 1500);
       }
     } catch (err) {
+      console.error('[JoinSession] Join error:', err);
+      console.error('[JoinSession] Error response:', err.response?.data);
       const errorMsg = err.response?.data?.message || 'Failed to join session';
       setError(errorMsg);
-      
+
       if (errorMsg.includes('password') || errorMsg.includes('Password')) {
         setRequiresPassword(true);
       }
@@ -217,8 +227,8 @@ const JoinSession = () => {
 
               {session.host && (
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Avatar 
-                    src={session.host.avatar} 
+                  <Avatar
+                    src={session.host.avatar}
                     sx={{ width: 24, height: 24, mr: 1 }}
                   >
                     {session.host.username?.[0]}
@@ -237,24 +247,24 @@ const JoinSession = () => {
                     Quiz: {session.quiz.title}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Chip 
-                      label={session.quiz.category} 
-                      size="small" 
+                    <Chip
+                      label={session.quiz.category}
+                      size="small"
                       variant="outlined"
                     />
-                    <Chip 
-                      label={session.quiz.difficulty} 
-                      size="small" 
+                    <Chip
+                      label={session.quiz.difficulty}
+                      size="small"
                       variant="outlined"
                       color={
                         session.quiz.difficulty === 'easy' ? 'success' :
-                        session.quiz.difficulty === 'medium' ? 'warning' :
-                        session.quiz.difficulty === 'hard' ? 'error' : 'default'
+                          session.quiz.difficulty === 'medium' ? 'warning' :
+                            session.quiz.difficulty === 'hard' ? 'error' : 'default'
                       }
                     />
-                    <Chip 
-                      label={`${session.quiz.totalQuestions || 0} questions`} 
-                      size="small" 
+                    <Chip
+                      label={`${session.quiz.totalQuestions || 0} questions`}
+                      size="small"
                       variant="outlined"
                     />
                   </Box>
@@ -326,13 +336,13 @@ const JoinSession = () => {
   const renderJoinForm = () => {
     if (!session) return null;
 
-    const canJoin = session.status === 'waiting' || 
-                   (session.status === 'active' && session.settings?.allowLateJoin);
+    const canJoin = session.status === 'waiting' ||
+      (session.status === 'active' && session.settings?.allowLateJoin);
 
     if (!canJoin) {
       return (
         <Alert severity="warning" sx={{ mb: 3 }}>
-          This session {session.status === 'finished' ? 'has ended' : 'is in progress'}. 
+          This session {session.status === 'finished' ? 'has ended' : 'is in progress'}.
           {session.status === 'active' && !session.settings?.allowLateJoin && ' Late joining is disabled.'}
         </Alert>
       );
@@ -404,7 +414,7 @@ const JoinSession = () => {
           >
             Back
           </Button>
-          
+
           <Button
             variant="outlined"
             onClick={() => window.open(`/spectate/${session.roomCode}`, '_blank')}
@@ -441,9 +451,9 @@ const JoinSession = () => {
               onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
               disabled={loading}
               onKeyPress={(e) => e.key === 'Enter' && handleQuickJoin()}
-              inputProps={{ 
+              inputProps={{
                 maxLength: 6,
-                style: { 
+                style: {
                   textAlign: 'center',
                   fontSize: '1.5rem',
                   letterSpacing: '0.5em'
@@ -470,9 +480,9 @@ const JoinSession = () => {
 
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <Card 
-              sx={{ 
-                height: '100%', 
+            <Card
+              sx={{
+                height: '100%',
                 cursor: 'pointer',
                 transition: 'transform 0.2s',
                 '&:hover': { transform: 'translateY(-4px)' }
@@ -490,9 +500,9 @@ const JoinSession = () => {
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <Card 
-              sx={{ 
-                height: '100%', 
+            <Card
+              sx={{
+                height: '100%',
                 cursor: 'pointer',
                 transition: 'transform 0.2s',
                 '&:hover': { transform: 'translateY(-4px)' }
@@ -524,7 +534,7 @@ const JoinSession = () => {
   };
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       py: 4
@@ -551,8 +561,8 @@ const JoinSession = () => {
 
         {/* Error/Success Messages */}
         {error && (
-          <Alert 
-            severity="error" 
+          <Alert
+            severity="error"
             sx={{ mt: 2 }}
             action={
               <IconButton size="small" onClick={() => setError('')}>
@@ -578,7 +588,7 @@ const JoinSession = () => {
         <Dialog open={showQR} onClose={() => setShowQR(false)}>
           <DialogTitle>Scan to Join</DialogTitle>
           <DialogContent sx={{ textAlign: 'center', p: 4 }}>
-            <QRCode 
+            <QRCodeCanvas
               value={`${window.location.origin}/join/${session?.roomCode || roomCode}`}
               size={200}
             />
@@ -595,9 +605,9 @@ const JoinSession = () => {
         </Dialog>
 
         {/* Success Snackbar */}
-        <Snackbar 
-          open={!!success} 
-          autoHideDuration={3000} 
+        <Snackbar
+          open={!!success}
+          autoHideDuration={3000}
           onClose={() => setSuccess('')}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
