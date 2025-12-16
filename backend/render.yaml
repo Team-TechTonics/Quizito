@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: quizito-backend
+    env: node
+    region: oregon
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 3001
+      - key: CORS_ORIGIN
+        value: https://your-frontend.netlify.app
+      - key: AI_SERVICE_URL
+        value: http://localhost:5001
+    healthCheckPath: /health
+    autoDeploy: true

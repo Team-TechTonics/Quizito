@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: quizito-ai
+    env: docker
+    region: oregon
+    dockerfilePath: ./ai/Dockerfile
+    dockerContext: ./ai
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 5001
+    healthCheckPath: /health
+    autoDeploy: true

@@ -1,0 +1,47 @@
+{
+  "name": "quizito-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.6",
+    "@mui/material": "^7.3.6",
+    "@types/three": "^0.181.0",
+    "axios": "^1.13.2",
+    "canvas-confetti": "^1.9.4",
+    "chart.js": "^4.5.1",
+    "framer-motion": "^10.16.5",
+    "groq-sdk": "^0.37.0",
+    "gsap": "^3.14.1",
+    "lucide-react": "^0.309.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.1",
+    "react-confetti": "^6.1.0",
+    "react-countdown": "^2.3.5",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.20.0",
+    "react-spinners": "^0.17.0",
+    "recharts": "^2.15.4",
+    "socket.io-client": "^4.8.1",
+    "three": "^0.181.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "vite": "^7.2.7",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}

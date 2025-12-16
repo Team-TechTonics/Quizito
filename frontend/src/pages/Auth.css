@@ -1,0 +1,331 @@
+/* Auth.css */
+
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 40px;
+  color: white;
+}
+
+.quizito-logo {
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.auth-tagline {
+  font-size: 18px;
+  opacity: 0.9;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.auth-card {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 450px;
+  padding: 40px;
+  margin-bottom: 30px;
+}
+
+.auth-tabs {
+  display: flex;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 15px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.auth-tab.active {
+  color: #667eea;
+}
+
+.auth-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #667eea;
+  border-radius: 3px 3px 0 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-group input {
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input.error {
+  border-color: #ff4757;
+}
+
+.error-text {
+  color: #ff4757;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.name-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.forgot-password {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+.submit-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.submit-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+.submit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.demo-button {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.demo-button:hover {
+  background: #0da271;
+  transform: translateY(-2px);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.auth-divider span {
+  padding: 0 15px;
+  color: #666;
+  font-size: 14px;
+}
+
+.social-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  background: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.social-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.google-button {
+  color: #333;
+}
+
+.github-button {
+  color: #333;
+}
+
+.social-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+  color: #666;
+}
+
+.toggle-button {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 5px;
+}
+
+.toggle-button:hover {
+  text-decoration: underline;
+}
+
+.auth-footer-links {
+  display: flex;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.auth-footer-links a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.auth-footer-links a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.error-message {
+  background: #ff4757;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.api-error {
+  background: #ff4757;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 25px;
+  }
+  
+  .name-fields {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .quizito-logo {
+    font-size: 36px;
+  }
+  
+  .auth-tagline {
+    font-size: 16px;
+  }
+}

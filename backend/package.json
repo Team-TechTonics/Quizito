@@ -1,0 +1,44 @@
+{
+  "name": "quizito-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "seed": "node scripts/seedQuizzes.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "bcrypt": "^5.1.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.22.1",
+    "express-rate-limit": "^6.11.2",
+    "form-data": "^4.0.5",
+    "groq-sdk": "^0.37.0",
+    "helmet": "^7.2.0",
+    "ioredis": "^5.8.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoos": "^0.0.1-security",
+    "mongoose": "^7.8.8",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.10.0",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "pdf-parse": "^2.4.5",
+    "redis": "^5.10.0",
+    "socket.io": "^4.8.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
