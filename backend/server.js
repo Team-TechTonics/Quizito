@@ -59,7 +59,7 @@ const {
   OPENAI_API_KEY,
   DEEPSEEK_API_KEY,
   SPEECH_API_KEY,
-  FRONTEND_URL = "http://localhost:5173",
+  FRONTEND_URL = "https://quizito-frontend.onrender.com",
   ADMIN_EMAIL = "admin@Quizito.com",
   MAX_FILE_SIZE = 50 * 1024 * 1024,
   SESSION_SECRET = require("crypto").randomBytes(64).toString("hex"),
@@ -255,6 +255,7 @@ const io = socketIo(server, {
         "https://quizitottc.netlify.app",
         "https://quizitoteamtechtonics.netlify.app",
         "https://quizito-backend.onrender.com",
+        "https://quizito-frontend.onrender.com",
         FRONTEND_URL,
       ].filter(Boolean);
 
@@ -310,6 +311,7 @@ const corsOptions = {
       "https://quizitottc.netlify.app",
       "https://quizitoteamtechtonics.netlify.app",
       "https://quizito-backend.onrender.com",
+      "https://quizito-frontend.onrender.com",
       FRONTEND_URL,
     ].filter(Boolean);
 
