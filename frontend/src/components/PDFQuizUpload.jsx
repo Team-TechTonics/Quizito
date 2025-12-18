@@ -51,7 +51,7 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
         formData.append('file', file);
 
         try {
-            const response = await axios.post('/api/quiz/generate-from-pdf', formData, {
+            const response = await axios.post('/api/quiz-generation/from-pdf', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }
@@ -67,10 +67,37 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
         } catch (err) {
             console.error('PDF upload error:', err);
 
-            if (err.response?.data?.code === 'AI_SERVICE_UNAVAILABLE') {
+            // Extract detailed error information
+            const errorData = err.response?.data;
+
+            if (errorData?.code === 'AI_SERVICE_UNAVAILABLE') {
                 toast.error('AI service is not running. Please start the Flask server.');
+            } else if (errorData?.code === 'TIMEOUT') {
+                toast.error(errorData.message || 'AI service timeout. The service is starting up, please try again in 30 seconds.', {
+                    duration: 5000
+                });
+            } else if (errorData?.suggestions && Array.isArray(errorData.suggestions)) {
+                // Show main error message
+                toast.error(errorData.message || 'Failed to generate quiz from PDF', {
+                    duration: 6000
+                });
+
+                // Show suggestions as info toast
+                setTimeout(() => {
+                    const suggestionText = errorData.suggestions.join('\n• ');
+                    toast('💡 Suggestions:\n• ' + suggestionText, {
+                        icon: '📝',
+                        duration: 8000,
+                        style: {
+                            maxWidth: '500px',
+                            whiteSpace: 'pre-line'
+                        }
+                    });
+                }, 500);
             } else {
-                toast.error(err.response?.data?.message || 'Failed to generate quiz from PDF');
+                toast.error(errorData?.message || errorData?.error || 'Failed to generate quiz from PDF', {
+                    duration: 5000
+                });
             }
         } finally {
             setLoading(false);

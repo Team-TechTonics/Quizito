@@ -390,6 +390,7 @@ app.use("/api/learning-paths", require("./routes/learningPaths"));
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/quizzes", require("./routes/quizzes"));
+app.use("/api/quiz-generation", require("./routes/quizGeneration"));
 
 // Request Logging Middleware
 app.use((req, res, next) => {
@@ -6881,8 +6882,38 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
     console.log("📦 Raw Python Response Type:", typeof pythonResponse.data);
     console.log("📦 Raw Python Response Sample:", JSON.stringify(pythonResponse.data).substring(0, 200));
 
+    // Check if Python service returned an error
+    const responseData = pythonResponse.data;
+
+    // Detect error responses from Python service
+    if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
+      // Check for error indicators
+      if (responseData.question?.includes('Failed to generate') ||
+        responseData.error ||
+        responseData.message?.includes('error') ||
+        responseData.message?.includes('failed')) {
+
+        const errorMsg = responseData.question || responseData.error || responseData.message || 'Unknown error from AI service';
+        console.error("❌ Python AI Service Error:", errorMsg);
+
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate quiz from PDF",
+          error: errorMsg,
+          details: "The AI service encountered an error processing your PDF. This could be due to:",
+          suggestions: [
+            "PDF file might be corrupted or unreadable",
+            "PDF contains mostly images without extractable text",
+            "PDF text encoding is not supported",
+            "File size might be too large",
+            "Try a different PDF with clear, extractable text"
+          ]
+        });
+      }
+    }
+
     // Legacy service returns an array of questions directly
-    let rawQuestions = pythonResponse.data;
+    let rawQuestions = responseData;
     if (!Array.isArray(rawQuestions)) {
       // Handle case where it might be wrapped
       if (rawQuestions.questions) {
@@ -6892,9 +6923,29 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
         console.log("📌 Found questions in .data property");
         rawQuestions = rawQuestions.data;
       } else {
-        console.error("❌ Invalid response format. Received:", pythonResponse.data);
-        throw new Error(`Invalid response format from Python AI Service. Expected array of questions but got: ${typeof rawQuestions}`);
+        console.error("❌ Invalid response format. Received:", responseData);
+        return res.status(500).json({
+          success: false,
+          message: "Invalid response format from Python AI Service",
+          error: `Expected array of questions but got: ${typeof rawQuestions}`,
+          receivedData: JSON.stringify(responseData).substring(0, 500)
+        });
       }
+    }
+
+    // Validate we have questions
+    if (!rawQuestions || rawQuestions.length === 0) {
+      console.error("❌ No questions generated from PDF");
+      return res.status(500).json({
+        success: false,
+        message: "No questions could be generated from the PDF",
+        error: "The AI service returned an empty question set",
+        suggestions: [
+          "The PDF might not contain enough extractable text",
+          "Try a PDF with more clear, readable content",
+          "Ensure the PDF is not password protected or encrypted"
+        ]
+      });
     }
 
     console.log(`✅ Found ${rawQuestions.length} questions from Python service`);
