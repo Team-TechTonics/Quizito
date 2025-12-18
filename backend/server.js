@@ -1908,14 +1908,17 @@ io.on("connection", (socket) => {
         participant = existingParticipant;
       } else {
         // Create new participant
+        // Check if user is the host
+        const isHost = session.hostId.equals(socket.user._id);
+
         participant = {
           userId: socket.user._id,
           socketId: socket.id,
           username: socket.user.username,
           displayName: displayName || socket.user.username,
           avatar: socket.user.avatar,
-          role: "player",
-          isReady: false,
+          role: isHost ? "host" : "player",
+          isReady: isHost ? true : false,
           status: "waiting",
         };
         session.participants.push(participant);
@@ -6642,7 +6645,7 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
 
     // Send to Python AI server deployed on Render
     // Use env var or fallback to the known production URL
-    let pythonUrl = process.env.PYTHON_SERVICE_URL || "https://quizito-ndjq.onrender.com";
+    let pythonUrl = process.env.PYTHON_SERVICE_URL || "https://clone-quizito.onrender.com";
     if (pythonUrl.endsWith('/')) {
       pythonUrl = pythonUrl.slice(0, -1);
     }

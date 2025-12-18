@@ -58,8 +58,10 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
             });
 
             if (response.data.success) {
-                toast.success(`Generated ${response.data.count} questions from PDF!`);
-                onQuestionsGenerated(response.data.questions);
+                const quiz = response.data.quiz;
+                const questionCount = quiz.questions?.length || 0;
+                toast.success(`Generated ${questionCount} questions from PDF!`);
+                onQuestionsGenerated(quiz.questions);
                 setFile(null); // Reset file
             }
         } catch (err) {
@@ -89,8 +91,8 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
             {/* Drag & Drop Area */}
             <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${dragActive
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-gray-300 hover:border-purple-400'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-300 hover:border-purple-400'
                     }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -142,8 +144,8 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
                     onClick={handleUpload}
                     disabled={loading}
                     className={`w-full mt-4 py-3 px-6 rounded-lg font-medium flex items-center justify-center space-x-2 transition ${loading
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
                         }`}
                 >
                     {loading ? (

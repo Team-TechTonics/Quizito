@@ -240,6 +240,10 @@ const HostSession = () => {
       roomCode,
       questionIndex: currentQuestionIndex,
       answer: index
+    }, (response) => {
+      if (!response.success) {
+        console.error('Failed to submit answer:', response.message);
+      }
     });
 
     // Optional: sound
@@ -252,7 +256,14 @@ const HostSession = () => {
       toast.error('Wait for at least one player');
       return;
     }
-    socketService.startQuiz(roomCode);
+
+    socketService.startQuiz(roomCode, (response) => {
+      if (response.success) {
+        toast.success('Quiz starting!');
+      } else {
+        toast.error(response.message || 'Failed to start quiz');
+      }
+    });
   };
 
   const handleEndQuiz = () => {
@@ -264,7 +275,13 @@ const HostSession = () => {
   }
 
   const handleKickPlayer = (userId) => {
-    socketService.kickPlayer(roomCode, userId);
+    socketService.kickPlayer(roomCode, userId, (response) => {
+      if (response.success) {
+        toast.success('Player removed');
+      } else {
+        toast.error(response.message || 'Failed to kick player');
+      }
+    });
   }
 
   const handleSendMessage = (text) => {
@@ -479,7 +496,7 @@ const HostSession = () => {
                           {['A', 'B', 'C', 'D'][i]}
                         </div>
                         <span className={`text-lg font-medium transition-colors ${gameStatus === 'answer' && opt.isCorrect ? 'text-green-800' :
-                            selectedOption === i ? 'text-white' : 'text-slate-700'
+                          selectedOption === i ? 'text-white' : 'text-slate-700'
                           }`}>
                           {typeof opt === 'string' ? opt : opt.text}
                         </span>
@@ -531,17 +548,17 @@ const HostSession = () => {
                 {leaderboard.length > 0 ? (
                   leaderboard.map((entry, idx) => (
                     <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border ${idx === 0
-                        ? 'bg-yellow-50 border-yellow-200 text-yellow-900 shadow-sm'
-                        : idx === 1
-                          ? 'bg-slate-50 border-slate-200 text-slate-700'
-                          : idx === 2
-                            ? 'bg-orange-50 border-orange-200 text-orange-800'
-                            : 'bg-white border-transparent text-slate-500'
+                      ? 'bg-yellow-50 border-yellow-200 text-yellow-900 shadow-sm'
+                      : idx === 1
+                        ? 'bg-slate-50 border-slate-200 text-slate-700'
+                        : idx === 2
+                          ? 'bg-orange-50 border-orange-200 text-orange-800'
+                          : 'bg-white border-transparent text-slate-500'
                       }`}>
                       <div className="flex items-center gap-3">
                         <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${idx === 0 ? 'bg-yellow-500 text-white' :
-                            idx === 1 ? 'bg-slate-400 text-white' :
-                              idx === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-400'
+                          idx === 1 ? 'bg-slate-400 text-white' :
+                            idx === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-400'
                           }`}>
                           {idx + 1}
                         </span>
@@ -569,8 +586,8 @@ const HostSession = () => {
                 )}
 
                 <button onClick={() => setChatEnabled(!chatEnabled)} className={`py-3 rounded-xl font-bold transition-colors border flex flex-col items-center justify-center ${chatEnabled
-                    ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
-                    : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
+                  ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
                   }`}>
                   <span className="text-xs font-normal opacity-70">CHAT</span>
                   {chatEnabled ? 'ENABLED' : 'DISABLED'}

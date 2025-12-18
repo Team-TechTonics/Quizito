@@ -140,12 +140,12 @@ class SocketService {
 
     // ============ Host Session Methods ============
 
-    joinSession(roomCode, displayName) {
-        this.socket?.emit('join-session', { roomCode, displayName });
+    joinSession(roomCode, displayName, callback) {
+        this.socket?.emit('join-session', { roomCode, displayName }, callback);
     }
 
-    startQuiz(roomCode) {
-        this.socket?.emit('start-quiz', { roomCode });
+    startQuiz(roomCode, callback) {
+        this.socket?.emit('start-quiz', { roomCode }, callback);
     }
 
     nextQuestionForce(roomCode) {
@@ -156,12 +156,12 @@ class SocketService {
         this.socket?.emit('end-session', { roomCode });
     }
 
-    submitAnswer(data) {
-        this.socket?.emit('submit-answer', data);
+    submitAnswer(data, callback) {
+        this.socket?.emit('submit-answer', data, callback);
     }
 
-    kickPlayer(roomCode, userId) {
-        this.socket?.emit('kick-player', { roomCode, userId });
+    kickPlayer(roomCode, userId, callback) {
+        this.socket?.emit('kick-player', { roomCode, userId }, callback);
     }
 
     // ============ Host Session Events ============
