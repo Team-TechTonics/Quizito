@@ -1276,20 +1276,7 @@ async function createDatabaseIndexes() {
 // Authentication middleware used to be here, now imported from middleware/auth.js
 
 
-// Check if user is active
-if (!user.isActive || user.isBanned) {
-  return res.status(403).json({
-    success: false,
-    message: user.isBanned ? "Account has been banned" : "Account is not active",
-    code: user.isBanned ? "ACCOUNT_BANNED" : "ACCOUNT_INACTIVE",
-    banReason: user.banReason,
-    banExpires: user.banExpires,
-  });
-}
 
-req.user = user;
-req.token = token;
-next();
 
 
 // Role-based authorization
