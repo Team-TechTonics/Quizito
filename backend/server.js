@@ -46,6 +46,19 @@ const winston = require("winston");
 const axios = require("axios");
 const authenticate = require("./middleware/auth");
 
+// ===================================
+// GLOBAL ERROR HANDLERS (PREVENT CRASH)
+// ===================================
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Do not exit process in production to keep service alive
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  // Optional: Graceful shutdown if needed, but for now keep alive
+});
+
 
 // ===========================================================================
 // 1. CONFIGURATION & ENVIRONMENT

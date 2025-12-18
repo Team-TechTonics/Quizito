@@ -316,6 +316,8 @@ const CreateQuiz = () => {
 
           if (q.correctIndex !== undefined) {
             correctIndex = q.correctIndex;
+          } else if (typeof q.correctAnswer === 'number') {
+            correctIndex = q.correctAnswer;
           } else if (q.correctAnswer) {
             correctIndex = options.findIndex(opt =>
               String(opt).toLowerCase().trim() === String(q.correctAnswer).toLowerCase().trim()
