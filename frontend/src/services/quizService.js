@@ -124,7 +124,8 @@ export const quizService = {
      */
     async generateFromAudio(formData, onUploadProgress) {
         try {
-            const response = await api.post('/api/quiz-generation/from-audio', formData, {
+            // Use Python service proxy - already handles array response correctly
+            const response = await api.post('/api/upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
