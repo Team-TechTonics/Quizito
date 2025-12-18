@@ -28,14 +28,345 @@ import {
   Flame,
   GraduationCap,
   Sparkle,
-  Cpu
+  Cpu,
+  Layers,
+  Code,
+  Share2,
+  BarChart3,
+  Linkedin
 } from 'lucide-react'
 import QuizCard from '../components/quiz/QuizCard'
-import Button from '../components/common/Button'
 import InteractiveCursor from '../components/ui/InteractiveCursor'
 import QuantumQuizModel from '../components/3d/QuantumQuizModel'
 import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue } from 'framer-motion'
+
+// ISRO GSLV Mk III - Real Photo with Glow
+// ISRO GSLV Mk III - Real Photo with Glow (Fixed Image)
+const ISRORocket = ({ className = "" }) => {
+  return (
+    <motion.div
+      initial={{ scale: 1.1 }}
+      animate={{ scale: 1 }}
+      transition={{ duration: 10, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+      className={`relative group z-0 overflow-hidden ${className}`}
+    >
+      {/* Launch Photo Masked */}
+      <div className="absolute inset-0">
+        <img
+          src="https://images.unsplash.com/photo-1517976487492-5750f3195933?q=80&w=800&auto=format&fit=crop"
+          alt="ISRO Launch"
+          className="w-full h-full object-cover transform opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
+        />
+        {/* Gradient Overlay for Text Readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-90"></div>
+
+        {/* Text Overlay */}
+        <div className="absolute bottom-10 left-0 right-0 text-center z-10">
+          <p className="text-white font-bold text-3xl drop-shadow-md tracking-wider mb-2">LVM3-M4</p>
+          <div className="flex justify-center items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <p className="text-orange-400 text-sm font-mono tracking-[0.2em] uppercase">Mission Successful</p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// New Interactive Hero Model (Neural Network)
+const NeuralHero = () => {
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMousePosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  };
+
+  return (
+    <div onMouseMove={handleMouseMove} className="w-full h-[400px] lg:h-[500px] relative overflow-hidden bg-slate-900 rounded-[3rem] border border-blue-500/30 backdrop-blur-md shadow-2xl shadow-blue-500/10 group">
+
+      {/* 1. Background Rocket Layer - Covers Whole Square */}
+      <div className="absolute inset-0 z-0">
+        <ISRORocket className="w-full h-full" />
+      </div>
+
+      {/* 2. Abstract Grid Overlay */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-10 pointer-events-none"></div>
+      <div className="absolute inset-0 bg-grid-slate-700/30 [mask-image:radial-gradient(ellipse_at_center,black_70%,transparent_100%)] z-10 pointer-events-none"></div>
+
+      {/* 3. Interactive Neural Nodes */}
+      <div className="absolute inset-0 z-20 pointer-events-none">
+        {[...Array(15)].map((_, i) => (
+          <NeuralNode key={i} mousePos={mousePosition} index={i} />
+        ))}
+      </div>
+
+      {/* 4. Status Indicator */}
+      <div className="absolute top-6 right-8 text-right pointer-events-none z-30">
+        <p className="text-xs font-mono text-blue-400 uppercase tracking-[0.3em] flex items-center justify-end gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+          System Online
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const NeuralNode = ({ mousePos, index }) => {
+  const x = React.useMemo(() => Math.random() * 100, []);
+  const y = React.useMemo(() => Math.random() * 100, []);
+  const size = React.useMemo(() => Math.random() * 4 + 2, []);
+
+  return (
+    <motion.div
+      className="absolute rounded-full bg-blue-400 shadow-[0_0_10px_#60a5fa]"
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        width: size,
+        height: size,
+      }}
+      animate={{
+        x: (mousePos.x - window.innerWidth / 2) * (Math.random() * 0.03),
+        y: (mousePos.y - window.innerHeight / 2) * (Math.random() * 0.03),
+        opacity: [0.3, 0.8, 0.3],
+      }}
+      transition={{
+        x: { type: "spring", damping: 10 },
+        y: { type: "spring", damping: 10 },
+        opacity: { duration: Math.random() * 2 + 1, repeat: Infinity }
+      }}
+    />
+  );
+};
+
+const TiltCard = ({ children, className }) => {
+  const ref = useRef(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const mouseX = useSpring(x, { stiffness: 500, damping: 50 });
+  const mouseY = useSpring(y, { stiffness: 500, damping: 50 });
+
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], ["17.5deg", "-17.5deg"]);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], ["-17.5deg", "17.5deg"]);
+
+  const handleMouseMove = (e) => {
+    const rect = ref.current.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const xPct = mouseX / width - 0.5;
+    const yPct = mouseY / height - 0.5;
+    x.set(xPct);
+    y.set(yPct);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: "preserve-3d",
+      }}
+      className={`relative active:scale-95 transition-transform ${className}`}
+    >
+      <div style={{ transform: "translateZ(75px)", transformStyle: "preserve-3d" }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
+
+
+const WarpTunnel = () => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[10000] bg-black flex items-center justify-center overflow-hidden"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-black to-black"></div>
+
+      {/* Hyperdrive Stars */}
+      {[...Array(50)].map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{
+            x: 0,
+            y: 0,
+            z: 0,
+            opacity: 0,
+            scale: 0.1
+          }}
+          animate={{
+            x: [0, (Math.random() - 0.5) * window.innerWidth * 2],
+            y: [0, (Math.random() - 0.5) * window.innerHeight * 2],
+            opacity: [0, 1, 0],
+            scale: [0.1, 5]
+          }}
+          transition={{
+            duration: 0.8,
+            repeat: Infinity,
+            delay: Math.random() * 0.5,
+            ease: "linear"
+          }}
+          className="absolute w-1 h-1 bg-white rounded-full shadow-[0_0_10px_white,0_0_20px_blue]"
+          style={{
+            left: '50%',
+            top: '50%',
+            boxShadow: `0 0 ${Math.random() * 20}px ${['#4f46e5', '#3b82f6', '#ffffff'][Math.floor(Math.random() * 3)]}`
+          }}
+        />
+      ))}
+
+      <motion.div
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: [0.5, 1.5, 50], opacity: [0, 1, 0] }}
+        transition={{ duration: 1.5, times: [0, 0.5, 1] }}
+        className="absolute text-5xl md:text-9xl font-black text-white mix-blend-difference tracking-widest z-10"
+      >
+        WARP SPEED
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const MagneticButton = ({ children, onClick, className }) => {
+  const ref = useRef(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const handleMouseMove = (e) => {
+    const { clientX, clientY } = e;
+    const { left, top, width, height } = ref.current.getBoundingClientRect();
+    const xPos = clientX - (left + width / 2);
+    const yPos = clientY - (top + height / 2);
+    x.set(xPos * 0.3);
+    y.set(yPos * 0.3);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.button
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClick}
+      style={{ x, y }}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }}
+      className={className}
+    >
+      {children}
+    </motion.button>
+  );
+};
+
+const InstructionModal = ({ onClose, isAuthenticated, onRegister }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[10005] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+  >
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 relative"
+    >
+      <div className="h-40 bg-gradient-to-r from-orange-600 via-red-500 to-amber-500 relative flex flex-col items-center justify-center text-center p-6">
+        <h2 className="text-4xl md:text-5xl font-black text-white drop-shadow-lg mb-2">Welcome to Quizito</h2>
+        <p className="text-white/90 font-medium text-lg">Your AI-Powered Knowledge Universe</p>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors">
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+
+      <div className="p-8 md:p-10">
+        <div className="grid md:grid-cols-2 gap-8 mb-10">
+          {/* Step 1: Join / Register */}
+          <div className="flex gap-4 items-start p-4 rounded-2xl bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30">
+            <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg shadow-orange-500/30">1</div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Join the Revolution</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                New here? <span className="font-bold text-orange-600 dark:text-orange-400">Register now</span> to unlock your personal dashboard. It's free for students and educators!
+              </p>
+            </div>
+          </div>
+
+          {/* Step 2: Generation */}
+          <div className="flex gap-4 items-start p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+            <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg shadow-blue-500/30">2</div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Generate Anything</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                Upload a <span className="font-bold text-blue-600 dark:text-blue-400">PDF, Audio file, or Text</span>. Our AI Guru transforms it into an interactive quiz.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 3: Multiplayer & Social */}
+          <div className="flex gap-4 items-start p-4 rounded-2xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30">
+            <div className="w-12 h-12 rounded-xl bg-purple-500 flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg shadow-purple-500/30">3</div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Host Live Battles</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                Host real-time multiplayer quizzes. Join classes, make friends, and compete on the global leaderboard.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 4: Analytics */}
+          <div className="flex gap-4 items-start p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg shadow-emerald-500/30">4</div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Deep Analytics</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                Get detailed performance insights. Perfect for educators tracking progress and students mastering topics.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-center pt-6 border-t border-slate-100 dark:border-slate-800">
+          {!isAuthenticated && (
+            <button
+              onClick={onRegister}
+              className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-black text-lg rounded-xl shadow-xl shadow-orange-500/20 transform hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
+            >
+              <Zap className="w-5 h-5 fill-current" />
+              Start Your Journey (Register)
+            </button>
+          )}
+          <button onClick={onClose} className="w-full md:w-auto px-8 py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+            Start Exploring <Rocket className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  </motion.div>
+);
 
 const Home = () => {
   const { t } = useTranslation()
@@ -45,11 +376,60 @@ const Home = () => {
   const navigate = useNavigate()
   const [featuredQuizzes, setFeaturedQuizzes] = useState([])
   const [scrolled, setScrolled] = useState(false)
-  const [userStats, setUserStats] = useState({ rank: '#42', streak: 5, points: 1250 })
   const [showThemePopup, setShowThemePopup] = useState(false)
+  const [isLaunching, setIsLaunching] = useState(false);
+
+  const { scrollY } = useScroll();
+  const [gameCode, setGameCode] = useState('');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  useEffect(() => {
+    setTimeout(() => setShowInstructions(true), 1500);
+  }, []);
+
+  const closeInstructions = () => {
+    setShowInstructions(false);
+  };
+
+  useEffect(() => {
+    const unsubscribe = scrollY.on("change", (latest) => {
+      setShowScrollTop(latest > 400);
+    });
+    return () => unsubscribe();
+  }, [scrollY]);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStartMission = () => {
+    setIsLaunching(true);
+    setTimeout(() => {
+      if (isAuthenticated) {
+        navigate('/create-quiz');
+      } else {
+        navigate('/register');
+      }
+    }, 1500);
+  };
+
+  const handleJoinGame = (e) => {
+    e.preventDefault();
+    if (gameCode.trim()) {
+      navigate(`/play/${gameCode}`);
+    }
+  };
+
+
+  const opacity = useTransform(scrollY, [0, 300], [1, 0]);
 
   const featuresRef = useRef(null)
-  const ctaRef = useRef(null)
+  const statsRef = useRef(null)
+  const hologramRef = useRef(null)
+
+  // Force theme update on mount and change
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -72,7 +452,7 @@ const Home = () => {
       if (theme === 'dark' && !sessionStorage.getItem('themePromptDismissed')) {
         setShowThemePopup(true)
       }
-    }, 3000)
+    }, 5000)
 
     return () => {
       window.removeEventListener('scroll', handleScroll)
@@ -106,408 +486,364 @@ const Home = () => {
 
   const features = [
     {
-      icon: <Brain className="w-7 h-7" />,
-      title: 'AI-Powered Intelligence',
-      titleHindi: 'कृत्रिम बुद्धिमत्ता',
-      description: 'Advanced algorithms adapt to your learning pace, just like a personal guru',
+      icon: <Brain className="w-8 h-8" />,
+      title: 'AI-Powered Guru',
+      description: 'Your personal digital mentor that adapts to your unique learning style.',
       gradient: 'from-orange-500 via-amber-500 to-yellow-500',
       delay: 0.1
     },
     {
-      icon: <Flame className="w-7 h-7" />,
-      title: 'Live Knowledge Battles',
-      titleHindi: 'सीधा प्रतियोगिता',
-      description: 'Compete in real-time quiz battles inspired by ancient scholarly debates',
+      icon: <Flame className="w-8 h-8" />,
+      title: 'Competitive Battles',
+      description: 'Engage in righteous battles of intellect with real-time multiplayer quizzes.',
       gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
       delay: 0.2
     },
     {
-      icon: <Target className="w-7 h-7" />,
+      icon: <Target className="w-8 h-8" />,
       title: 'Deep Analytics',
-      titleHindi: 'गहन विश्लेषण',
-      description: 'Track your progress with insights as precise as Vedic mathematics',
+      description: 'Deep insights and pattern recognition to master every subject perfectly.',
       gradient: 'from-purple-500 via-violet-500 to-indigo-500',
       delay: 0.3
     },
     {
-      icon: <Trophy className="w-7 h-7" />,
-      title: 'Achievement System',
-      titleHindi: 'उपलब्धि प्रणाली',
-      description: 'Earn badges and climb ranks in your journey to become a scholar',
+      icon: <Trophy className="w-8 h-8" />,
+      title: 'Global Ranks',
+      description: 'Climb the global leaderboard by earning Karma points through daily practice.',
       gradient: 'from-rose-500 via-pink-500 to-fuchsia-500',
       delay: 0.4
     },
   ]
 
   const stats = [
-    { value: '2.37L+', label: 'Active Scholars', labelHindi: 'सक्रिय विद्यार्थी', icon: <Users className="w-6 h-6" />, gradient: 'from-orange-500 to-amber-600' },
-    { value: '94.2%', label: 'Success Rate', labelHindi: 'सफलता दर', icon: <Award className="w-6 h-6" />, gradient: 'from-emerald-500 to-teal-600' },
-    { value: '42L', label: 'Questions Solved', labelHindi: 'प्रश्न हल', icon: <Lightbulb className="w-6 h-6" />, gradient: 'from-purple-500 to-indigo-600' },
-    { value: '28', label: 'Indian States', labelHindi: 'भारतीय राज्य', icon: <Globe className="w-6 h-6" />, gradient: 'from-pink-500 to-rose-600' },
+    { value: '5,000+', label: 'Active Scholars', icon: <Users className="w-6 h-6" />, gradient: 'from-orange-500 to-amber-600' },
+    { value: '150+', label: 'Daily Battles', icon: <Award className="w-6 h-6" />, gradient: 'from-emerald-500 to-teal-600' },
+    { value: '10k', label: 'Questions Solved', icon: <Lightbulb className="w-6 h-6" />, gradient: 'from-purple-500 to-indigo-600' },
+    { value: '12', label: 'Countries Reached', icon: <Globe className="w-6 h-6" />, gradient: 'from-pink-500 to-rose-600' },
   ]
 
   const testimonials = [
     {
-      quote: "एक शानदार मंच! AI से बनाए गए प्रश्न मेरी समझ को सच में परखते हैं।",
-      quoteEn: "A fantastic platform! AI-generated questions truly test my understanding.",
+      quote: "A fantastic platform! The AI guru really understands my weak areas.",
+      role: "Engineering Student",
       author: "Priya Sharma",
-      role: "NEET Aspirant, Delhi",
       avatar: "PS",
       gradient: "from-orange-400 to-amber-500"
     },
     {
-      quote: "Real-time multiplayer makes learning fun and competitive. Loving it!",
-      quoteEn: "The live battles remind me of competitive exams but way more engaging!",
+      quote: "The live battles remind me of competitive exams but way more engaging!",
+      role: "Medical Aspirant",
       author: "Arjun Patel",
-      role: "JEE Preparation, Mumbai",
       avatar: "AP",
       gradient: "from-emerald-400 to-teal-500"
     },
     {
-      quote: "मैं अपनी कक्षा के लिए हर हफ्ते इसका उपयोग करती हूं। बहुत उपयोगी!",
-      quoteEn: "I use this every week for my classroom. Incredibly useful!",
-      author: "Kavita Reddy",
-      role: "School Teacher, Bangalore",
-      avatar: "KR",
+      quote: "I use this every week for my classroom. It's revolutionizing how we teach.",
+      role: "High School Teacher",
+      author: "Sarah Jenkins",
+      avatar: "SJ",
       gradient: "from-purple-400 to-indigo-500"
     }
   ]
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-white to-emerald-50 dark:from-slate-950 dark:via-indigo-950 dark:to-slate-950 text-slate-900 dark:text-white overflow-hidden transition-colors duration-700">
+    <div className="relative min-h-screen bg-orange-50/30 dark:bg-slate-950 text-slate-900 dark:text-white overflow-hidden transition-colors duration-500 font-sans">
       <InteractiveCursor />
 
-      {/* Indian Pattern Background - Mandala Inspired */}
-      <div className="fixed inset-0 pointer-events-none opacity-5 dark:opacity-10">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0ibWFuZGFsYSIgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iODAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjEiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjYwIiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMTAwIiBjeT0iMTAwIiByPSI0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMSIvPjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjbWFuZGFsYSkiLz48L3N2Zz4=')] opacity-30"></div>
-      </div>
-
-      {/* Gradient Orbs - Indian Flag Colors */}
+      {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-orange-400/20 to-amber-500/20 dark:from-orange-500/10 dark:to-amber-600/10 rounded-full blur-3xl animate-float"></div>
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-gradient-to-br from-emerald-400/20 to-teal-500/20 dark:from-emerald-500/10 dark:to-teal-600/10 rounded-full blur-3xl animate-float animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-gradient-to-br from-indigo-400/15 to-purple-500/15 dark:from-indigo-500/10 dark:to-purple-600/10 rounded-full blur-3xl animate-float animation-delay-4000"></div>
+        <div className="absolute top-0 -left-1/4 w-[800px] h-[800px] bg-orange-500/10 rounded-full blur-[100px]"></div>
+        <div className="absolute bottom-0 -right-1/4 w-[800px] h-[800px] bg-emerald-500/10 rounded-full blur-[100px]"></div>
+        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}>
+        </div>
       </div>
 
-      {/* Theme Notification */}
-      <AnimatePresence>
-        {showThemePopup && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="fixed bottom-6 right-6 z-50 max-w-sm"
-          >
-            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border-2 border-orange-200/50 dark:border-orange-500/20">
-              <button onClick={dismissPopup} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition">
-                <X size={18} />
-              </button>
-
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg shadow-orange-500/30">
-                  <Sun size={22} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">दिन मोड आज़माएं?</h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">Try Day Mode?</p>
-                </div>
-              </div>
-
-              <p className="text-slate-600 dark:text-slate-300 text-sm mb-5 leading-relaxed">
-                Switch to a brighter theme for enhanced focus during study sessions
-              </p>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={switchToLight}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40"
-                >
-                  Switch Theme
-                </button>
-                <button
-                  onClick={dismissPopup}
-                  className="px-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white rounded-xl font-semibold text-sm transition"
-                >
-                  Later
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Premium Theme Toggle */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5 }}
-        onClick={toggleTheme}
-        className="fixed top-24 right-6 z-40 group"
-      >
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition"></div>
-          <div className="relative bg-white dark:bg-slate-800 border-2 border-orange-200/50 dark:border-orange-500/30 p-3.5 rounded-2xl backdrop-blur-xl hover:scale-110 transition-all duration-300 shadow-xl">
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5 text-amber-500" />
-            ) : (
-              <Moon className="w-5 h-5 text-indigo-600" />
-            )}
-          </div>
-        </div>
-      </motion.button>
+      {/* Improved Theme Toggle - Fixed Z-Index & Pointer Events */}
+      <div className="fixed top-6 right-6 z-[9999] pointer-events-auto">
+        <button
+          onClick={(e) => {
+            console.log("Theme Toggle Clicked!", theme);
+            toggleTheme();
+          }}
+          className="relative group p-3 rounded-xl bg-white/10 dark:bg-slate-900/40 backdrop-blur-xl border border-white/20 dark:border-slate-700 hover:border-orange-500 transition-all duration-300 shadow-2xl cursor-pointer ml-auto"
+          aria-label="Toggle Theme"
+        >
+          {theme === 'dark' ? <Sun className="w-6 h-6 text-amber-400" /> : <Moon className="w-6 h-6 text-indigo-400" />}
+        </button>
+      </div>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-40 md:pb-28 px-6">
-        <div className="max-w-7xl mx-auto">
+      <section className="relative pt-20 pb-20 px-6">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-20"
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="z-10"
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-emerald-500/10 border-2 border-orange-300/50 dark:border-orange-500/30 px-5 py-2.5 rounded-full mb-8 backdrop-blur-sm shadow-lg shadow-orange-200/50 dark:shadow-orange-500/20"
-            >
-              <Star className="w-5 h-5 text-orange-600 dark:text-orange-400 fill-current" />
-              <span className="text-sm font-bold bg-gradient-to-r from-orange-600 to-emerald-600 dark:from-orange-400 dark:to-emerald-400 bg-clip-text text-transparent">
-                भारत का अग्रणी AI शिक्षा मंच • India's Leading AI Learning Platform
-              </span>
-            </motion.div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-bold text-sm mb-6 border border-orange-200 dark:border-orange-800/50">
+              <span className="animate-pulse w-2 h-2 rounded-full bg-orange-500"></span>
+              <span>Proudly Made in India 🇮🇳</span>
+            </div>
 
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-6 leading-[1.1]">
-              <span className="block bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-white dark:via-gray-100 dark:to-white bg-clip-text text-transparent mb-3">
-                ज्ञान की यात्रा
-              </span>
-              <span className="block text-4xl md:text-6xl lg:text-7xl bg-gradient-to-r from-orange-600 via-amber-600 to-emerald-600 dark:from-orange-400 dark:via-amber-400 dark:to-emerald-400 bg-clip-text text-transparent">
-                Journey of Knowledge
+            <h1 className="text-6xl lg:text-8xl font-black mb-8 leading-[1.05] tracking-tight">
+              <span className="block text-slate-900 dark:text-white mb-2">Launch Your</span>
+              <span className="bg-gradient-to-r from-orange-500 via-amber-200 to-yellow-500 bg-clip-text text-transparent drop-shadow-2xl filter brightness-110">
+                Success Journey
               </span>
             </h1>
 
-            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 max-w-4xl mx-auto mb-12 leading-relaxed font-medium">
-              Transform your learning with AI-powered quizzes. Built for Indian students, inspired by ancient wisdom,
-              <span className="block mt-2 text-orange-600 dark:text-orange-400 font-bold">
-                powered by modern technology • आधुनिक तकनीक से संचालित
+            <div className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-10 max-w-2xl leading-normal font-medium opacity-90">
+              Create, host, and play live AI-powered quizzes in seconds.
+              <span className="block mt-4 text-lg font-serif italic text-slate-500 dark:text-slate-400">
+                "Where Vedic wisdom meets Warp-speed AI. Your mission control for mastery."
               </span>
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
-              <motion.button
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/register')}
-                className="group relative px-10 py-5 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 dark:from-orange-500 dark:via-amber-500 dark:to-orange-500 rounded-2xl font-black text-lg overflow-hidden shadow-2xl shadow-orange-500/40 text-white"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-amber-600 opacity-0 group-hover:opacity-100 blur-xl transition-opacity"></div>
-                <span className="relative flex items-center gap-3">
-                  <GraduationCap className="w-6 h-6" />
-                  शुरू करें • Start Free
-                </span>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => scrollToSection(featuresRef)}
-                className="px-10 py-5 bg-white/80 hover:bg-white dark:bg-white/5 dark:hover:bg-white/10 border-2 border-orange-200 dark:border-orange-500/30 rounded-2xl font-bold text-lg backdrop-blur-sm transition-all text-slate-800 dark:text-white shadow-lg"
-              >
-                <span className="flex items-center gap-3">
-                  विशेषताएँ • Features
-                  <Sparkle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                </span>
-              </motion.button>
             </div>
+
+            <div className="flex flex-wrap gap-4">
+              <div className="relative group">
+                <MagneticButton
+                  onClick={handleStartMission}
+                  className="relative px-12 py-6 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white rounded-2xl font-black text-2xl shadow-[0_0_40px_rgba(249,115,22,0.4)] hover:shadow-[0_0_60px_rgba(249,115,22,0.6)] transition-all flex items-center gap-4 overflow-hidden border border-white/20 group-hover:scale-[1.02]"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+                  />
+
+                  {/* Floating Particles */}
+                  {[...Array(3)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ y: [0, -20, 0], opacity: [0, 1, 0] }}
+                      transition={{ duration: 2, delay: i * 0.5, repeat: Infinity }}
+                      className="absolute w-1 h-1 bg-white rounded-full"
+                      style={{ left: `${20 + i * 30}%`, top: '80%' }}
+                    />
+                  ))}
+
+                  <div className="relative flex items-center gap-3">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-400"></span>
+                    </span>
+                    <span className="tracking-wide drop-shadow-md">START MISSION</span>
+                    <Rocket className="w-6 h-6 animate-bounce-slow" />
+                  </div>
+                </MagneticButton>
+
+                {/* Tooltip */}
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-max px-4 py-2 bg-slate-900/90 text-white text-xs font-mono rounded-lg opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 pointer-events-none border border-white/10 backdrop-blur-md">
+                  Just like a launch, every quiz is a mission.
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-slate-900 rotate-45 border-r border-b border-white/10"></div>
+                </div>
+              </div>
+
+              {isAuthenticated ? (
+                <button onClick={() => navigate('/dashboard')} className="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-blue-500 rounded-xl font-bold text-lg transition-all flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-blue-500" />
+                  Dashboard
+                </button>
+              ) : (
+                <button onClick={() => scrollToSection(hologramRef)} className="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-orange-500 rounded-xl font-bold text-lg transition-all">
+                  Explore Cosmos
+                </button>
+              )}
+            </div>
+
+            {/* Join Game Section */}
+
+
+
           </motion.div>
 
-          {/* Stats with Indian Number Format */}
+          {/* NEW Interactive Hologram Model with Schematic Rocket */}
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-6"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8 }}
+            className="relative"
           >
-            {stats.map((stat, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 + i * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className="group relative bg-white/70 dark:bg-white/5 border-2 border-orange-200/50 dark:border-white/10 rounded-3xl p-8 backdrop-blur-xl hover:border-orange-300 dark:hover:border-orange-500/30 transition-all shadow-lg hover:shadow-2xl hover:shadow-orange-200/50 dark:hover:shadow-orange-500/20"
-              >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/5 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition"></div>
-
-                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform shadow-xl`}>
-                  {React.cloneElement(stat.icon, { className: 'w-6 h-6 text-white' })}
-                </div>
-
-                <div className="text-4xl font-black mb-2 bg-gradient-to-br from-slate-900 to-slate-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                  {stat.value}
-                </div>
-                <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{stat.label}</div>
-                <div className="text-xs font-semibold text-orange-600 dark:text-orange-400">{stat.labelHindi}</div>
-              </motion.div>
-            ))}
+            <NeuralHero />
           </motion.div>
         </div>
       </section>
 
-      {/* 3D Hologram Section - RESTORED */}
-      <section className="relative py-28 px-6">
+      {/* JOIN GAME SECTION - Premium Card Design */}
+      <section className="py-12 px-6 relative z-30 -mt-20 mb-20">
+        <div className="max-w-4xl mx-auto">
+          <div className="relative bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-[3rem] p-12 text-center shadow-2xl overflow-hidden group">
+            {/* Background Glows */}
+            <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-500/20 rounded-full blur-[100px] group-hover:bg-blue-500/30 transition-all"></div>
+            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-500/20 rounded-full blur-[100px] group-hover:bg-purple-500/30 transition-all"></div>
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+
+            <div className="relative z-10">
+              {/* Live Battle Pill */}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-sm tracking-wider mb-8 uppercase animate-pulse">
+                <Play className="w-4 h-4 fill-current" />
+                <span>LIVE BATTLE</span>
+              </div>
+
+              {/* Main Title */}
+              <h2 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight drop-shadow-xl">
+                Got a Game Code?
+              </h2>
+              <p className="text-slate-400 text-lg md:text-xl font-medium mb-12">
+                Join your friends instantly
+              </p>
+
+              {/* Input Area */}
+              <form onSubmit={handleJoinGame} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-50 blur transition duration-500"></div>
+                  <input
+                    type="text"
+                    value={gameCode}
+                    onChange={(e) => setGameCode(e.target.value.toUpperCase())}
+                    placeholder="C O D E"
+                    className="relative w-full h-16 bg-slate-950/50 rounded-2xl border border-white/10 text-white text-center text-3xl font-black tracking-[0.2em] placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-all uppercase shadow-inner"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="h-16 px-10 bg-gradient-to-br from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white text-xl font-bold rounded-2xl shadow-lg shadow-orange-500/20 transform hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  JOIN
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+      {/* Stats Section */}
+      <section ref={statsRef} className="py-12 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-y border-orange-100 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="text-center group"
+            >
+              <div className={`w-14 h-14 mx-auto rounded-full bg-gradient-to-br ${stat.gradient} flex items-center justify-center text-white mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                {stat.icon}
+              </div>
+              <div className="text-3xl font-black text-slate-900 dark:text-white mb-1">{stat.value}</div>
+              <div className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section ref={featuresRef} className="py-24 px-6 relative">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-indigo-600 dark:text-indigo-400 font-bold text-sm uppercase tracking-wider mb-4"
-            >
-              त्रि-आयामी • 3D Visualization
-            </motion.p>
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-5xl md:text-6xl font-black mb-6 bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent"
-            >
-              Interactive Holograms
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto"
-            >
-              Visualize complex concepts with our quantum 3D models
-            </motion.p>
+            <span className="inline-block py-1 px-3 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-bold text-xs uppercase tracking-wider mb-4">
+              Made for India
+            </span>
+            <h2 className="text-4xl md:text-5xl font-black mb-4 text-slate-900 dark:text-white">
+              Tech & Tradition Combined
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto text-lg">
+              We blend cutting-edge AI with the timeless principles of Indian education.
+            </p>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="relative bg-gradient-to-br from-slate-900 to-indigo-900 dark:from-black dark:to-indigo-950 rounded-[3rem] overflow-hidden shadow-2xl border-2 border-indigo-500/20 min-h-[500px] flex items-center justify-center"
-          >
-            <div className="absolute inset-0 z-0">
-              <QuantumQuizModel />
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-slate-900/80 to-transparent pointer-events-none z-10 backdrop-blur-sm">
-              <div className="flex justify-center gap-8 text-white/70 font-medium text-sm">
-                <span className="flex items-center gap-2">
-                  <Cpu size={16} /> Neural Render
-                </span>
-                <span className="flex items-center gap-2">
-                  <ArrowRight size={16} /> Drag to Rotate
-                </span>
-                <span className="flex items-center gap-2">
-                  <Sparkles size={16} /> WebGL Powered
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section ref={featuresRef} className="relative py-28 px-6 bg-gradient-to-b from-transparent via-orange-50/30 to-transparent dark:via-orange-950/10">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-orange-600 dark:text-orange-400 font-bold text-sm uppercase tracking-wider mb-4"
-            >
-              प्रमुख विशेषताएं • Premium Features
-            </motion.p>
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-5xl md:text-6xl font-black mb-6 bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent"
-            >
-              Why Quizito Stands Apart
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto"
-            >
-              Combining cutting-edge AI with time-tested educational principles
-            </motion.p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-4 gap-6">
             {features.map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: feature.delay }}
-                whileHover={{ y: -12, scale: 1.03 }}
-                className="group relative bg-white/80 dark:bg-white/5 border-2 border-orange-100 dark:border-white/10 rounded-3xl p-10 hover:border-orange-300 dark:hover:border-orange-500/30 transition-all overflow-hidden backdrop-blur-sm shadow-xl hover:shadow-2xl hover:shadow-orange-200/50 dark:hover:shadow-orange-500/20"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
-
-                <div className={`relative w-20 h-20 rounded-3xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-6 transition-all shadow-2xl`}>
-                  {React.cloneElement(feature.icon, { className: 'w-7 h-7 text-white' })}
+              <TiltCard key={i}>
+                <div className="p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-orange-100 dark:border-slate-700/50 shadow-xl shadow-orange-500/5 hover:shadow-orange-500/10 relative overflow-hidden group h-full">
+                  <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl ${feature.gradient} opacity-5 rounded-bl-[100px] transition-transform group-hover:scale-150`}></div>
+                  <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-white mb-6 shadow-lg rotate-3 group-hover:rotate-6 transition-transform`}>
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">{feature.title}</h3>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{feature.description}</p>
                 </div>
-
-                <h3 className="text-2xl font-black mb-2 text-slate-900 dark:text-white">{feature.title}</h3>
-                <p className="text-sm font-bold text-orange-600 dark:text-orange-400 mb-4">{feature.titleHindi}</p>
-                <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">{feature.description}</p>
-
-                <div className={`h-1.5 w-16 bg-gradient-to-r ${feature.gradient} rounded-full group-hover:w-full transition-all duration-500`}></div>
-              </motion.div>
+              </TiltCard>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Community Quizzes */}
-      <section className="relative py-28 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between mb-16">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">
-                <Flame className="w-5 h-5 fill-current" />
-                ट्रेंडिंग अभी • Trending Now
+      {/* HUGE 3D Hologram Section */}
+      <section ref={hologramRef} className="py-24 px-6 bg-slate-950 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-black"></div>
+        {/* Stars */}
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid lg:grid-cols-3 gap-16 items-center">
+            <div className="lg:col-span-1">
+              <div className="inline-flex items-center gap-2 text-blue-400 font-bold uppercase tracking-widest mb-6">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                <span>Deep Space Learning</span>
               </div>
-              <h2 className="text-5xl font-black text-slate-900 dark:text-white mb-3">लोकप्रिय क्विज़ • Popular Quizzes</h2>
-              <p className="text-slate-600 dark:text-slate-400 text-lg">Top-rated challenges from our community</p>
+              <h2 className="text-5xl font-black text-white mb-6">
+                Explore the <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Knowledge Cosmos</span>
+              </h2>
+              <p className="text-slate-400 mb-10 text-lg leading-relaxed">
+                Navigate through 3D constellations of questions. Just closer to the stars, farther from ignorance.
+              </p>
+
+              <div className="space-y-6">
+                <div className="group flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-colors">
+                  <div className="p-3 bg-blue-500/20 rounded-xl group-hover:bg-blue-500 group-hover:text-white text-blue-400 transition-all">
+                    <Globe className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="text-white font-bold">Universal Access</div>
+                    <div className="text-slate-500 text-xs uppercase tracking-wide">Learn from anywhere</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <Link
-              to="/explore"
-              className="hidden md:flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-bold group transition text-lg"
-            >
-              सभी देखें • View All
-              <ChevronRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+
+            {/* THE BIG MODEL */}
+            <div className="lg:col-span-2 h-[600px] lg:h-[700px] rounded-[3rem] overflow-hidden border border-indigo-500/20 shadow-2xl shadow-indigo-900/20 bg-black relative group">
+              <QuantumQuizModel />
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center pointer-events-none">
+                <span className="px-6 py-3 bg-white/5 backdrop-blur-xl rounded-full text-white/70 text-sm font-medium border border-white/10 flex items-center gap-3">
+                  Drag to Rotate Cosmos
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Community / Quizzes */}
+      <section className="py-24 px-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-end mb-12">
+            <div>
+              <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-2">Popular Missions</h2>
+              <p className="text-slate-600 dark:text-slate-400">Join fellow cadets in these top-rated challenges</p>
+            </div>
+            <Link to="/explore" className="text-orange-600 font-bold hover:text-orange-700 flex items-center gap-2 group transition-colors">
+              View All <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             {featuredQuizzes.length > 0 ? (
               featuredQuizzes.slice(0, 3).map((quiz, i) => (
-                <motion.div
-                  key={quiz._id || i}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                >
+                <motion.div key={quiz._id || i} whileHover={{ y: -8 }} transition={{ type: "spring", stiffness: 300 }}>
                   <QuizCard quiz={quiz} featured />
                 </motion.div>
               ))
             ) : (
               [1, 2, 3].map(i => (
-                <div key={i} className="h-96 bg-white/40 dark:bg-white/5 rounded-3xl animate-pulse border-2 border-orange-100 dark:border-white/10"></div>
+                <div key={i} className="h-[400px] bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 animate-pulse"></div>
               ))
             )}
           </div>
@@ -515,38 +851,82 @@ const Home = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="relative py-28 px-6 bg-gradient-to-b from-transparent via-emerald-50/30 to-transparent dark:via-emerald-950/10">
+      <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-5xl font-black text-slate-900 dark:text-white mb-4">विद्यार्थियों की आवाज़ • Student Stories</h2>
-            <p className="text-xl text-slate-600 dark:text-slate-400">From aspirants across India</p>
+            <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-4">Voice of India's Future</h2>
           </div>
-
           <div className="grid md:grid-cols-3 gap-8">
             {testimonials.map((t, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15 }}
-                whileHover={{ y: -8 }}
-                className="group relative bg-white/80 dark:bg-white/5 border-2 border-orange-100 dark:border-white/10 p-10 rounded-3xl hover:border-orange-300 dark:hover:border-orange-500/30 transition-all backdrop-blur-sm shadow-xl hover:shadow-2xl"
-              >
-                <div className="absolute top-6 right-6 text-6xl font-serif text-orange-200/50 dark:text-orange-500/20">"</div>
-
-                <p className="relative italic text-slate-700 dark:text-slate-300 mb-4 leading-relaxed font-medium z-10">
-                  {t.quote}
-                </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 italic">{t.quoteEn}</p>
-
+              <div key={i} className="p-8 bg-white dark:bg-slate-800 rounded-[2rem] shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 hover:border-orange-200 dark:hover:border-orange-900 transition-colors">
+                <div className="mb-6">
+                  <div className="text-4xl text-orange-200 dark:text-slate-600 font-serif">"</div>
+                </div>
+                <p className="text-slate-700 dark:text-slate-300 font-medium mb-2 text-lg">{t.quote}</p>
+                <p className="text-sm text-slate-500 italic mb-8">{t.quoteEn}</p>
                 <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${t.gradient} flex items-center justify-center font-black text-lg text-white shadow-lg`}>
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${t.gradient} flex items-center justify-center text-white font-bold text-sm shadow-md`}>
                     {t.avatar}
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 dark:text-white text-lg">{t.author}</div>
-                    <div className="text-sm text-orange-600 dark:text-orange-400 font-semibold">{t.role}</div>
+                    <div className="font-bold text-slate-900 dark:text-white">{t.author}</div>
+                    <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+
+      <section className="py-24 px-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 transition-colors">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-4">
+              From <span className="text-orange-600">Zero</span> to <span className="text-blue-600">Infinity</span>
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 text-lg">The continuous thread of Indian innovation.</p>
+          </div>
+
+          <div className="relative">
+            {/* Central Line */}
+            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 via-blue-500 to-green-500 rounded-full"></div>
+
+            {[
+              { title: "Vedic Era", sub: "Oral Tradition", icon: "🕉️", desc: "The preservation of knowledge through the ages.", color: "from-orange-500 to-red-500" },
+              { title: "Ancient Math", sub: "Aryabhata (Zero)", icon: "0", desc: "Giving the world the power of 'Shunya'.", color: "from-orange-500 to-amber-500" },
+              { title: "Golden Age", sub: "Takshashila", icon: "🏛️", desc: "The world's first global university.", color: "from-amber-500 to-yellow-500" },
+              { title: "Medical Science", sub: "Sushruta", icon: "⚕️", desc: "Pioneering surgery and medicine.", color: "from-yellow-500 to-lime-500" },
+              { title: "Scientific Reawakening", sub: "CV Raman", icon: "🔬", desc: "The Nobel Prize winning Raman Effect.", color: "from-lime-500 to-green-500" },
+              { title: "Independence", sub: "1947", icon: "🇮🇳", desc: "A new beginning for a free nation.", color: "from-green-500 to-emerald-500" },
+              { title: "Atomic Age", sub: "Homi Bhabha", icon: "⚛️", desc: "Building the foundation of nuclear power.", color: "from-emerald-500 to-teal-500" },
+              { title: "Space Age", sub: "ISRO Formed", icon: "🛰️", desc: "Looking towards the stars.", color: "from-teal-500 to-cyan-500" },
+              { title: "Digital Revolution", sub: "Digital India", icon: "💻", desc: "Connecting a billion minds.", color: "from-cyan-500 to-blue-500" },
+              { title: "Viksit Bharat", sub: "Future & Beyond", icon: "🚀", desc: "Leading the world in AI and Space.", color: "from-blue-500 to-indigo-500" }
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: i % 2 === 0 ? -50 : 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className={`relative flex items-center gap-8 mb-16 ${i % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse text-left md:text-right'}`}
+              >
+                {/* Timeline Dot */}
+                <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-slate-900 border-4 border-white dark:border-slate-800 z-10 flex items-center justify-center shadow-lg">
+                  <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${item.color}`}></div>
+                </div>
+
+                {/* Content */}
+                <div className={`ml-16 md:ml-0 md:w-1/2 ${i % 2 === 0 ? 'md:pr-12' : 'md:pl-12'}`}>
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl hover:shadow-2xl transition-shadow relative overflow-hidden group">
+                    <div className={`absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl ${item.color} opacity-10 rounded-bl-[50px] transition-transform group-hover:scale-150`}></div>
+                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white text-2xl font-bold mb-4 shadow-lg`}>
+                      {item.icon}
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{item.title}</h3>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">{item.sub}</p>
+                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{item.desc}</p>
                   </div>
                 </div>
               </motion.div>
@@ -555,123 +935,95 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Join Code CTA */}
-      <section className="relative py-28 px-6">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="relative bg-gradient-to-br from-white/90 to-white/70 dark:from-white/10 dark:to-white/5 border-2 border-orange-200 dark:border-orange-500/20 rounded-[3rem] p-16 overflow-hidden backdrop-blur-xl shadow-2xl"
-          >
-            <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-orange-400/20 to-emerald-400/20 dark:from-orange-500/20 dark:to-emerald-500/20 rounded-full blur-3xl"></div>
+      {/* Modern Ashram - Creative Council of Coders */}
+      <section className="py-24 px-6 bg-slate-50 dark:bg-[#05050A] relative overflow-hidden border-t border-slate-200 dark:border-slate-900 transition-colors">
+        {/* Mystical Background */}
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-[100px] animate-pulse-slow"></div>
 
-            <div className="relative text-center">
-              <div className="inline-flex items-center gap-3 bg-gradient-to-r from-emerald-100 to-teal-100 dark:from-emerald-500/10 dark:to-teal-500/10 border-2 border-emerald-300 dark:border-emerald-500/20 px-5 py-2 rounded-full mb-8">
-                <Play className="w-5 h-5 text-emerald-700 dark:text-emerald-400 fill-current" />
-                <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">लाइव बैटल • LIVE BATTLE</span>
-              </div>
-
-              <h2 className="text-5xl font-black mb-5 text-slate-900 dark:text-white">गेम कोड है? • Got a Game Code?</h2>
-              <p className="text-2xl text-slate-600 dark:text-slate-300 mb-10 font-medium">
-                तुरंत शामिल हों • Join your friends instantly
-              </p>
-
-              <div className="flex gap-4 max-w-2xl mx-auto">
-                <input
-                  type="text"
-                  placeholder="CODE"
-                  maxLength={6}
-                  className="flex-1 bg-white dark:bg-white/5 border-3 border-orange-300 dark:border-orange-500/30 focus:border-orange-500 dark:focus:border-orange-400 rounded-2xl px-8 py-6 text-center font-black text-3xl tracking-[0.3em] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/30 outline-none transition-all uppercase backdrop-blur-sm shadow-inner"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && e.target.value.length >= 4) {
-                      navigate(`/join/${e.target.value.trim()}`)
-                    }
-                  }}
-                />
-                <button
-                  onClick={(e) => {
-                    const input = e.target.previousSibling;
-                    if (input.value.length >= 4) navigate(`/join/${input.value.trim()}`)
-                  }}
-                  className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 px-12 py-6 rounded-2xl font-black text-xl transition-all shadow-2xl shadow-orange-500/40 hover:shadow-orange-500/60 text-white"
-                >
-                  JOIN
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section ref={ctaRef} className="relative py-32 px-6 bg-gradient-to-b from-transparent via-orange-50/50 to-transparent dark:via-orange-950/20">
-        <div className="max-w-5xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-6xl md:text-8xl font-black mb-8 leading-tight">
-              <span className="block bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-4">
-                तैयार हैं?
-              </span>
-              <span className="block bg-gradient-to-r from-orange-600 via-amber-600 to-emerald-600 dark:from-orange-400 dark:via-amber-400 dark:to-emerald-400 bg-clip-text text-transparent">
-                Ready to Excel?
-              </span>
+        <div className="max-w-7xl mx-auto text-center relative z-10">
+          <div className="mb-20">
+            <span className="inline-block p-1 px-3 border border-orange-500/30 rounded-full text-orange-600 dark:text-orange-400 text-xs font-mono uppercase tracking-widest mb-4">Core Team</span>
+            <h2 className="text-5xl font-black text-slate-900 dark:text-white mb-6">
+              The Council of <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">Creators</span>
             </h2>
-            <p className="text-2xl text-slate-600 dark:text-slate-300 mb-12 max-w-3xl mx-auto font-medium leading-relaxed">
-              Join 2.37 lakh+ students across 28 states conquering 42 lakh questions daily
-            </p>
+            <p className="text-slate-600 dark:text-slate-400">Architects of the Digital Gurukul</p>
+          </div>
 
-            <motion.button
-              whileHover={{ scale: 1.05, y: -3 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/register')}
-              className="group relative px-14 py-6 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 rounded-3xl font-black text-2xl overflow-hidden shadow-2xl shadow-orange-500/50 text-white"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-emerald-600 opacity-0 group-hover:opacity-100 blur-xl transition-opacity"></div>
-              <span className="relative flex items-center gap-4">
-                <GraduationCap className="w-7 h-7" />
-                अभी शुरू करें • Start Your Journey
-                <Sparkles className="w-7 h-7" />
-              </span>
-            </motion.button>
-          </motion.div>
+          <div className="flex flex-wrap justify-center gap-10 md:gap-16 perspective-1000">
+            {[
+              { title: "Full Stack Developer", name: "Srijan Prakash", initials: "SP", color: "from-orange-500 to-red-600", icon: <Brain className="w-6 h-6" /> },
+              { title: "Full Stack Developer", name: "A Ramanuj Patro", initials: "AR", color: "from-blue-500 to-indigo-600", icon: <Zap className="w-6 h-6" /> },
+              { title: "Team Leader", name: "Prithish Misra", initials: "PM", color: "from-purple-500 to-violet-600", icon: <Target className="w-6 h-6" /> },
+              { title: "AI ML Engineer", name: "Debomoy Patra", initials: "DP", color: "from-green-500 to-emerald-600", icon: <Sparkles className="w-6 h-6" /> }
+            ].map((coder, i) => (
+              <TiltCard key={i} className="w-72">
+                <div className="relative group bg-white dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-3xl p-8 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-2xl cursor-pointer">
+                  {/* Glowing Orb */}
+                  <div className="relative w-24 h-24 mx-auto mb-6">
+                    <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${coder.color} blur-xl opacity-20 group-hover:opacity-60 transition-opacity duration-500`}></div>
+                    <div className={`relative w-full h-full rounded-full bg-gradient-to-br ${coder.color} p-[2px]`}>
+                      <div className="w-full h-full rounded-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+                        <span className={`text-2xl font-bold bg-gradient-to-br ${coder.color} bg-clip-text text-transparent`}>{coder.initials}</span>
+                      </div>
+                    </div>
+                    {/* Orbit */}
+                    <div className="absolute -inset-2 border border-slate-200 dark:border-white/5 rounded-full animate-spin-slow-reverse group-hover:border-slate-300 dark:group-hover:border-white/20"></div>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 font-serif">{coder.name}</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs font-mono mb-4 uppercase tracking-widest">{coder.title}</p>
+
+                  <div className={`w-12 h-1 mx-auto rounded-full bg-gradient-to-r ${coder.color} mb-6`}></div>
+
+                  <div className="flex justify-center gap-4">
+                    <button className="p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-white transition-colors">
+                      <Linkedin className="w-4 h-4" />
+                    </button>
+                    <button className="p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-white transition-colors">
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </TiltCard>
+            ))}
+          </div>
+
+          <div className="mt-24 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center opacity-30 text-xs font-mono">
+            <p>SYSTEM.VERSION: 2.0.5 // QUIZITO_CORE</p>
+            <p className="mt-2 md:mt-0">MADE_IN_INDIA</p>
+          </div>
         </div>
       </section>
-
-      {/* Scroll to Top */}
       <AnimatePresence>
-        {scrolled && (
+        {isLaunching && <WarpTunnel />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showScrollTop && (
           <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-br from-orange-600 to-amber-600 rounded-full flex items-center justify-center shadow-2xl shadow-orange-500/40 hover:scale-110 transition-all group z-40"
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-8 right-8 z-50 p-4 rounded-full bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/30 transition-colors"
+            whileHover={{ y: -5 }}
+            whileTap={{ scale: 0.9 }}
           >
-            <ChevronDown className="w-7 h-7 text-white rotate-180 group-hover:-translate-y-1 transition-transform" />
+            <ChevronDown className="w-6 h-6 rotate-180" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          33% { transform: translate(30px, -40px) rotate(3deg); }
-          66% { transform: translate(-20px, 20px) rotate(-3deg); }
-        }
-        .animate-float {
-          animation: float 20s infinite ease-in-out;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
+      <AnimatePresence>
+        {showInstructions && (
+          <InstructionModal
+            onClose={closeInstructions}
+            isAuthenticated={isAuthenticated}
+            onRegister={() => navigate('/register')}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
