@@ -2529,6 +2529,9 @@ io.on("connection", (socket) => {
         timeRemaining: session.settings.questionTime
       });
 
+      // Start the timer
+      startQuestionTimer(roomCode, session);
+
       console.log(`Quiz started in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {

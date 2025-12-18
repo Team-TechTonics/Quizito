@@ -1,8 +1,8 @@
 // src/App.jsx
 import React, { Suspense, lazy } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { SocketProvider } from './context/SocketContext'
 import { QuizProvider } from './context/QuizContext'
 import { SoundProvider } from './context/SoundContext'
@@ -52,6 +52,13 @@ const ReviewCenter = lazy(() => import('./pages/ReviewCenter'));
 const ClassManagement = lazy(() => import('./pages/ClassManagement'));
 const ProtectedRoute = lazy(() => import('./components/auth/ProtectedRoute'));
 
+// Helper component for dashboard redirection
+const DashboardRedirect = () => {
+  const { user } = useAuth();
+  if (user?.role === 'teacher' || user?.role === 'admin') return <Navigate to="/educator/dashboard" replace />;
+  return <Navigate to="/student/dashboard" replace />;
+};
+
 function App() {
   return (
     <Router>
@@ -74,6 +81,13 @@ function App() {
                         <Route path="/leaderboard" element={<Leaderboard />} />
                         <Route path="/host-session" element={<HostSession />} />
                         <Route path="/join-quiz" element={<JoinQuiz />} />
+
+                        {/* Redirect /dashboard to role-based dashboard */}
+                        <Route path="/dashboard" element={
+                          <RoleGate allowedRoles={['student', 'teacher', 'admin']} fallback={<Navigate to="/login" />}>
+                            <DashboardRedirect />
+                          </RoleGate>
+                        } />
 
                         {/* Play Quiz - Allow guest access */}
                         <Route path="/play/:roomCode" element={<PlayQuiz />} />

@@ -30,7 +30,9 @@ export const QuizProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await api.get("/api/quizzes", { params: opts });
-      setQuizzes(res.data.quizzes || []);
+      // Handle both array and object response formats
+      const quizzesData = Array.isArray(res.data) ? res.data : (res.data.quizzes || []);
+      setQuizzes(quizzesData);
       return res.data;
     } catch (err) {
       console.error("fetchQuizzes error:", err);
