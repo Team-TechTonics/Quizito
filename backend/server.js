@@ -44,6 +44,8 @@ const PDFParser = require("pdf-parse");
 const Redis = require("ioredis");
 const winston = require("winston");
 const axios = require("axios");
+const authenticate = require("./middleware/auth");
+
 
 // ===========================================================================
 // 1. CONFIGURATION & ENVIRONMENT

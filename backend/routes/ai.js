@@ -108,7 +108,8 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
         console.error('[AI Route] Error:', error);
         res.status(500).json({
             success: false,
-            message: error.message || 'Failed to generate quiz'
+            message: error.message || 'Failed to generate quiz',
+            details: error.response?.data || error.stack
         });
     }
 });

@@ -19,8 +19,12 @@ router.post('/', auth, async (req, res) => {
         const quiz = await newQuiz.save();
         res.json(quiz);
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        console.error("Quiz Create Error:", err);
+        res.status(500).json({
+            success: false,
+            message: err.message,
+            validation: err.errors
+        });
     }
 });
 
