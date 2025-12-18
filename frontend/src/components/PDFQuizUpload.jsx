@@ -51,7 +51,7 @@ export default function PDFQuizUpload({ onQuestionsGenerated }) {
         formData.append('file', file);
 
         try {
-            const response = await axios.post('/api/quiz-generation/from-pdf', formData, {
+            const response = await axios.post('/api/upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }

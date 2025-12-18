@@ -82,7 +82,7 @@ export default function PDFServiceTester() {
 
             const startTime = Date.now();
 
-            const response = await fetch("/api/quiz-generation/from-pdf", {
+            const response = await fetch("/api/upload", {
                 method: "POST",
                 body: formData
             });

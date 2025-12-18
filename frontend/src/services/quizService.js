@@ -107,7 +107,7 @@ export const quizService = {
      */
     async generateFromPDF(formData, onUploadProgress) {
         try {
-            const response = await api.post('/api/quiz-generation/from-pdf', formData, {
+            const response = await api.post('/api/upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
