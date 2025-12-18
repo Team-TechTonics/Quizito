@@ -25,15 +25,27 @@ router.post('/', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        let user = await User.findOne({ email });
+        console.log(`[Auth] Login attempt for: ${email}`);
+
+        // Must explicitly select password since it's hidden by default in schema
+        let user = await User.findOne({ email }).select('+password');
 
         if (!user) {
+            console.log(`[Auth] User not found: ${email}`);
             return res.status(400).json({ msg: 'Invalid Credentials' });
         }
 
+        // Check if user has a password (OAuth users might not)
+        if (!user.password) {
+            console.log(`[Auth] User has no password (possibly OAuth): ${email}`);
+            return res.status(400).json({ msg: 'Invalid Credentials. Try logging in with Google/GitHub.' });
+        }
+
+        // Use model method if available or fallback to direct compare
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
+            console.log(`[Auth] Password mismatch for: ${email}`);
             return res.status(400).json({ msg: 'Invalid Credentials' });
         }
 
@@ -47,15 +59,23 @@ router.post('/', async (req, res) => {
         jwt.sign(
             payload,
             process.env.JWT_SECRET,
-            { expiresIn: 360000 }, // 100 hours
+            { expiresIn: 360000 },
             (err, token) => {
-                if (err) throw err;
+                if (err) {
+                    console.error("[Auth] JWT Sign Error:", err);
+                    throw err;
+                }
                 res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
             }
         );
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error("[Auth] Login Exception:", err);
+        res.status(500).json({
+            success: false,
+            msg: 'Server Error during Login',
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     }
 });
 

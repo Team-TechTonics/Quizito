@@ -24,8 +24,8 @@ router.post('/', async (req, res) => {
             role: 'student' // Default role
         });
 
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
+        // Password hashing is handled by User model pre-save hook
+        // Do NOT hash here manually or it will be hashed twice!
 
         await user.save();
 
