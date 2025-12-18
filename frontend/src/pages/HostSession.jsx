@@ -11,6 +11,8 @@ import { quizService, socketService } from '../services';
 import useSpeech from '../hooks/useSpeech';
 import Chat from '../components/Chat';
 import { motion, AnimatePresence } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { useSoundSettings } from '../context/SoundContext';
 
 const HostSession = () => {
   const navigate = useNavigate();
@@ -27,7 +29,10 @@ const HostSession = () => {
   const [error, setError] = useState(null);
   const [gameStatus, setGameStatus] = useState('lobby'); // lobby, starting, question, answer, finished
   const [currentQuestion, setCurrentQuestion] = useState(null);
+  /* eslint-disable no-unused-vars */
+  const [showConfetti, setShowConfetti] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const { playSound, soundEnabled, toggleSound } = useSoundSettings();
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -117,6 +122,8 @@ const HostSession = () => {
           setParticipants(prev => {
             const exists = prev.find(p => p.userId === data.participant.userId);
             if (exists) return prev;
+            // Sound effect
+            playSound('join');
             toast.success(`${data.participant?.username || 'A player'} joined`);
             return [...prev, data.participant];
           });
@@ -306,11 +313,24 @@ const HostSession = () => {
     audio.play().catch(() => { });
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
     if (participants.length === 0) {
       toast.error('Wait for at least one player');
       return;
     }
+
+    // Animated Countdown
+    for (let i = 3; i > 0; i--) {
+      setCountdown(i);
+      playSound('beep');
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    setCountdown(null);
+
+    // Celebration Start
+    setShowConfetti(true);
+    playSound('start');
+    setTimeout(() => setShowConfetti(false), 5000);
 
     socketService.startQuiz(roomCode, (response) => {
       if (response.success) {
@@ -457,7 +477,9 @@ const HostSession = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 font-sans overflow-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans overflow-y-auto">
+
+      {showConfetti && <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={500} />}
 
       {/* Background Decorations - Subtle */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -486,84 +508,78 @@ const HostSession = () => {
         )}
       </AnimatePresence>
 
-      <div className="max-w-7xl mx-auto relative z-10 flex flex-col h-[calc(100vh-2rem)]">
+      <div className="max-w-7xl mx-auto relative z-10 flex flex-col min-h-screen p-8 pb-32">
 
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-3 rounded-xl shadow-md text-white">
-              <span className="text-xl font-bold">Q</span>
+        <header className="flex flex-col md:flex-row justify-between items-center gap-6 mb-12 bg-white/80 backdrop-blur rounded-3xl shadow-lg border border-white/50 p-6">
+          <div className="flex items-center gap-5">
+            <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-4 rounded-2xl shadow-xl text-white transform hover:scale-105 transition-transform">
+              <span className="text-2xl font-bold">Q</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Host Panel</h1>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                Code:
-                <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded tracking-wider border border-indigo-100">
+              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Host Panel</h1>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-sm font-semibold text-slate-400">SESSION CODE</span>
+                <span className="font-mono text-lg font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg tracking-widest border border-indigo-100 shadow-sm">
                   {roomCode}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="text-right hidden md:block">
-              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Status</p>
+          <div className="flex items-center gap-8 bg-slate-50/50 p-2 pr-6 rounded-full border border-slate-100">
+            <div className="text-right hidden md:block pl-4">
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">Status</p>
               <div className="flex items-center gap-2 justify-end">
-                <span className={`w-2.5 h-2.5 rounded-full ${gameStatus === 'lobby' ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`}></span>
+                <span className={`w-3 h-3 rounded-full shadow-sm ${gameStatus === 'lobby' ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`}></span>
                 <span className="font-bold text-slate-700 text-sm">{gameStatus.toUpperCase()}</span>
               </div>
             </div>
-            <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-            <div className="text-right hidden md:block">
-              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Players</p>
-              <p className="font-bold text-slate-700 text-lg leading-none">{participants.length}</p>
+            <div className="h-10 w-px bg-slate-200 hidden md:block"></div>
+            <button
+              onClick={toggleSound}
+              className={`p-3 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 ${soundEnabled ? 'bg-indigo-100 text-indigo-600 shadow-indigo-100' : 'bg-slate-200 text-slate-400'} shadow-md`}
+              title={soundEnabled ? "Mute Sounds" : "Enable Sounds"}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
+            <div className="text-right hidden md:block border-l border-slate-200 pl-6">
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">Players</p>
+              <p className="font-black text-slate-700 text-xl leading-none">{participants.length}</p>
             </div>
           </div>
         </header>
 
         {/* Quiz Metadata Bar */}
         {quizMetadata && (
-          <div className="bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-6 overflow-x-auto shrink-0 shadow-sm z-10 custom-scrollbar">
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</span>
-              <span className="text-sm font-bold text-slate-800 max-w-[200px] truncate" title={quizMetadata.title}>{quizMetadata.title}</span>
+          <div className="bg-white/90 backdrop-blur rounded-2xl border border-white/50 px-8 py-5 flex items-center gap-8 overflow-x-auto shrink-0 shadow-md mb-10 custom-scrollbar hover:shadow-lg transition-shadow">
+            <div className="flex flex-col gap-1 min-w-max">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Quiz Title</span>
+              <span className="text-base font-bold text-slate-800 max-w-xs truncate" title={quizMetadata.title}>{quizMetadata.title}</span>
             </div>
-            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Questions</span>
-              <span className="text-sm font-bold text-slate-800">{quizMetadata.questionCount}</span>
+            <div className="w-px h-8 bg-slate-200 shrink-0"></div>
+            <div className="flex flex-col gap-1 min-w-max">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Questions</span>
+              <span className="text-lg font-black text-slate-700">{quizMetadata.questionCount}</span>
             </div>
-            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Time</span>
-              <span className="text-sm font-bold text-slate-800">{quizMetadata.timePerQuestion}s</span>
+            <div className="w-px h-8 bg-slate-200 shrink-0"></div>
+            <div className="flex flex-col gap-1 min-w-max">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Timer</span>
+              <span className="text-lg font-black text-slate-700">{quizMetadata.timePerQuestion}s</span>
             </div>
-            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scoring</span>
-              <span className="text-sm font-bold text-slate-800">{quizMetadata.scoringType}</span>
-            </div>
-            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Difficulty</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${quizMetadata.difficulty === 'easy' || quizMetadata.difficulty === 'beginner' ? 'bg-green-100 text-green-700' :
-                quizMetadata.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                  quizMetadata.difficulty === 'hard' || quizMetadata.difficulty === 'expert' ? 'bg-red-100 text-red-700' :
-                    'bg-slate-100 text-slate-700'
-                }`}>{quizMetadata.difficulty.toUpperCase()}</span>
-            </div>
-            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Source</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${quizMetadata.source === 'AI' ? 'bg-purple-100 text-purple-700' :
-                quizMetadata.source === 'PDF' ? 'bg-red-100 text-red-700' :
-                  'bg-blue-100 text-blue-700'
-                }`}>{quizMetadata.source}</span>
+            {/* Added Spacer */}
+            <div className="flex-1"></div>
+            <div className="flex items-center gap-3">
+              <span className={`text-xs font-bold px-3 py-1 rounded-full border ${quizMetadata.difficulty === 'easy' ? 'bg-green-50 text-green-600 border-green-100' :
+                  quizMetadata.difficulty === 'hard' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+                }`}>
+                {quizMetadata.difficulty?.toUpperCase()}
+              </span>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
 
           {/* GAME AREA */}
           <div className="lg:col-span-2 flex flex-col h-full min-h-0">
@@ -572,6 +588,13 @@ const HostSession = () => {
             {!quizStarted && (
               <div className="flex-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-8 flex flex-col relative overflow-hidden">
                 <div className="text-center mb-10">
+                  <motion.div
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="w-24 h-24 mx-auto mb-4 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-5xl shadow-xl ring-4 ring-indigo-100"
+                  >
+                    🤖
+                  </motion.div>
                   <h2 className="text-4xl font-black text-slate-800 mb-3">
                     Waiting for Players...
                   </h2>
@@ -738,10 +761,10 @@ const HostSession = () => {
           </div>
 
           {/* CONTROLS & CHAT SIDEBAR */}
-          <div className="flex flex-col gap-6 min-h-0 h-full">
+          <div className="flex flex-col gap-3 min-h-0 h-full">
 
             {/* Leaderboard Mini */}
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-5 flex-[2] min-h-0 flex flex-col">
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-4 flex-1 min-h-0 flex flex-col">
               <h3 className="font-bold text-lg flex items-center gap-2 mb-4 text-slate-800 pb-2 border-b border-slate-100">
                 <span>🏆 Leaderboard</span>
               </h3>
@@ -853,20 +876,18 @@ const HostSession = () => {
                   END GAME
                 </button>
               </div>
-            </div>
 
-            {/* Session Settings */}
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-5 shrink-0">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Session Settings</h3>
-              <div className="flex flex-col">
+              <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-0.5">
                 <Toggle label="Late Join" checked={settings?.allowLateJoin} onChange={(v) => handleUpdateSetting('allowLateJoin', v)} />
                 <Toggle label="Rejoin" checked={settings?.allowRejoin} onChange={(v) => handleUpdateSetting('allowRejoin', v)} />
                 <Toggle label="Leaderboard" checked={settings?.showLeaderboard} onChange={(v) => handleUpdateSetting('showLeaderboard', v)} />
               </div>
             </div>
 
+
+
             {/* CHAT COMPONENT */}
-            <div className={`bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden flex flex-col flex-1 min-h-[200px] transition-all duration-300 ${chatEnabled ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'}`}>
+            <div className={`bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden flex flex-col flex-1 min-h-[150px] transition-all duration-300 ${chatEnabled ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'}`}>
               <div className="bg-slate-50 p-3 border-b border-slate-100 font-bold text-slate-700 text-sm flex items-center gap-2">
                 <span>💬 Live Chat</span>
                 {!chatEnabled && <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded">PAUSED</span>}

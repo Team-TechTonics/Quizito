@@ -83,6 +83,7 @@ const sessionSchema = new mongoose.Schema({
         isReady: { type: Boolean, default: false },
         score: { type: Number, default: 0 },
         streak: { type: Number, default: 0 },
+        multiplier: { type: Number, default: 1 },
         correctAnswers: { type: Number, default: 0 },
         answers: [{
             questionIndex: Number,
@@ -99,7 +100,9 @@ const sessionSchema = new mongoose.Schema({
         powerUps: {
             fiftyFifty: { type: Number, default: 2 },
             skip: { type: Number, default: 1 },
-            hint: { type: Number, default: 2 }
+            hint: { type: Number, default: 2 },
+            timeFreeze: { type: Number, default: 1 },
+            doublePoints: { type: Number, default: 1 }
         },
     }],
 

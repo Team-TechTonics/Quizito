@@ -168,6 +168,10 @@ class SocketService {
         this.socket?.emit('update-settings', { roomCode, settings }, callback);
     }
 
+    usePowerup(roomCode, powerupType, callback) {
+        this.socket?.emit('use-powerup', { roomCode, powerupType }, callback);
+    }
+
     // ============ NEW: Enhanced Quiz Controls ============
 
     pauseQuiz(roomCode, callback) {

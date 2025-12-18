@@ -2649,6 +2649,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle chat message
+  socket.on("chat-message", (data) => {
+    const { roomCode } = data;
+    io.to(roomCode).emit("chat-message", {
+      ...data,
+      timestamp: new Date()
+    });
+  });
+
   // Handle power-up usage
   socket.on("use-powerup", async (data, callback) => {
     try {
@@ -2667,81 +2676,37 @@ io.on("connection", (socket) => {
         return callback({ success: false, message: "Not a participant" });
       }
 
-      // Check if game is active
-      if (session.currentState.phase !== "question") {
-        return callback({ success: false, message: "Can only use powerups during questions" });
+      const typeMap = {
+        '50-50': 'fiftyFifty',
+        'time-freeze': 'timeFreeze',
+        'double-points': 'doublePoints',
+        'skip': 'skip',
+        'hint': 'hint'
+      };
+
+      const key = typeMap[powerupType];
+      if (!key) return callback({ success: false, message: "Invalid powerup type" });
+
+      if (!participant.powerUps || participant.powerUps[key] <= 0) {
+        return callback({ success: false, message: `No ${powerupType} remaining` });
       }
 
-      // Initialize powerups array if not exists
-      if (!participant.powerups) {
-        participant.powerups = [];
-      }
+      // Decrement
+      participant.powerUps[key]--;
 
-      // Check if player has this powerup
-      const powerupIndex = participant.powerups.findIndex(p => p.type === powerupType);
-      if (powerupIndex === -1) {
-        return callback({ success: false, message: "You don't have this powerup" });
-      }
-
-      // Apply powerup effects
-      switch (powerupType) {
-        case "double-points":
-          participant.multiplier = Math.min((participant.multiplier || 1) * 2, 5);
-          participant.powerups[powerupIndex].lastUsed = new Date();
-          break;
-
-        case "time-freeze":
-          // Add extra time
-          if (sessionTimers.has(roomCode)) {
-            clearInterval(sessionTimers.get(roomCode));
-            session.currentState.timeRemaining = (session.currentState.timeRemaining || 30) + 10;
-            startQuestionTimer(roomCode, session);
-          }
-          participant.powerups[powerupIndex].lastUsed = new Date();
-          break;
-
-        case "remove-wrong":
-          // Remove one wrong option (simulated - frontend will handle visual effect)
-          participant.powerups[powerupIndex].lastUsed = new Date();
-          break;
-
-        case "hint":
-          // Show hint
-          participant.powerups[powerupIndex].lastUsed = new Date();
-          break;
-      }
-
-      // Decrease powerup count
-      if (participant.powerups[powerupIndex].count > 1) {
-        participant.powerups[powerupIndex].count -= 1;
-      } else {
-        participant.powerups.splice(powerupIndex, 1);
+      // Apply effects
+      if (key === 'doublePoints') {
+        participant.multiplier = 2;
       }
 
       await session.save();
-
-      // Notify player
-      socket.emit("powerup-used", {
-        powerup: powerupType,
-        effect: "Powerup activated!",
-        remainingPowerups: participant.powerups.length,
-      });
-
-      // Notify others (optional - for public powerups)
-      if (powerupType !== "hint" && powerupType !== "remove-wrong") {
-        socket.to(roomCode).emit("player-used-powerup", {
-          userId: socket.user._id,
-          username: socket.user.username,
-          powerup: powerupType,
-        });
-      }
-
-      callback({ success: true });
+      callback({ success: true, remaining: participant.powerUps[key] });
     } catch (error) {
-      logger.error("Powerup error:", error);
+      console.error("Powerup error:", error);
       callback({ success: false, message: "Failed to use powerup" });
     }
   });
+
 
   // Handle end session
   socket.on("end-session", async (data, callback) => {
@@ -3062,6 +3027,7 @@ const completeQuiz = async (roomCode, session) => {
       correctAnswers: p.correctAnswers,
       streak: p.streak || 0,
       rank: index + 1,
+      answers: p.answers, // Include detailed answers for analytics
       performance: {
         accuracy: p.correctAnswers / session.quizId.questions.length * 100,
         speed: p.averageTime || 0,

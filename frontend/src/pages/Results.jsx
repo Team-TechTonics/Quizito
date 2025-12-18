@@ -131,14 +131,50 @@ const Results = () => {
     }
   };
 
-  const generatePerformanceData = (results) => {
-    const categories = ['Speed', 'Accuracy', 'Consistency', 'Difficulty', 'Engagement']
-    const data = categories.map(category => ({
-      category,
-      score: Math.floor(Math.random() * 30) + 70,
-      fullMark: 100
-    }))
-    setPerformanceData(data)
+  const generatePerformanceData = (resultsData) => {
+    // Find current user stats
+    const currentUser = resultsData.participants?.find(p =>
+      p.username === user?.username || p.userId === user?._id
+    ) || resultsData.leaderboard?.find(p =>
+      p.username === user?.username || p.userId === user?._id
+    );
+
+    if (!currentUser) return;
+
+    // Accuracy
+    const totalQs = resultsData.totalQuestions || 1;
+    const accuracy = currentUser.performance?.accuracy || (currentUser.correctAnswers / totalQs * 100);
+
+    // Speed (Inverse of average time, normalized to 30s)
+    const avgTime = currentUser.performance?.speed || 15;
+    const speedScore = Math.min(100, Math.max(0, 100 - ((avgTime / 30) * 100) + 20)); // Bonus for being fast
+
+    // Consistency (Variance or Streak)
+    const streak = currentUser.streak || 0;
+    const consistency = Math.min(100, (streak / totalQs) * 100 + 40);
+
+    // Engagement (Participation)
+    const answeredCount = currentUser.answers?.length || currentUser.correctAnswers || 0;
+    const engagement = (answeredCount / totalQs) * 100;
+
+    const categories = ['Speed', 'Accuracy', 'Consistency', 'Engagement'];
+    const data = categories.map(category => {
+      let score = 0;
+      switch (category) {
+        case 'Speed': score = speedScore; break;
+        case 'Accuracy': score = accuracy; break;
+        case 'Consistency': score = consistency; break;
+        case 'Engagement': score = engagement; break;
+        default: score = 75;
+      }
+      return {
+        category,
+        score: Math.round(score),
+        fullMark: 100
+      };
+    });
+
+    setPerformanceData(data);
   }
 
   const getGrade = (score) => {
