@@ -208,6 +208,17 @@ const Friends = () => {
                     >
                         Find Friends
                     </button>
+                    <button
+                        onClick={() => {
+                            const link = `${window.location.origin}/add-friend/${user?._id}`;
+                            navigator.clipboard.writeText(link);
+                            toast.success('Friend link copied to clipboard!');
+                        }}
+                        className="ml-auto px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg flex items-center"
+                    >
+                        <UserPlus size={20} className="mr-2" />
+                        Share Link
+                    </button>
                 </div>
 
                 {/* Content */}
