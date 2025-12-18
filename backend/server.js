@@ -1884,6 +1884,12 @@ io.on("connection", (socket) => {
         return callback({ success: false, message: "You are banned from this session" });
       }
 
+      // Check if room is locked (Phase 1)
+      const isHost = session.hostId.equals(socket.user._id);
+      if (session.roomLocked && !isHost) {
+        return callback({ success: false, message: "Room is locked by host" });
+      }
+
       // Check if session is full
       const activeParticipants = session.participants.filter(p =>
         p.status === "waiting" || p.status === "ready" || p.status === "playing"
@@ -2459,6 +2465,151 @@ io.on("connection", (socket) => {
       callback({ success: false, message: "Failed to kick player" });
     }
   });
+
+  // ============================================================================
+  // PHASE 1: ESSENTIAL HOST CONTROLS
+  // ============================================================================
+
+  // PAUSE QUIZ
+  socket.on("pause-quiz", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode });
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can pause" });
+      if (session.status !== "active") return callback({ success: false, message: "Quiz is not active" });
+
+      session.status = "paused";
+      session.isPaused = true;
+      session.pausedAt = new Date();
+      await session.save();
+
+      io.to(roomCode).emit("quiz-paused", { pausedAt: session.pausedAt, pausedBy: socket.user.username });
+      logger.info(`Quiz paused in room ${roomCode}`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Pause quiz error:", error);
+      callback({ success: false, message: "Failed to pause quiz" });
+    }
+  });
+
+  // RESUME QUIZ
+  socket.on("resume-quiz", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode });
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can resume" });
+      if (session.status !== "paused") return callback({ success: false, message: "Quiz is not paused" });
+
+      session.status = "active";
+      session.isPaused = false;
+      await session.save();
+
+      io.to(roomCode).emit("quiz-resumed", { resumedBy: socket.user.username });
+      logger.info(`Quiz resumed in room ${roomCode}`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Resume quiz error:", error);
+      callback({ success: false, message: "Failed to resume quiz" });
+    }
+  });
+
+  // SKIP QUESTION
+  socket.on("skip-question", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode }).populate("quizId");
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can skip" });
+      if (session.status !== "active") return callback({ success: false, message: "Quiz is not active" });
+
+      const nextQuestionIndex = session.currentQuestionIndex + 1;
+
+      if (nextQuestionIndex >= session.quizId.questions.length) {
+        session.status = "finished";
+        session.endedAt = new Date();
+        await session.save();
+        io.to(roomCode).emit("quiz-ended", { message: "Quiz completed" });
+      } else {
+        session.currentQuestionIndex = nextQuestionIndex;
+        await session.save();
+
+        const nextQuestion = session.quizId.questions[nextQuestionIndex];
+        io.to(roomCode).emit("next-question", {
+          question: nextQuestion,
+          questionIndex: nextQuestionIndex,
+          totalQuestions: session.quizId.questions.length,
+          timeRemaining: session.settings.questionTime
+        });
+      }
+
+      logger.info(`Question skipped in room ${roomCode}`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Skip question error:", error);
+      callback({ success: false, message: "Failed to skip question" });
+    }
+  });
+
+  // EXTEND TIMER
+  socket.on("extend-timer", async (data, callback) => {
+    try {
+      const { roomCode, seconds } = data;
+      const session = await Session.findOne({ roomCode });
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can extend timer" });
+      if (session.status !== "active") return callback({ success: false, message: "Quiz is not active" });
+
+      io.to(roomCode).emit("timer-extended", { additionalSeconds: seconds, extendedBy: socket.user.username });
+      logger.info(`Timer extended by ${seconds}s in room ${roomCode}`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Extend timer error:", error);
+      callback({ success: false, message: "Failed to extend timer" });
+    }
+  });
+
+  // LOCK ROOM
+  socket.on("lock-room", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode });
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can lock" });
+
+      session.roomLocked = true;
+      await session.save();
+
+      io.to(roomCode).emit("room-locked", { lockedBy: socket.user.username });
+      logger.info(`Room ${roomCode} locked`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Lock room error:", error);
+      callback({ success: false, message: "Failed to lock room" });
+    }
+  });
+
+  // UNLOCK ROOM
+  socket.on("unlock-room", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode });
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can unlock" });
+
+      session.roomLocked = false;
+      await session.save();
+
+      io.to(roomCode).emit("room-unlocked", { unlockedBy: socket.user.username });
+      logger.info(`Room ${roomCode} unlocked`);
+      callback({ success: true });
+    } catch (error) {
+      logger.error("Unlock room error:", error);
+      callback({ success: false, message: "Failed to unlock room" });
+    }
+  });
+
 
   // Handle session settings update
   socket.on("update-settings", async (data, callback) => {
@@ -6650,9 +6801,19 @@ app.post("/api/quiz/generate-from-pdf", pdfUpload.single("file"), async (req, re
       pythonUrl = pythonUrl.slice(0, -1);
     }
 
-    // Legacy app2.py interface: POST /api/upload
+
+    // Python service endpoint: POST /api/upload
+    // Expects: multipart/form-data with 'file' field (PDF or TXT)
     const targetEndpoint = `${pythonUrl}/api/upload`;
     console.log(`🔗 Target Endpoint: ${targetEndpoint}`);
+
+    // Optional: Health check first (uncomment if Python service has /health endpoint)
+    // try {
+    //   await axios.get(`${pythonUrl}/health`, { timeout: 5000 });
+    //   console.log('✅ Python service is healthy');
+    // } catch (healthError) {
+    //   console.warn('⚠️ Python service health check failed:', healthError.message);
+    // }
 
     const pythonResponse = await axios.post(
       targetEndpoint,

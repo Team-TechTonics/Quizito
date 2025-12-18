@@ -39,6 +39,13 @@ const sessionSchema = new mongoose.Schema({
         autoStart: { type: Boolean, default: false },
         musicEnabled: { type: Boolean, default: true },
         soundAvailable: { type: Boolean, default: true },
+        powerupsEnabled: { type: Boolean, default: true },
+        hintsEnabled: { type: Boolean, default: true },
+        showCorrectAnswers: { type: Boolean, default: true },
+        teamMode: { type: Boolean, default: false },
+        adaptiveDifficulty: { type: Boolean, default: false },
+        privateMode: { type: Boolean, default: false },
+        soundEffects: { type: Boolean, default: true },
     },
 
     // Game State
@@ -51,6 +58,9 @@ const sessionSchema = new mongoose.Schema({
     currentQuestionIndex: { type: Number, default: -1 },
     startedAt: Date,
     endedAt: Date,
+    isPaused: { type: Boolean, default: false },
+    pausedAt: Date,
+    roomLocked: { type: Boolean, default: false },
 
     // Participants
     participants: [{
@@ -81,6 +91,15 @@ const sessionSchema = new mongoose.Schema({
             points: Number,
             answeredAt: Date,
         }],
+        role: { type: String, enum: ["host", "player", "spectator"], default: "player" },
+        isConnected: { type: Boolean, default: true },
+        hasAnswered: { type: Boolean, default: false },
+        connectionStrength: { type: String, enum: ["good", "fair", "poor"], default: "good" },
+        powerUps: {
+            fiftyFifty: { type: Number, default: 2 },
+            skip: { type: Number, default: 1 },
+            hint: { type: Number, default: 2 }
+        },
     }],
 
     // Waiting List for Approval
@@ -94,6 +113,17 @@ const sessionSchema = new mongoose.Schema({
     }],
 
     bannedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    mutedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // Live Analytics
+    questionStats: [{
+        questionIndex: Number,
+        responses: { type: Number, default: 0 },
+        correctCount: { type: Number, default: 0 },
+        wrongCount: { type: Number, default: 0 },
+        avgResponseTime: { type: Number, default: 0 },
+        optionDistribution: { type: Map, of: Number, default: {} }
+    }],
 
     // Temporary State (not persisted long term)
     activeQuestion: {

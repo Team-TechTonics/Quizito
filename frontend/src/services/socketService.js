@@ -164,6 +164,52 @@ class SocketService {
         this.socket?.emit('kick-player', { roomCode, userId }, callback);
     }
 
+    // ============ NEW: Enhanced Quiz Controls ============
+
+    pauseQuiz(roomCode, callback) {
+        this.socket?.emit('pause-quiz', { roomCode }, callback);
+    }
+
+    resumeQuiz(roomCode, callback) {
+        this.socket?.emit('resume-quiz', { roomCode }, callback);
+    }
+
+    lockRoom(roomCode, callback) {
+        this.socket?.emit('lock-room', { roomCode }, callback);
+    }
+
+    unlockRoom(roomCode, callback) {
+        this.socket?.emit('unlock-room', { roomCode }, callback);
+    }
+
+    extendTimer(roomCode, seconds, callback) {
+        this.socket?.emit('extend-timer', { roomCode, seconds }, callback);
+    }
+
+    skipQuestion(roomCode, callback) {
+        this.socket?.emit('skip-question', { roomCode }, callback);
+    }
+
+    showAnswerNow(roomCode, callback) {
+        this.socket?.emit('show-answer-now', { roomCode }, callback);
+    }
+
+    banPlayer(roomCode, userId, callback) {
+        this.socket?.emit('ban-player', { roomCode, userId }, callback);
+    }
+
+    mutePlayerChat(roomCode, userId, callback) {
+        this.socket?.emit('mute-player-chat', { roomCode, userId }, callback);
+    }
+
+    unmutePlayerChat(roomCode, userId, callback) {
+        this.socket?.emit('unmute-player-chat', { roomCode, userId }, callback);
+    }
+
+    sendAnnouncement(roomCode, message, callback) {
+        this.socket?.emit('send-announcement', { roomCode, message }, callback);
+    }
+
     // ============ Host Session Events ============
 
     onParticipantJoined(callback) {
@@ -224,6 +270,48 @@ class SocketService {
 
     onChatToggled(callback) {
         this.socket?.on('chat-toggled', callback);
+    }
+
+    // ============ NEW: Enhanced Quiz Control Events ============
+
+    onQuizPaused(callback) {
+        this.socket?.on('quiz-paused', callback);
+    }
+
+    onQuizResumed(callback) {
+        this.socket?.on('quiz-resumed', callback);
+    }
+
+    onRoomLocked(callback) {
+        this.socket?.on('room-locked', callback);
+    }
+
+    onRoomUnlocked(callback) {
+        this.socket?.on('room-unlocked', callback);
+    }
+
+    onTimerExtended(callback) {
+        this.socket?.on('timer-extended', callback);
+    }
+
+    onAnswerRevealed(callback) {
+        this.socket?.on('answer-revealed', callback);
+    }
+
+    onPlayerBanned(callback) {
+        this.socket?.on('player-banned', callback);
+    }
+
+    onChatMuted(callback) {
+        this.socket?.on('chat-muted', callback);
+    }
+
+    onChatUnmuted(callback) {
+        this.socket?.on('chat-unmuted', callback);
+    }
+
+    onAnnouncement(callback) {
+        this.socket?.on('announcement', callback);
     }
 
     // ============ Cleanup ============

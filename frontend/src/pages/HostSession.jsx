@@ -36,6 +36,8 @@ const HostSession = () => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [questionDuration, setQuestionDuration] = useState(30);
+  const [isPaused, setIsPaused] = useState(false); // Phase 1: Pause/Resume
+  const [roomLocked, setRoomLocked] = useState(false); // Phase 1: Lock Room
 
   // Initialize session
   useEffect(() => {
@@ -194,6 +196,33 @@ const HostSession = () => {
         socketService.onPlayerReadyUpdate(handlePlayerReady);
         socketService.on('countdown', handleCountdown);
 
+        // Phase 1: Pause/Resume Listeners
+        socketService.onQuizPaused(() => {
+          setIsPaused(true);
+          toast.info('Quiz paused by host');
+        });
+
+        socketService.onQuizResumed(() => {
+          setIsPaused(false);
+          toast.info('Quiz resumed');
+        });
+
+        // Phase 1: Lock/Unlock and Timer Listeners
+        socketService.onRoomLocked(() => {
+          setRoomLocked(true);
+          toast.info('Room locked by host');
+        });
+
+        socketService.onRoomUnlocked(() => {
+          setRoomLocked(false);
+          toast.info('Room unlocked');
+        });
+
+        socketService.onTimerExtended((data) => {
+          setTimeRemaining(prev => prev + data.additionalSeconds);
+          toast.info(`+${data.additionalSeconds}s added`);
+        });
+
         socketService.onSessionEndedByHost(() => {
           toast('Session ended', { icon: '🏁' });
           navigate(`/dashboard`);
@@ -283,6 +312,71 @@ const HostSession = () => {
       }
     });
   }
+
+  // Phase 1: Pause/Resume Handlers
+  const handlePauseQuiz = () => {
+    socketService.pauseQuiz(roomCode, (response) => {
+      if (response.success) {
+        toast.success('Quiz paused');
+        setIsPaused(true);
+      } else {
+        toast.error(response.message || 'Failed to pause quiz');
+      }
+    });
+  };
+
+  const handleSkipQuestion = () => {
+    socketService.skipQuestion(roomCode, (response) => {
+      if (response.success) {
+        toast.success('Question skipped');
+      } else {
+        toast.error(response.message || 'Failed to skip question');
+      }
+    });
+  };
+
+  const handleExtendTimer = (seconds) => {
+    socketService.extendTimer(roomCode, seconds, (response) => {
+      if (response.success) {
+        toast.success(`Added ${seconds} seconds`);
+      } else {
+        toast.error(response.message || 'Failed to extend timer');
+      }
+    });
+  };
+
+  const handleToggleLock = () => {
+    if (roomLocked) {
+      socketService.unlockRoom(roomCode, (response) => {
+        if (response.success) {
+          toast.success('Room unlocked');
+          setRoomLocked(false);
+        } else {
+          toast.error(response.message || 'Failed to unlock room');
+        }
+      });
+    } else {
+      socketService.lockRoom(roomCode, (response) => {
+        if (response.success) {
+          toast.success('Room locked - no new players can join');
+          setRoomLocked(true);
+        } else {
+          toast.error(response.message || 'Failed to lock room');
+        }
+      });
+    }
+  };
+
+  const handleResumeQuiz = () => {
+    socketService.resumeQuiz(roomCode, (response) => {
+      if (response.success) {
+        toast.success('Quiz resumed');
+        setIsPaused(false);
+      } else {
+        toast.error(response.message || 'Failed to resume quiz');
+      }
+    });
+  };
 
   const handleSendMessage = (text) => {
     if (!roomCode || !user) return;
@@ -584,6 +678,47 @@ const HostSession = () => {
                     SKIP TO ANSWER ⏩
                   </button>
                 )}
+
+                {/* Phase 1: Pause/Resume Buttons */}
+                {quizStarted && (
+                  isPaused ? (
+                    <button onClick={handleResumeQuiz} className="col-span-2 py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-bold transition-colors border border-green-200 flex items-center justify-center gap-2">
+                      ▶️ RESUME QUIZ
+                    </button>
+                  ) : (
+                    <button onClick={handlePauseQuiz} className="col-span-2 py-3 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl font-bold transition-colors border border-yellow-200 flex items-center justify-center gap-2">
+                      ⏸️ PAUSE QUIZ
+                    </button>
+                  )
+                )}
+
+                {/* Phase 1: Skip Question */}
+                {gameStatus === 'question' && (
+                  <button onClick={handleSkipQuestion} className="col-span-2 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold transition-colors border border-blue-200 flex items-center justify-center gap-2">
+                    ⏭️ SKIP QUESTION
+                  </button>
+                )}
+
+                {/* Phase 1: Timer Controls */}
+                {quizStarted && (
+                  <div className="col-span-2 grid grid-cols-2 gap-2">
+                    <button onClick={() => handleExtendTimer(10)} className="py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg font-semibold transition-colors border border-purple-200">
+                      +10s
+                    </button>
+                    <button onClick={() => handleExtendTimer(30)} className="py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg font-semibold transition-colors border border-purple-200">
+                      +30s
+                    </button>
+                  </div>
+                )}
+
+                {/* Phase 1: Lock/Unlock Room */}
+                <button onClick={handleToggleLock} className={`col-span-2 py-3 rounded-xl font-bold transition-colors border flex items-center justify-center gap-2 ${roomLocked
+                    ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200'
+                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+                  }`}>
+                  {roomLocked ? '🔓 UNLOCK ROOM' : '🔒 LOCK ROOM'}
+                </button>
+
 
                 <button onClick={() => setChatEnabled(!chatEnabled)} className={`py-3 rounded-xl font-bold transition-colors border flex flex-col items-center justify-center ${chatEnabled
                   ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
