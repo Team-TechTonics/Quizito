@@ -159,7 +159,7 @@ connectWithRetry();
 
 // Redis Connection for caching and real-time data
 let redisClient;
-if (REDIS_URL) {
+if (process.env.REDIS_ENABLED === "true" && REDIS_URL) {
   redisClient = new Redis(REDIS_URL, {
     retryStrategy: (times) => {
       const delay = Math.min(times * 50, 2000);
