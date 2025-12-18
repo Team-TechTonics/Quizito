@@ -24748,3 +24748,53 @@
 {"level":"info","message":"SIGINT received. Starting graceful shutdown...","service":"quiz-backend","timestamp":"2025-12-18T20:19:10.060Z"}
 {"level":"info","message":"✅ HTTP server closed","service":"quiz-backend","timestamp":"2025-12-18T20:19:10.062Z"}
 {"level":"info","message":"✅ WebSocket server closed","service":"quiz-backend","timestamp":"2025-12-18T20:19:10.065Z"}
+{"level":"warn","message":"⚠️ Redis not configured, using in-memory cache","service":"quiz-backend","timestamp":"2025-12-18T20:19:54.716Z"}
+{"level":"info","message":"✅ OpenAI service initialized","service":"quiz-backend","timestamp":"2025-12-18T20:19:54.829Z"}
+{"level":"info","message":"✅ DeepSeek service initialized","service":"quiz-backend","timestamp":"2025-12-18T20:19:54.830Z"}
+{"level":"warn","message":"⚠️ Google OAuth credentials missing - skipping configuration","service":"quiz-backend","timestamp":"2025-12-18T20:19:54.988Z"}
+{"level":"warn","message":"⚠️ GitHub OAuth credentials missing - skipping configuration","service":"quiz-backend","timestamp":"2025-12-18T20:19:54.992Z"}
+{"level":"warn","message":"⚠️ Analytics routes not available:","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.028Z"}
+{"level":"warn","message":"⚠️ Adaptive routes not available:","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.032Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.036Z"}
+{"level":"info","message":"🚀 AI QUIZ PORTAL BACKEND STARTED SUCCESSFULLY","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.036Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.037Z"}
+{"level":"info","message":"🌐 Environment: development","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.037Z"}
+{"level":"info","message":"🔗 Port: 10000","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.038Z"}
+{"level":"info","message":"✅ Trust proxy: Enabled for Render","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.038Z"}
+{"level":"info","message":"✅ Role mapping: Fixed (user → student)","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.039Z"}
+{"level":"info","message":"✅ CommonJS: All imports converted","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.039Z"}
+{"level":"info","message":"📡 WebSocket: Ready for real-time multiplayer","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.040Z"}
+{"level":"info","message":"🤖 OpenAI: Enabled ✅","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.040Z"}
+{"level":"info","message":"🧠 DeepSeek: Enabled ✅","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.040Z"}
+{"level":"info","message":"🗣️  Speech API: Disabled ❌","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.041Z"}
+{"level":"info","message":"🗄️  MongoDB: Disconnected ❌","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.041Z"}
+{"level":"info","message":"📈 Analytics: Comprehensive dashboard enabled","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.042Z"}
+{"level":"info","message":"🎮 Multiplayer: Live sessions with adaptive difficulty","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.042Z"}
+{"level":"info","message":"🤖 AI Features: Quiz generation, adaptive learning","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.042Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:19:55.043Z"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"quiz-backend","timestamp":"2025-12-18T20:19:57.236Z"}
+{"level":"warn","message":"⚠️ Redis not configured, using in-memory cache","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.416Z"}
+{"level":"info","message":"✅ OpenAI service initialized","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.534Z"}
+{"level":"info","message":"✅ DeepSeek service initialized","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.535Z"}
+{"level":"warn","message":"⚠️ Google OAuth credentials missing - skipping configuration","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.700Z"}
+{"level":"warn","message":"⚠️ GitHub OAuth credentials missing - skipping configuration","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.704Z"}
+{"level":"warn","message":"⚠️ Analytics routes not available:","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.737Z"}
+{"level":"warn","message":"⚠️ Adaptive routes not available:","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.742Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.746Z"}
+{"level":"info","message":"🚀 AI QUIZ PORTAL BACKEND STARTED SUCCESSFULLY","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.746Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.747Z"}
+{"level":"info","message":"🌐 Environment: development","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.747Z"}
+{"level":"info","message":"🔗 Port: 10000","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.748Z"}
+{"level":"info","message":"✅ Trust proxy: Enabled for Render","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.748Z"}
+{"level":"info","message":"✅ Role mapping: Fixed (user → student)","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.748Z"}
+{"level":"info","message":"✅ CommonJS: All imports converted","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.749Z"}
+{"level":"info","message":"📡 WebSocket: Ready for real-time multiplayer","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.749Z"}
+{"level":"info","message":"🤖 OpenAI: Enabled ✅","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.749Z"}
+{"level":"info","message":"🧠 DeepSeek: Enabled ✅","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.750Z"}
+{"level":"info","message":"🗣️  Speech API: Disabled ❌","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.750Z"}
+{"level":"info","message":"🗄️  MongoDB: Disconnected ❌","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.750Z"}
+{"level":"info","message":"📈 Analytics: Comprehensive dashboard enabled","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.750Z"}
+{"level":"info","message":"🎮 Multiplayer: Live sessions with adaptive difficulty","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.750Z"}
+{"level":"info","message":"🤖 AI Features: Quiz generation, adaptive learning","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.751Z"}
+{"level":"info","message":"================================================","service":"quiz-backend","timestamp":"2025-12-18T20:28:17.751Z"}
+{"level":"error","message":"❌ MongoDB connection failed: connect ETIMEDOUT 159.41.196.137:27017, connect ETIMEDOUT ::159.41.196.137:27017","service":"quiz-backend","timestamp":"2025-12-18T20:28:40.010Z"}

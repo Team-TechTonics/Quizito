@@ -57,15 +57,29 @@ router.post('/', upload.single('file'), async (req, res) => {
         console.log('✅ Python service responded');
         console.log('📦 Response type:', typeof pythonResponse.data);
 
-        // Check response - Strict Array Expectation
-        const questionsData = pythonResponse.data;
+        // Check response - Handle Array or Object wrapper
+        let questionsData = pythonResponse.data;
+
+        // If it's an object, try to extract the array
+        if (!Array.isArray(questionsData) && typeof questionsData === 'object') {
+            console.log('⚠️ Response is an object, checking for array properties...');
+            if (Array.isArray(questionsData.questions)) {
+                questionsData = questionsData.questions;
+            } else if (Array.isArray(questionsData.data)) {
+                questionsData = questionsData.data;
+            } else if (Array.isArray(questionsData.quiz)) {
+                questionsData = questionsData.quiz;
+            }
+        }
 
         if (!Array.isArray(questionsData)) {
-            console.error('❌ Invalid format - Expected array, got:', typeof questionsData);
+            console.error('❌ Invalid format - Expected array, got:', typeof pythonResponse.data);
+            console.error('📄 Received data:', JSON.stringify(pythonResponse.data).substring(0, 1000));
             return res.status(500).json({
                 success: false,
                 message: 'Invalid response from AI service',
-                error: 'Expected array of questions directly from Python service'
+                error: 'Expected array of questions directly from Python service',
+                details: typeof pythonResponse.data === 'object' ? JSON.stringify(pythonResponse.data) : 'Not an object'
             });
         }
 
