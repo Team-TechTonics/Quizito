@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 import {
   Home,
   Compass,
@@ -11,13 +12,16 @@ import {
   LogOut,
   Menu,
   X,
-  Zap
+  Zap,
+  Moon,
+  Sun
 } from 'lucide-react'
 import LanguageSwitcher from '../common/LanguageSwitcher'
 import { useTranslation } from 'react-i18next'
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -37,15 +41,17 @@ const Navbar = () => {
   ]
 
   return (
-    <nav className="glass-effect sticky top-0 z-50 w-full border-b">
+    <nav className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-white/10 bg-white/80 dark:bg-[#05050A]/80 backdrop-blur-md transition-colors duration-300">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="bg-gradient-to-r from-primary-600 to-accent-600 p-2 rounded-lg">
+          <Link to="/" className="flex items-center space-x-2 group">
+            <div className="bg-gradient-to-r from-cyan-600 to-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform duration-300 shadow-sm">
               <Zap className="text-white" size={24} />
             </div>
-            <span className="text-2xl font-bold gradient-text">{t('app.title', 'QUIZITO')}</span>
+            <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 dark:from-cyan-400 dark:to-blue-500">
+              {t('app.title', 'QUIZITO')}
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -54,26 +60,36 @@ const Navbar = () => {
               <Link
                 key={link.name}
                 to={link.path}
-                className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
+                className="flex items-center space-x-2 text-slate-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-cyan-400 transition-colors font-medium"
               >
                 {link.icon}
-                <span className="font-medium">{link.name}</span>
+                <span>{link.name}</span>
               </Link>
             ))}
           </div>
 
-          {/* Language Switcher & Auth Section */}
+          {/* Right Section: Theme, Language, Auth */}
           <div className="hidden md:flex items-center space-x-4">
+
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-all hover:scale-110"
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-slate-700" />}
+            </button>
+
             <LanguageSwitcher />
 
             {isAuthenticated ? (
               <>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 pl-4 border-l border-slate-200 dark:border-white/10">
                   {user?.profileImage ? (
                     <img
                       src={user.profileImage}
                       alt={user.username}
-                      className="w-8 h-8 rounded-full border-2 border-primary-200 object-cover"
+                      className="w-8 h-8 rounded-full border-2 border-slate-200 dark:border-cyan-500/30 object-cover"
                       onError={(e) => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
@@ -81,39 +97,40 @@ const Navbar = () => {
                     />
                   ) : null}
                   <div
-                    className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold border-2 border-primary-200"
+                    className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-cyan-600 dark:to-blue-600 flex items-center justify-center text-white font-bold border-2 border-white dark:border-cyan-500/30 shadow-sm"
                     style={{ display: user?.profileImage ? 'none' : 'flex' }}
                   >
                     {user?.username?.charAt(0).toUpperCase()}
                   </div>
-                  <span className="font-medium text-gray-700">
+                  <span className="font-medium text-slate-700 dark:text-gray-300">
                     {user?.username}
                   </span>
                 </div>
                 <Link
                   to="/profile"
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-blue-600 dark:hover:text-cyan-400 transition-colors"
                 >
                   <User size={20} />
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-white/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   <LogOut size={20} />
                 </button>
               </>
             ) : (
               <>
+                <div className="h-6 w-px bg-slate-200 dark:bg-white/10 mx-2"></div>
                 <Link
                   to="/login"
-                  className="px-4 py-2 text-primary-600 font-medium hover:text-primary-700 transition-colors"
+                  className="px-4 py-2 text-slate-600 dark:text-gray-300 font-medium hover:text-blue-600 dark:hover:text-cyan-400 transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
-                  className="btn-primary px-6 py-2 text-sm"
+                  className="px-6 py-2 bg-slate-900 dark:bg-gradient-to-r dark:from-cyan-600 dark:to-blue-600 hover:bg-slate-800 dark:hover:from-cyan-500 dark:hover:to-blue-500 text-white text-sm font-bold rounded-lg transition-all hover:scale-105 shadow-md shadow-slate-900/10 dark:shadow-cyan-500/20"
                 >
                   Get Started
                 </Link>
@@ -122,41 +139,52 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="md:hidden flex items-center gap-4">
+            {/* Theme Toggle Mobile */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-slate-700" />}
+            </button>
+
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 rounded-lg text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+            >
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden py-4 border-t">
-            <div className="flex flex-col space-y-4">
-              <div className="px-2">
+          <div className="md:hidden py-4 border-t border-slate-200 dark:border-white/10 bg-white dark:bg-[#05050A]">
+            <div className="flex flex-col space-y-4 px-2">
+              <div className="flex justify-between items-center px-2">
                 <LanguageSwitcher />
               </div>
+
               {navLinks.map((link) => (
                 <Link
                   key={link.name}
                   to={link.path}
                   onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center space-x-2 text-slate-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-cyan-400 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors font-medium"
                 >
                   {link.icon}
-                  <span className="font-medium">{link.name}</span>
+                  <span>{link.name}</span>
                 </Link>
               ))}
 
               {isAuthenticated ? (
                 <>
-                  <div className="flex items-center space-x-2 p-2">
+                  <div className="flex items-center space-x-2 p-3 border-t border-slate-100 dark:border-white/10 mt-2">
                     {user?.profileImage ? (
                       <img
                         src={user.profileImage}
                         alt={user.username}
-                        className="w-8 h-8 rounded-full object-cover"
+                        className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10"
                         onError={(e) => {
                           e.target.style.display = 'none';
                           e.target.nextSibling.style.display = 'flex';
@@ -164,46 +192,49 @@ const Navbar = () => {
                       />
                     ) : null}
                     <div
-                      className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold"
+                      className="w-10 h-10 rounded-full bg-blue-600 dark:bg-cyan-600 flex items-center justify-center text-white font-bold text-lg"
                       style={{ display: user?.profileImage ? 'none' : 'flex' }}
                     >
                       {user?.username?.charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-medium">{user?.username}</span>
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white">{user?.username}</div>
+                      <div className="text-xs text-slate-500 dark:text-gray-400">Student Account</div>
+                    </div>
                   </div>
                   <Link
                     to="/profile"
                     onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center space-x-2 text-slate-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-cyan-400 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                   >
                     <User size={20} />
-                    <span>Profile</span>
+                    <span>My Profile</span>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors text-left"
+                    className="flex items-center space-x-2 text-red-600 dark:text-red-400 p-3 rounded-lg hover:bg-red-50 dark:hover:bg-white/5 transition-colors text-left w-full"
                   >
                     <LogOut size={20} />
                     <span>Logout</span>
                   </button>
                 </>
               ) : (
-                <>
+                <div className="flex flex-col gap-3 mt-4">
                   <Link
                     to="/login"
                     onClick={() => setIsMenuOpen(false)}
-                    className="px-4 py-2 text-center text-primary-600 font-medium border-2 border-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
+                    className="w-full px-4 py-3 text-center text-slate-700 dark:text-gray-300 font-bold border-2 border-slate-200 dark:border-white/10 rounded-xl hover:border-blue-600 dark:hover:border-cyan-500 hover:text-blue-600 dark:hover:text-cyan-400 transition-colors"
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/register"
                     onClick={() => setIsMenuOpen(false)}
-                    className="px-4 py-2 text-center bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                    className="w-full px-4 py-3 text-center bg-blue-600 dark:bg-gradient-to-r dark:from-cyan-600 dark:to-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg"
                   >
                     Get Started
                   </Link>
-                </>
+                </div>
               )}
             </div>
           </div>

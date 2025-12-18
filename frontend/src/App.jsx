@@ -3,6 +3,7 @@ import React, { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { SocketProvider } from './context/SocketContext'
 import { QuizProvider } from './context/QuizContext'
 import { SoundProvider } from './context/SoundContext'
@@ -63,164 +64,166 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <SocketProvider>
-          <QuizProvider>
-            <SoundProvider>
-              <div className="min-h-screen flex flex-col bg-gray-100">
-                <Navbar />
-                <main className="flex-grow">
-                  <ErrorBoundary>
-                    <Suspense fallback={<LoadingSpinner fullScreen={true} text="Loading Quizito..." />}>
-                      <Routes>
+        <ThemeProvider>
+          <SocketProvider>
+            <QuizProvider>
+              <SoundProvider>
+                <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#05050A] text-slate-900 dark:text-slate-200 transition-colors duration-300">
+                  <Navbar />
+                  <main className="flex-grow">
+                    <ErrorBoundary>
+                      <Suspense fallback={<LoadingSpinner fullScreen={true} text="Loading Quizito..." />}>
+                        <Routes>
 
-                        {/* PUBLIC ROUTES */}
-                        <Route path="/" element={<Home />} />
-                        <Route path="/explore" element={<Explore />} />
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route path="/leaderboard" element={<Leaderboard />} />
-                        <Route path="/host-session" element={<HostSession />} />
-                        <Route path="/join-quiz" element={<JoinQuiz />} />
+                          {/* PUBLIC ROUTES */}
+                          <Route path="/" element={<Home />} />
+                          <Route path="/explore" element={<Explore />} />
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/register" element={<Register />} />
+                          <Route path="/leaderboard" element={<Leaderboard />} />
+                          <Route path="/host-session" element={<HostSession />} />
+                          <Route path="/join-quiz" element={<JoinQuiz />} />
 
-                        {/* Redirect /dashboard to role-based dashboard */}
-                        <Route path="/dashboard" element={
-                          <RoleGate allowedRoles={['student', 'teacher', 'admin']} fallback={<Navigate to="/login" />}>
-                            <DashboardRedirect />
-                          </RoleGate>
-                        } />
-
-                        {/* Play Quiz - Allow guest access */}
-                        <Route path="/play/:roomCode" element={<PlayQuiz />} />
-
-                        {/* Results - Allow guest access */}
-                        <Route path="/results/:sessionId" element={<Results />} />
-
-                        {/* ROLE-BASED DASHBOARDS */}
-                        <Route element={<ProtectedRoute />}>
-                          <Route path="/student/dashboard" element={
-                            <RoleGate allowedRoles={['student']} fallback={
-                              <div className="container mx-auto px-4 py-8 text-center text-red-600">
-                                <h2 className="text-2xl font-bold">Access Denied</h2>
-                                <p>You need Student permissions to view this dashboard.</p>
-                              </div>
-                            }>
-                              <StudentDashboard />
+                          {/* Redirect /dashboard to role-based dashboard */}
+                          <Route path="/dashboard" element={
+                            <RoleGate allowedRoles={['student', 'teacher', 'admin']} fallback={<Navigate to="/login" />}>
+                              <DashboardRedirect />
                             </RoleGate>
                           } />
-                          <Route path="/educator/dashboard" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']} fallback={
-                              <div className="container mx-auto px-4 py-8 text-center text-red-600">
-                                <h2 className="text-2xl font-bold">Access Denied</h2>
-                                <p>You need Educator permissions to view this dashboard.</p>
-                              </div>
-                            }>
-                              <EducatorDashboard />
-                            </RoleGate>
-                          } />
-                        </Route>
 
-                        {/* PROTECTED ROUTES */}
-                        <Route element={<ProtectedRoute />}>
-                          <Route path="/create-quiz" element={
-                            <RoleGate allowedRoles={['teacher', 'admin', 'student']} fallback={
-                              <div className="container mx-auto px-4 py-8 text-center">
-                                <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Denied</h2>
-                                <p className="text-gray-600">This feature is only available to educators.</p>
-                              </div>
-                            }>
-                              <CreateQuiz />
-                            </RoleGate>
-                          } />
-                          <Route path="/create-path" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']}>
-                              <CreatePath />
-                            </RoleGate>
-                          } />
-                          <Route path="/profile" element={<Profile />} />
-                          <Route path="/settings" element={<Settings />} />
-                          <Route path="/JoinQuiz" element={<JoinQuiz />} />
-                          <Route path="/performance" element={<PerformanceDashboard />} />
-                          <Route path="/student/progress" element={<StudentProgress />} />
-                          <Route path="/educator/analytics" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']}>
-                              <EducatorAnalytics />
-                            </RoleGate>
-                          } />
-                          <Route path="/analytics" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']}>
-                              <EducatorAnalytics />
-                            </RoleGate>
-                          } />
-                          <Route path="/educator/question-bank" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']}>
-                              <QuestionBank />
-                            </RoleGate>
-                          } />
-                          <Route path="/achievements" element={<Achievements />} />
-                          <Route path="/leaderboard" element={<LeaderboardPage />} />
-                          <Route path="/friends" element={<Friends />} />
-                          <Route path="/challenges" element={<Challenges />} />
-                          <Route path="/learning-paths" element={<LearningPaths />} />
-                          <Route path="/learning-paths/:pathId" element={<PathViewer />} />
-                          <Route path="/adaptive-quiz/:topicId" element={<AdaptiveQuiz />} />
-                          <Route path="/review-center" element={<ReviewCenter />} />
-                          <Route path="/admin" element={<AdminDashboard />} />
-                          {/* New route for ClassManagement, protected by RoleGate */}
-                          <Route path="/classes" element={
-                            <RoleGate allowedRoles={['teacher', 'admin']}>
-                              <ClassManagement />
-                            </RoleGate>
-                          } />
-                          <Route path="/my-classes" element={
-                            <RoleGate allowedRoles={['teacher', 'admin', 'student']}>
-                              <ClassManagement />
-                            </RoleGate>
-                          } />
-                        </Route>
+                          {/* Play Quiz - Allow guest access */}
+                          <Route path="/play/:roomCode" element={<PlayQuiz />} />
 
-                        {/* Host Dashboard */}
-                        {/* HOST SESSION */}
-                        <Route element={<ProtectedRoute />}>
-                          <Route path="/host/:roomCode" element={<HostSession />} />
-                        </Route>
+                          {/* Results - Allow guest access */}
+                          <Route path="/results/:sessionId" element={<Results />} />
+
+                          {/* ROLE-BASED DASHBOARDS */}
+                          <Route element={<ProtectedRoute />}>
+                            <Route path="/student/dashboard" element={
+                              <RoleGate allowedRoles={['student']} fallback={
+                                <div className="container mx-auto px-4 py-8 text-center text-red-600">
+                                  <h2 className="text-2xl font-bold">Access Denied</h2>
+                                  <p>You need Student permissions to view this dashboard.</p>
+                                </div>
+                              }>
+                                <StudentDashboard />
+                              </RoleGate>
+                            } />
+                            <Route path="/educator/dashboard" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']} fallback={
+                                <div className="container mx-auto px-4 py-8 text-center text-red-600">
+                                  <h2 className="text-2xl font-bold">Access Denied</h2>
+                                  <p>You need Educator permissions to view this dashboard.</p>
+                                </div>
+                              }>
+                                <EducatorDashboard />
+                              </RoleGate>
+                            } />
+                          </Route>
+
+                          {/* PROTECTED ROUTES */}
+                          <Route element={<ProtectedRoute />}>
+                            <Route path="/create-quiz" element={
+                              <RoleGate allowedRoles={['teacher', 'admin', 'student']} fallback={
+                                <div className="container mx-auto px-4 py-8 text-center">
+                                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Denied</h2>
+                                  <p className="text-gray-600">This feature is only available to educators.</p>
+                                </div>
+                              }>
+                                <CreateQuiz />
+                              </RoleGate>
+                            } />
+                            <Route path="/create-path" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']}>
+                                <CreatePath />
+                              </RoleGate>
+                            } />
+                            <Route path="/profile" element={<Profile />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/JoinQuiz" element={<JoinQuiz />} />
+                            <Route path="/performance" element={<PerformanceDashboard />} />
+                            <Route path="/student/progress" element={<StudentProgress />} />
+                            <Route path="/educator/analytics" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']}>
+                                <EducatorAnalytics />
+                              </RoleGate>
+                            } />
+                            <Route path="/analytics" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']}>
+                                <EducatorAnalytics />
+                              </RoleGate>
+                            } />
+                            <Route path="/educator/question-bank" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']}>
+                                <QuestionBank />
+                              </RoleGate>
+                            } />
+                            <Route path="/achievements" element={<Achievements />} />
+                            <Route path="/leaderboard" element={<LeaderboardPage />} />
+                            <Route path="/friends" element={<Friends />} />
+                            <Route path="/challenges" element={<Challenges />} />
+                            <Route path="/learning-paths" element={<LearningPaths />} />
+                            <Route path="/learning-paths/:pathId" element={<PathViewer />} />
+                            <Route path="/adaptive-quiz/:topicId" element={<AdaptiveQuiz />} />
+                            <Route path="/review-center" element={<ReviewCenter />} />
+                            <Route path="/admin" element={<AdminDashboard />} />
+                            {/* New route for ClassManagement, protected by RoleGate */}
+                            <Route path="/classes" element={
+                              <RoleGate allowedRoles={['teacher', 'admin']}>
+                                <ClassManagement />
+                              </RoleGate>
+                            } />
+                            <Route path="/my-classes" element={
+                              <RoleGate allowedRoles={['teacher', 'admin', 'student']}>
+                                <ClassManagement />
+                              </RoleGate>
+                            } />
+                          </Route>
+
+                          {/* Host Dashboard */}
+                          {/* HOST SESSION */}
+                          <Route element={<ProtectedRoute />}>
+                            <Route path="/host/:roomCode" element={<HostSession />} />
+                          </Route>
 
 
-                        {/* Quick Join */}
-                        <Route path="/join/:roomCode" element={<JoinSession />} />
+                          {/* Quick Join */}
+                          <Route path="/join/:roomCode" element={<JoinSession />} />
 
-                        {/* Embed View */}
-                        <Route path="/embed/:roomCode" element={<PlayerView embedMode={true} />} />
-                      </Routes>
-                    </Suspense>
-                  </ErrorBoundary>
-                </main>
-                <Footer />
-                <Toaster
-                  position="top-right"
-                  toastOptions={{
-                    duration: 4000,
-                    style: {
-                      background: '#363636',
-                      color: '#fff',
-                    },
-                    success: {
-                      iconTheme: {
-                        primary: '#10b981',
-                        secondary: '#fff',
+                          {/* Embed View */}
+                          <Route path="/embed/:roomCode" element={<PlayerView embedMode={true} />} />
+                        </Routes>
+                      </Suspense>
+                    </ErrorBoundary>
+                  </main>
+                  <Footer />
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{
+                      duration: 4000,
+                      style: {
+                        background: '#363636',
+                        color: '#fff',
                       },
-                    },
-                    error: {
-                      iconTheme: {
-                        primary: '#ef4444',
-                        secondary: '#fff',
+                      success: {
+                        iconTheme: {
+                          primary: '#10b981',
+                          secondary: '#fff',
+                        },
                       },
-                    },
-                  }}
-                />
-              </div>
-            </SoundProvider>
-          </QuizProvider>
-        </SocketProvider>
+                      error: {
+                        iconTheme: {
+                          primary: '#ef4444',
+                          secondary: '#fff',
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </SoundProvider>
+            </QuizProvider>
+          </SocketProvider>
+        </ThemeProvider>
       </AuthProvider>
     </Router >
   )
