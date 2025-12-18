@@ -24,6 +24,11 @@ router.get('/', auth, async (req, res) => {
 router.post('/', async (req, res) => {
     const { email, password } = req.body;
 
+    // Validate request body
+    if (!email || !password) {
+        return res.status(400).json({ msg: 'Please enter all fields' });
+    }
+
     try {
         console.log(`[Auth] Login attempt for: ${email}`);
 
@@ -63,7 +68,7 @@ router.post('/', async (req, res) => {
             (err, token) => {
                 if (err) {
                     console.error("[Auth] JWT Sign Error:", err);
-                    throw err;
+                    return res.status(500).json({ msg: "Token generation failed" });
                 }
                 res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
             }

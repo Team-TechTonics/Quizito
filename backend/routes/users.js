@@ -41,7 +41,10 @@ router.post('/', async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: 360000 },
             (err, token) => {
-                if (err) throw err;
+                if (err) {
+                    console.error("JWT Sign Error:", err);
+                    return res.status(500).json({ msg: 'Token generation failed' });
+                }
                 res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
             }
         );

@@ -51,7 +51,9 @@ const userSchema = new mongoose.Schema({
         default: "student",
         index: true,
     },
-    permissions: [String],
+    // Use Mixed type to allow both legacy strings ("admin") and new object structure ({ canCreateQuizzes: true })
+    // This prevents CastError regardless of what data format is in the DB
+    permissions: [mongoose.Schema.Types.Mixed],
     organization: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User", // Self-reference for org members
