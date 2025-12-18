@@ -600,6 +600,14 @@ const Assignment = require('./models/Assignment');
 const Session = require('./models/Session');
 const QuizResult = require('./models/QuizResult');
 
+// Upload Middleware
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: MAX_FILE_SIZE }
+});
+
+
 // User Model moved to models/User.js
 
 // Quiz Model
