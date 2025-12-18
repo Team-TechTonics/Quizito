@@ -2499,6 +2499,44 @@ io.on("connection", (socket) => {
     }
   });
 
+  // START QUIZ
+  socket.on("start-quiz", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode }).populate("quizId");
+
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can start" });
+      if (session.status === "active") return callback({ success: false, message: "Quiz already started" });
+
+      session.status = "active";
+      session.startedAt = new Date();
+      session.currentQuestionIndex = 0;
+      await session.save();
+
+      // Notify everyone quiz started
+      io.to(roomCode).emit("quiz-started", {
+        quizTitle: session.quizId.title,
+        totalQuestions: session.quizId.questions.length
+      });
+
+      // Send first question immediately after small delay or directly
+      const firstQuestion = session.quizId.questions[0];
+      io.to(roomCode).emit("next-question", {
+        question: firstQuestion,
+        questionIndex: 0,
+        totalQuestions: session.quizId.questions.length,
+        timeRemaining: session.settings.questionTime
+      });
+
+      console.log(`Quiz started in room ${roomCode}`);
+      callback({ success: true });
+    } catch (error) {
+      console.error("Start quiz error:", error);
+      callback({ success: false, message: "Failed to start quiz" });
+    }
+  });
+
   // RESUME QUIZ
   socket.on("resume-quiz", async (data, callback) => {
     try {
