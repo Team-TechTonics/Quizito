@@ -91,7 +91,7 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
             }));
 
             return {
-                id: Date.now() + index, // Temporary ID
+                // Remove id field - MongoDB will auto-generate ObjectId
                 question: String(q.question),
                 type: 'multiple-choice',
                 options: formattedOptions,
