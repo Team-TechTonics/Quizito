@@ -29,13 +29,13 @@ router.get('/student/assignments', auth, async (req, res) => {
         // Find classes where user is student
         const classes = await Class.find({ 'students.student': req.user.id });
         const classIds = classes.map(c => c._id);
-        
+
         // Find assignments for these classes
-        const assignments = await Assignment.find({ 
+        const assignments = await Assignment.find({
             classId: { $in: classIds },
             status: 'active' // Optional: filter by status
         }).populate('quizId', 'title').populate('classId', 'name');
-        
+
         res.json({ assignments });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -122,6 +122,36 @@ router.post('/:id/assignments', auth, async (req, res) => {
         res.status(201).json(assignment);
     } catch (err) {
         res.status(400).json({ message: err.message });
+    }
+});
+
+// Delete class
+router.delete('/:id', auth, async (req, res) => {
+    try {
+        const cls = await Class.findOneAndDelete({ _id: req.params.id, teacher: req.user.id });
+        if (!cls) return res.status(404).json({ message: 'Class not found or unauthorized' });
+        res.json({ message: 'Class deleted' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Join Class (Student side)
+router.post('/join', auth, async (req, res) => {
+    try {
+        const { code } = req.body;
+        const cls = await Class.findOne({ code });
+        if (!cls) return res.status(404).json({ message: 'Invalid class code' });
+
+        if (cls.students.some(s => s.student.toString() === req.user.id)) {
+            return res.status(400).json({ message: 'Already joined this class' });
+        }
+
+        cls.students.push({ student: req.user.id });
+        await cls.save();
+        res.json({ message: 'Joined class successfully', classId: cls._id });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
 
