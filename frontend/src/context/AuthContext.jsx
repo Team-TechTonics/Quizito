@@ -32,8 +32,8 @@ export const AuthProvider = ({ children }) => {
 
     try {
       // header already set above
-      const { data } = await api.get("/api/auth/me");
-      setUser(data.user);
+      const { data } = await api.get("/api/auth");
+      setUser(data);
     } catch (err) {
       console.error("verifyToken error:", err);
       // clear invalid token
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setAuthLoading(true);
     try {
-      const res = await api.post("/api/auth/login", { email: email?.trim?.() ?? email, password });
+      const res = await api.post("/api/auth", { email: email?.trim?.() ?? email, password });
       const newToken = res.data.token;
       const newUser = res.data.user;
 
@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password, role = 'student') => {
     setAuthLoading(true);
     try {
-      const res = await api.post("/api/auth/register", {
+      const res = await api.post("/api/users", {
         username,
         email: email?.trim?.(),
         password,
@@ -183,9 +183,9 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     if (!token) return null;
     try {
-      const { data } = await api.get("/api/auth/me");
-      setUser(data.user);
-      return data.user;
+      const { data } = await api.get("/api/auth");
+      setUser(data);
+      return data;
     } catch (err) {
       console.error("refreshUser failed:", err);
       return null;

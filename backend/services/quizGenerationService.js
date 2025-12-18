@@ -118,7 +118,18 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
 
             return questions;
         } catch (error) {
-            console.error('[QuizGenerationService] API call error:', error.response?.data || error.message);
+            console.error('[QuizGenerationService] API call error:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status,
+                headers: error.response?.headers
+            });
+
+            // More descriptive error for 401
+            if (error.response?.status === 401) {
+                throw new Error('OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY in environment variables.');
+            }
+
             throw new Error(`Failed to generate quiz: ${error.message}`);
         }
     }

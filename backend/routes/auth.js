@@ -10,11 +10,12 @@ const User = require('../models/User');
 // @access  Private
 router.get('/', auth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password');
-        res.json(user);
+        // Middleware already fetched and attached the full user object
+        // Just return it directly (password already excluded by middleware)
+        res.json(req.user);
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        console.error('[Auth] Get User Error:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
     }
 });
 

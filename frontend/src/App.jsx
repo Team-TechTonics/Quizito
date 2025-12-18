@@ -70,7 +70,7 @@ function App() {
                       <Route path="/login" element={<Login />} />
                       <Route path="/register" element={<Register />} />
                       <Route path="/leaderboard" element={<Leaderboard />} />
-                      {/* <Route path="/host-session" element={<HostSession />} /> */}
+                      <Route path="/host-session" element={<HostSession />} />
                       <Route path="/join-quiz" element={<JoinQuiz />} />
 
                       {/* Play Quiz - Allow guest access */}
@@ -130,6 +130,11 @@ function App() {
                             <EducatorAnalytics />
                           </RoleGate>
                         } />
+                        <Route path="/analytics" element={
+                          <RoleGate allowedRoles={['teacher', 'admin']}>
+                            <EducatorAnalytics />
+                          </RoleGate>
+                        } />
                         <Route path="/educator/question-bank" element={
                           <RoleGate allowedRoles={['teacher', 'admin']}>
                             <QuestionBank />
@@ -147,6 +152,11 @@ function App() {
                         {/* New route for ClassManagement, protected by RoleGate */}
                         <Route path="/classes" element={
                           <RoleGate allowedRoles={['teacher', 'admin']}>
+                            <ClassManagement />
+                          </RoleGate>
+                        } />
+                        <Route path="/my-classes" element={
+                          <RoleGate allowedRoles={['teacher', 'admin', 'student']}>
                             <ClassManagement />
                           </RoleGate>
                         } />
