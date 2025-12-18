@@ -1273,101 +1273,24 @@ async function createDatabaseIndexes() {
 // 9. HELPER FUNCTIONS & UTILITIES
 // ===========================================================================
 
-// Authentication middleware
-const authenticate = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
+// Authentication middleware used to be here, now imported from middleware/auth.js
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication token required",
-        code: "AUTH_TOKEN_REQUIRED",
-      });
-    }
 
-    const token = authHeader.split(" ")[1];
+// Check if user is active
+if (!user.isActive || user.isBanned) {
+  return res.status(403).json({
+    success: false,
+    message: user.isBanned ? "Account has been banned" : "Account is not active",
+    code: user.isBanned ? "ACCOUNT_BANNED" : "ACCOUNT_INACTIVE",
+    banReason: user.banReason,
+    banExpires: user.banExpires,
+  });
+}
 
-    // Check Redis cache for blacklisted tokens
-    // if (redisClient) {
-    //   const isBlacklisted = await redisClient.get(`blacklist:${token}`);
-    //   if (isBlacklisted) {
-    //     return res.status(401).json({
-    //       success: false,
-    //       message: "Token has been revoked",
-    //       code: "TOKEN_REVOKED",
-    //     });
-    //   }
-    // }
+req.user = user;
+req.token = token;
+next();
 
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    // Get user from database (with caching)
-    const cacheKey = `user:${decoded.id}`;
-    let user = null;
-
-    // if (redisClient) {
-    //   const cachedUser = await redisClient.get(cacheKey);
-    //   if (cachedUser) {
-    //     user = JSON.parse(cachedUser);
-    //   }
-    // }
-
-    if (!user) {
-      user = await User.findById(decoded.id).select("-password");
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: "User not found",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      // Cache user for 5 minutes
-      // if (redisClient) {
-      //   await redisClient.setex(cacheKey, 300, JSON.stringify(user.toObject()));
-      // }
-    }
-
-    // Check if user is active
-    if (!user.isActive || user.isBanned) {
-      return res.status(403).json({
-        success: false,
-        message: user.isBanned ? "Account has been banned" : "Account is not active",
-        code: user.isBanned ? "ACCOUNT_BANNED" : "ACCOUNT_INACTIVE",
-        banReason: user.banReason,
-        banExpires: user.banExpires,
-      });
-    }
-
-    req.user = user;
-    req.token = token;
-    next();
-  } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        success: false,
-        message: "Token has expired",
-        code: "TOKEN_EXPIRED",
-      });
-    }
-
-    if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token",
-        code: "INVALID_TOKEN",
-      });
-    }
-
-    logger.error("Authentication error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Authentication failed",
-      code: "AUTH_FAILED",
-    });
-  }
-};
 
 // Role-based authorization
 const authorize = (...roles) => {
