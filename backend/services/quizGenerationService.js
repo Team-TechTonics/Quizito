@@ -64,9 +64,9 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
     async callDeepSeekAPI(prompt) {
         try {
             const apiKey = this.initializeApiKey();
-            // Use a free model that works with default privacy settings
-            // Alternative: 'google/gemini-2.0-flash-exp:free' or 'meta-llama/llama-3.3-70b-instruct:free'
-            const model = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
+            // Use Meta Llama - better rate limits on free tier
+            // Alternative: 'google/gemini-2.0-flash-exp:free' or 'qwen/qvq-72b-preview:free'
+            const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 
             console.log(`[QuizGenerationService] Calling OpenRouter with model: ${model}`);
 
