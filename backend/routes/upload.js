@@ -116,6 +116,13 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error('❌ Upload proxy error:', error.message);
+        if (error.response) {
+            console.error('🔴 Status:', error.response.status);
+            console.error('🔴 Data:', JSON.stringify(error.response.data).substring(0, 500));
+            console.error('🔴 Headers:', JSON.stringify(error.response.headers));
+        } else if (error.request) {
+            console.error('🔴 No response received (Network/Timeout)');
+        }
 
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
             return res.status(504).json({
@@ -126,7 +133,6 @@ router.post('/', upload.single('file'), async (req, res) => {
         }
 
         if (error.response) {
-            console.error('Python service error:', error.response.data);
             return res.status(error.response.status || 500).json({
                 success: false,
                 message: 'AI service error',
