@@ -69,11 +69,23 @@ const Navbar = () => {
             {isAuthenticated ? (
               <>
                 <div className="flex items-center space-x-2">
-                  <img
-                    src={user?.profileImage}
-                    alt={user?.username}
-                    className="w-8 h-8 rounded-full border-2 border-primary-200"
-                  />
+                  {user?.profileImage ? (
+                    <img
+                      src={user.profileImage}
+                      alt={user.username}
+                      className="w-8 h-8 rounded-full border-2 border-primary-200 object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold border-2 border-primary-200"
+                    style={{ display: user?.profileImage ? 'none' : 'flex' }}
+                  >
+                    {user?.username?.charAt(0).toUpperCase()}
+                  </div>
                   <span className="font-medium text-gray-700">
                     {user?.username}
                   </span>
@@ -140,11 +152,23 @@ const Navbar = () => {
               {isAuthenticated ? (
                 <>
                   <div className="flex items-center space-x-2 p-2">
-                    <img
-                      src={user?.profileImage}
-                      alt={user?.username}
-                      className="w-8 h-8 rounded-full"
-                    />
+                    {user?.profileImage ? (
+                      <img
+                        src={user.profileImage}
+                        alt={user.username}
+                        className="w-8 h-8 rounded-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold"
+                      style={{ display: user?.profileImage ? 'none' : 'flex' }}
+                    >
+                      {user?.username?.charAt(0).toUpperCase()}
+                    </div>
                     <span className="font-medium">{user?.username}</span>
                   </div>
                   <Link

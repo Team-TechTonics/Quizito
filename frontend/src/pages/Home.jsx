@@ -37,7 +37,7 @@ import { useTranslation } from 'react-i18next'
 
 const Home = () => {
   const { t } = useTranslation()
-  const { isAuthenticated, loginWithToken } = useAuth()
+  const { isAuthenticated, loginWithToken, user } = useAuth()
   const { quizzes, fetchQuizzes } = useQuiz()
   const navigate = useNavigate()
   const [featuredQuizzes, setFeaturedQuizzes] = useState([])
@@ -260,13 +260,19 @@ const Home = () => {
                 {isAuthenticated ? (
                   <>
                     <Button
-                      onClick={() => navigate('/create-quiz')}
+                      onClick={() => {
+                        if (user?.role === 'educator' || user?.role === 'admin') {
+                          navigate('/educator/dashboard');
+                        } else {
+                          navigate('/student/dashboard');
+                        }
+                      }}
                       className="group relative overflow-hidden bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white text-lg px-10 py-5 rounded-2xl shadow-2xl shadow-cyan-500/30 hover:shadow-cyan-500/50 transform hover:-translate-y-1 transition-all duration-300"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                       <span className="relative flex items-center gap-3 font-bold tracking-wide">
                         <Zap className="animate-pulse" size={24} />
-                        {t('home.cta.launch', 'LAUNCH NEURAL QUIZ')}
+                        {t('home.cta.dashboard', 'GO TO DASHBOARD')}
                       </span>
                     </Button>
 

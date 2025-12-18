@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useQuiz } from '../context/QuizContext'
 import { useAuth } from '../context/AuthContext'
 import QuizPreviewModal from '../components/quiz/QuizPreviewModal'
+import QuizCard from '../components/quiz/QuizCard'
 
 import {
   Search,

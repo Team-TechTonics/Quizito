@@ -2754,7 +2754,7 @@ io.on("connection", (socket) => {
     try {
       const { roomCode } = data;
 
-      const session = await Session.findOne({ roomCode });
+      const session = await Session.findOne({ roomCode }).populate('quizId');
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
@@ -2782,6 +2782,33 @@ io.on("connection", (socket) => {
       if (sessionTimers.has(roomCode)) {
         clearTimeout(sessionTimers.get(roomCode));
         sessionTimers.delete(roomCode);
+      }
+
+      // SAVE RESULTS TO ANALYTICS (Fix for "Fake Analytics")
+      try {
+        const QuizResult = require('./models/QuizResult');
+        const resultsPromises = session.participants.map(async (p) => {
+          if (!p.userId || p.role === 'host') return; // Skip host and guests
+
+          const result = new QuizResult({
+            sessionId: session._id,
+            quizId: session.quizId,
+            userId: p.userId,
+            score: p.score,
+            maxScore: session.quizId?.questions?.length * 1000 || 10000,
+            percentage: session.quizId?.questions?.length ? (p.correctAnswers / session.quizId.questions.length) * 100 : 0,
+            correctAnswers: p.correctAnswers,
+            totalQuestions: session.quizId?.questions?.length || 0,
+            startedAt: session.startedAt,
+            completedAt: new Date(),
+            categoryBreakdown: [{ category: session.quizId?.category || 'General', correct: p.correctAnswers, total: session.quizId?.questions?.length || 0 }]
+          });
+          await result.save();
+        });
+        await Promise.all(resultsPromises);
+        console.log(`Saved analytics for ${resultsPromises.length} participants`);
+      } catch (err) {
+        console.error("Failed to save analytics:", err);
       }
 
       // Notify all participants

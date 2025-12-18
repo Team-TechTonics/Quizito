@@ -1,6 +1,6 @@
 // src/components/ai/AIGenerator.jsx
 import React, { useState } from 'react'
-import { Sparkles, Hash, TrendingUp, Zap, AlertCircle } from 'lucide-react'
+import { Sparkles, Hash, TrendingUp, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { quizService } from '../../services'
 
@@ -217,8 +217,8 @@ const AIGenerator = ({ onGenerate, loading, setLoading }) => {
                 onClick={() => setDifficulty(diff.id)}
                 disabled={loading}
                 className={`flex-1 py-3 rounded-lg font-medium transition-all disabled:opacity-50 ${difficulty === diff.id
-                    ? `${diff.color} ring-2 ring-offset-2 ring-opacity-50`
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? `${diff.color} ring-2 ring-offset-2 ring-opacity-50`
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
               >
                 {diff.label}
@@ -228,43 +228,7 @@ const AIGenerator = ({ onGenerate, loading, setLoading }) => {
         </div>
       </div>
 
-      {/* Mode Selection */}
-      <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-        <div className="flex items-start space-x-3">
-          <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
-          <div className="flex-1">
-            <h4 className="font-semibold text-yellow-800 mb-2">Generation Mode</h4>
-            <div className="flex gap-4 mb-3">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={!useFallback}
-                  onChange={() => setUseFallback(false)}
-                  disabled={loading}
-                  className="text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-gray-700">Try AI First</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={useFallback}
-                  onChange={() => setUseFallback(true)}
-                  disabled={loading}
-                  className="text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-gray-700">Use Fallback Mode</span>
-              </label>
-            </div>
-            <p className="text-sm text-yellow-700">
-              {useFallback
-                ? 'Generates template questions locally. Useful for testing or if API is unavailable.'
-                : 'Attempts to use OpenAI/DeepSeek to generate custom questions. Falls back if API works.'
-              }
-            </p>
-          </div>
-        </div>
-      </div>
+
 
       {/* Generate Button */}
       <div className="pt-8 border-t border-gray-100">
@@ -272,8 +236,8 @@ const AIGenerator = ({ onGenerate, loading, setLoading }) => {
           type="submit"
           disabled={loading || !topic.trim()}
           className={`w-full text-lg py-4 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${useFallback
-              ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white'
-              : 'bg-gradient-to-r from-primary-600 to-accent-600 text-white'
+            ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white'
+            : 'bg-gradient-to-r from-primary-600 to-accent-600 text-white'
             }`}
         >
           <div className="flex items-center justify-center space-x-3">

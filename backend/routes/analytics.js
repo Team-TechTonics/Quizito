@@ -67,4 +67,25 @@ router.get('/recent-quizzes', authenticate, async (req, res) => {
     }
 });
 
+/**
+ * @route   GET /api/analytics/user/:userId
+ * @desc    Get detailed user analytics
+ * @access  Private
+ */
+router.get('/user/:userId', authenticate, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        // Verify user matches token or is admin/teacher
+        if (req.user.id !== userId && req.user.role !== 'admin' && req.user.role !== 'teacher') {
+            return res.status(403).json({ success: false, error: "Not authorized" });
+        }
+
+        const analytics = await analyticsService.getUserAnalytics(userId);
+        res.json({ success: true, analytics });
+    } catch (error) {
+        console.error('[Analytics] User stats error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;

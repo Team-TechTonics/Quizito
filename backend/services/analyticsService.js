@@ -172,6 +172,59 @@ class AnalyticsService {
         const growth = ((current - previous) / previous) * 100;
         return `${growth > 0 ? '+' : ''}${Math.round(growth)}%`;
     }
+
+    /**
+     * Get detailed user analytics
+     */
+    async getUserAnalytics(userId) {
+        // Import QuizResult here to avoid circular dependencies if any
+        const QuizResult = require('../models/QuizResult');
+        const User = require('../models/User');
+
+        const [results, user] = await Promise.all([
+            QuizResult.find({ userId }).sort({ completedAt: -1 }),
+            User.findById(userId)
+        ]);
+
+        if (!results.length) {
+            return {
+                overview: {
+                    totalQuizzesTaken: 0,
+                    averageScore: 0,
+                    currentStreak: user?.streak || 0,
+                    rank: 0,
+                    level: user?.level || 1,
+                    experience: user?.xp || 0
+                },
+                recentPerformance: []
+            };
+        }
+
+        const totalQuizzes = results.length;
+        const totalScore = results.reduce((sum, r) => sum + (r.percentage || 0), 0);
+        const averageScore = Math.round(totalScore / totalQuizzes);
+
+        // Map recent activity
+        const recentPerformance = results.slice(0, 5).map(r => ({
+            quizTitle: r.quizId?.title || 'Unknown Quiz', // Populate if needed
+            category: r.categoryBreakdown?.[0]?.category || 'General',
+            date: r.completedAt,
+            score: r.score,
+            percentage: r.percentage
+        }));
+
+        return {
+            overview: {
+                totalQuizzesTaken: totalQuizzes,
+                averageScore,
+                currentStreak: user?.streak || 0,
+                rank: 0, // Placeholder for global rank calculation
+                level: user?.level || 1,
+                experience: user?.xp || 0
+            },
+            recentPerformance
+        };
+    }
 }
 
 module.exports = new AnalyticsService();

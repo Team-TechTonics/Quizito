@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { quizService } from '../services';
 import {
   User, Mail, Lock, Camera, Globe, Award, Trophy,
   Edit, Save, X, Calendar, TrendingUp, Shield, Bell,
@@ -12,32 +13,78 @@ const Profile = () => {
   const { user, logout, changePassword, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState(null);
+
   const [profileData, setProfileData] = useState({
-    name: user?.name || '',
+    name: user?.username || user?.name || '',
     email: user?.email || '',
-    avatar: user?.avatar || '',
+    avatar: user?.profileImage || '',
     bio: user?.bio || 'Quiz enthusiast and lifelong learner',
     location: user?.location || '',
   });
+
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
 
+  useEffect(() => {
+    if (user?._id || user?.id) {
+      setProfileData({
+        name: user.username || user.name || '',
+        email: user.email || '',
+        avatar: user.profileImage || '',
+        bio: user.bio || 'Quiz enthusiast and lifelong learner',
+        location: user.location || '',
+      });
+      fetchUserStats();
+    }
+  }, [user]);
+
+  const fetchUserStats = async () => {
+    try {
+      const userId = user._id || user.id;
+      const data = await quizService.getUserAnalytics(userId);
+      setAnalytics(data.analytics);
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+      // Toast suppressed to avoid annoyance on load
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stats = [
-    { label: 'Quizzes Created', value: '24', icon: <Award />, color: 'from-blue-500 to-cyan-500' },
-    { label: 'Total Points', value: '4,250', icon: <Trophy />, color: 'from-yellow-500 to-orange-500' },
-    { label: 'Accuracy', value: '80%', icon: <TrendingUp />, color: 'from-green-500 to-emerald-500' },
-    { label: 'Rank', value: '#7', icon: <Globe />, color: 'from-purple-500 to-pink-500' },
+    {
+      label: 'Quizzes Taken',
+      value: analytics?.overview?.totalQuizzesTaken || 0,
+      icon: <Award />,
+      color: 'from-blue-500 to-cyan-500'
+    },
+    {
+      label: 'Average Score',
+      value: `${analytics?.overview?.averageScore || 0}%`,
+      icon: <TrendingUp />,
+      color: 'from-green-500 to-emerald-500'
+    },
+    {
+      label: 'Current Streak',
+      value: analytics?.overview?.currentStreak || 0,
+      icon: <Trophy />,
+      color: 'from-yellow-500 to-orange-500'
+    },
+    {
+      label: 'Rank',
+      value: analytics?.overview?.rank > 0 ? `#${analytics.overview.rank}` : '-',
+      icon: <Globe />,
+      color: 'from-purple-500 to-pink-500'
+    },
   ];
 
-  const recentActivities = [
-    { action: 'Created quiz', title: 'JavaScript Fundamentals', time: '2 hours ago' },
-    { action: 'Achieved', title: 'Quiz Master badge', time: '1 day ago' },
-    { action: 'Joined', title: 'Weekly Coding Challenge', time: '2 days ago' },
-    { action: 'Completed', title: 'AI & ML Basics quiz', time: '3 days ago' },
-  ];
+  // Use real data or empty array if none
+  const recentActivities = analytics?.recentPerformance || [];
 
   const handleProfileUpdate = async () => {
     const result = await updateProfile(profileData);
@@ -60,6 +107,7 @@ const Profile = () => {
 
     if (result.success) {
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      toast.success('Password changed successfully');
     }
   };
 
@@ -67,6 +115,7 @@ const Profile = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
+          <User size={64} className="mx-auto text-gray-300 mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Please login to view profile</h2>
         </div>
       </div>
@@ -101,11 +150,27 @@ const Profile = () => {
                 <div className="px-8 pb-8 -mt-16">
                   <div className="flex flex-col items-center">
                     <div className="relative">
-                      <div className="w-32 h-32 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                        <User className="text-white" size={48} />
+                      <div className="w-32 h-32 bg-white rounded-full p-1 shadow-lg">
+                        {profileData.avatar ? (
+                          <img
+                            src={profileData.avatar}
+                            alt="Profile"
+                            className="w-full h-full rounded-full object-cover border-4 border-indigo-100"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className="w-full h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center border-4 border-indigo-100"
+                          style={{ display: profileData.avatar ? 'none' : 'flex' }}
+                        >
+                          <User className="text-white" size={48} />
+                        </div>
                       </div>
                       {editMode && (
-                        <button className="absolute bottom-2 right-2 p-2 bg-white rounded-full shadow-lg">
+                        <button className="absolute bottom-2 right-2 p-2 bg-white rounded-full shadow-lg text-gray-700 hover:text-indigo-600">
                           <Camera size={20} />
                         </button>
                       )}
@@ -117,20 +182,20 @@ const Profile = () => {
                           type="text"
                           value={profileData.name}
                           onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                           placeholder="Full Name"
                         />
                         <textarea
                           value={profileData.bio}
                           onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                           rows="3"
                           placeholder="About you..."
                         />
                       </div>
                     ) : (
                       <div className="text-center mt-6">
-                        <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
+                        <h2 className="text-2xl font-bold text-gray-800">{profileData.name}</h2>
                         <p className="text-gray-600 mt-2">{profileData.bio}</p>
                         <div className="flex items-center justify-center space-x-2 mt-4">
                           <Globe size={16} className="text-gray-400" />
@@ -160,7 +225,7 @@ const Profile = () => {
                       ) : (
                         <button
                           onClick={() => setEditMode(true)}
-                          className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold flex items-center"
+                          className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold flex items-center transition-transform hover:scale-105"
                         >
                           <Edit className="mr-2" size={18} />
                           Edit Profile
@@ -179,9 +244,9 @@ const Profile = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-white rounded-2xl shadow-lg p-4 text-center"
+                    className="bg-white rounded-2xl shadow-lg p-4 text-center hover:shadow-xl transition-shadow"
                   >
-                    <div className={`inline-flex p-3 bg-gradient-to-r ${stat.color} rounded-xl mb-3`}>
+                    <div className={`inline-flex p-3 bg-gradient-to-r ${stat.color} rounded-xl mb-3 shadow-sm`}>
                       <div className="text-white">{stat.icon}</div>
                     </div>
                     <div className="text-2xl font-bold text-gray-800">{stat.value}</div>
@@ -194,15 +259,15 @@ const Profile = () => {
             {/* Right Column - Tabs */}
             <div className="lg:col-span-2">
               {/* Tabs */}
-              <div className="bg-white rounded-2xl shadow-lg mb-6">
-                <div className="flex border-b border-gray-100">
+              <div className="bg-white rounded-2xl shadow-lg mb-6 overflow-hidden">
+                <div className="flex border-b border-gray-100 bg-gray-50/50 overflow-x-auto">
                   {['profile', 'security', 'notifications', 'billing'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
-                      className={`flex-1 px-6 py-4 text-sm font-medium capitalize ${activeTab === tab
-                        ? 'text-indigo-600 border-b-2 border-indigo-600'
-                        : 'text-gray-600 hover:text-gray-800'
+                      className={`flex-1 px-6 py-4 text-sm font-medium capitalize whitespace-nowrap transition-colors ${activeTab === tab
+                        ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                     >
                       {tab === 'profile' && <User className="inline mr-2" size={16} />}
@@ -225,13 +290,14 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Full Name
                           </label>
-                          <div className="flex items-center space-x-3">
-                            <User className="text-gray-400" size={20} />
+                          <div className="flex items-center space-x-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                            <User className="text-gray-400 ml-2" size={20} />
                             <input
                               type="text"
                               value={profileData.name}
                               onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                              className="flex-1 px-2 py-1 bg-transparent border-none focus:ring-0"
+                              disabled={!editMode}
                             />
                           </div>
                         </div>
@@ -240,13 +306,13 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Email Address
                           </label>
-                          <div className="flex items-center space-x-3">
-                            <Mail className="text-gray-400" size={20} />
+                          <div className="flex items-center space-x-3 bg-gray-100 p-2 rounded-xl border border-gray-200">
+                            <Mail className="text-gray-400 ml-2" size={20} />
                             <input
                               type="email"
                               value={profileData.email}
                               disabled
-                              className="flex-1 px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500"
+                              className="flex-1 px-2 py-1 bg-transparent border-none text-gray-500"
                             />
                           </div>
                         </div>
@@ -255,14 +321,15 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Location
                           </label>
-                          <div className="flex items-center space-x-3">
-                            <Globe className="text-gray-400" size={20} />
+                          <div className="flex items-center space-x-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                            <Globe className="text-gray-400 ml-2" size={20} />
                             <input
                               type="text"
                               value={profileData.location}
                               onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
-                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                              className="flex-1 px-2 py-1 bg-transparent border-none focus:ring-0"
                               placeholder="City, Country"
+                              disabled={!editMode}
                             />
                           </div>
                         </div>
@@ -271,10 +338,10 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Member Since
                           </label>
-                          <div className="flex items-center space-x-3">
-                            <Calendar className="text-gray-400" size={20} />
-                            <span className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl flex-1 text-gray-600">
-                              January 2024
+                          <div className="flex items-center space-x-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                            <Calendar className="text-gray-400 ml-2" size={20} />
+                            <span className="px-2 py-1 text-gray-600">
+                              {new Date(user?.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                             </span>
                           </div>
                         </div>
@@ -282,18 +349,24 @@ const Profile = () => {
 
                       {/* Recent Activity */}
                       <div className="mt-8">
-                        <h4 className="text-lg font-bold text-gray-800 mb-4">Recent Activity</h4>
-                        <div className="space-y-3">
-                          {recentActivities.map((activity, index) => (
-                            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                              <div>
-                                <div className="font-medium text-gray-800">{activity.action}</div>
-                                <div className="text-sm text-gray-600">{activity.title}</div>
+                        <h4 className="text-lg font-bold text-gray-800 mb-4">Recent Quiz History</h4>
+                        {recentActivities.length > 0 ? (
+                          <div className="space-y-3">
+                            {recentActivities.map((activity, index) => (
+                              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                <div>
+                                  <div className="font-medium text-gray-800">Completed "{activity.quizTitle}"</div>
+                                  <div className="text-sm text-gray-600">Score: {activity.score} ({activity.percentage}%)</div>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {new Date(activity.date).toLocaleDateString()}
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-500">{activity.time}</div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 italic">No recent quiz activity found.</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -313,7 +386,7 @@ const Profile = () => {
                               type="password"
                               value={passwordData.currentPassword}
                               onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                               placeholder="Enter current password"
                             />
                           </div>
@@ -329,7 +402,7 @@ const Profile = () => {
                               type="password"
                               value={passwordData.newPassword}
                               onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                               placeholder="Enter new password"
                             />
                           </div>
@@ -345,7 +418,7 @@ const Profile = () => {
                               type="password"
                               value={passwordData.confirmPassword}
                               onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                               placeholder="Confirm new password"
                             />
                           </div>
@@ -353,7 +426,7 @@ const Profile = () => {
 
                         <button
                           onClick={handlePasswordChange}
-                          className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg"
+                          className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-transform hover:scale-105"
                         >
                           Change Password
                         </button>
@@ -368,11 +441,7 @@ const Profile = () => {
                           </li>
                           <li className="flex items-center space-x-2">
                             <Shield className="text-green-500" size={16} />
-                            <span>Enable two-factor authentication</span>
-                          </li>
-                          <li className="flex items-center space-x-2">
-                            <Shield className="text-green-500" size={16} />
-                            <span>Log out from shared devices</span>
+                            <span>Enable two-factor authentication (Coming Soon)</span>
                           </li>
                         </ul>
                       </div>
@@ -387,8 +456,6 @@ const Profile = () => {
                           { label: 'Quiz invitations', desc: 'When someone invites you to a quiz', default: true },
                           { label: 'Quiz results', desc: 'When your quiz results are ready', default: true },
                           { label: 'Leaderboard updates', desc: 'When your rank changes', default: true },
-                          { label: 'New features', desc: 'Updates about new platform features', default: false },
-                          { label: 'Marketing emails', desc: 'Promotional content and offers', default: false },
                         ].map((setting, index) => (
                           <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                             <div>
@@ -435,7 +502,7 @@ const Profile = () => {
                           ))}
                         </div>
 
-                        <button className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg">
+                        <button className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-transform hover:scale-105">
                           Upgrade to Pro
                         </button>
                       </div>
