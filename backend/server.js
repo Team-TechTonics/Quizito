@@ -5258,8 +5258,8 @@ app.post("/api/speech/synthesize", authenticate, async (req, res) => {
 // 16. SESSION MANAGEMENT ROUTES
 // ===========================================================================
 
-// Create session
-app.post("/api/sessions", authenticate, hasPermission("canHostSessions"), async (req, res) => {
+// Create session - Allow all authenticated users
+app.post("/api/sessions", authenticate, async (req, res) => {
   try {
     const { quizId, name, description, settings = {} } = req.body;
 
