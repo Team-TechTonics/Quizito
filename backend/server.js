@@ -1874,9 +1874,16 @@ io.on("connection", (socket) => {
         return callback({ success: false, message: "Session not found" });
       }
 
+      // Check if already joined
+      const existingParticipant = session.participants.find(
+        p => p.userId && p.userId.equals(socket.user._id)
+      );
+
       // Check if session is joinable
       if (session.status !== "waiting" && !session.settings.allowLateJoin) {
-        return callback({ success: false, message: "Session has already started" });
+        if (!existingParticipant || !session.settings.allowRejoin) {
+          return callback({ success: false, message: "Session has already started" });
+        }
       }
 
       // Check if user is banned
@@ -1895,14 +1902,13 @@ io.on("connection", (socket) => {
         p.status === "waiting" || p.status === "ready" || p.status === "playing"
       );
 
-      if (activeParticipants.length >= session.settings.maxPlayers) {
+      if (!existingParticipant && activeParticipants.length >= session.settings.maxPlayers) {
         return callback({ success: false, message: "Session is full" });
       }
 
       // Check if already joined
-      const existingParticipant = session.participants.find(
-        p => p.userId && p.userId.equals(socket.user._id)
-      );
+      // Check if already joined (handled above)
+      // const existingParticipant = ...
 
       let participant;
 
@@ -1950,7 +1956,7 @@ io.on("connection", (socket) => {
 
       // Get quiz info
       const quiz = await Quiz.findById(session.quizId)
-        .select("title category difficulty questions")
+        .select("title category difficulty questions aiGenerated sourceMaterial")
         .lean();
 
       // Prepare response
@@ -2485,10 +2491,10 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("quiz-paused", { pausedAt: session.pausedAt, pausedBy: socket.user.username });
-      logger.info(`Quiz paused in room ${roomCode}`);
+      console.log(`Quiz paused in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Pause quiz error:", error);
+      console.error("Pause quiz error:", error);
       callback({ success: false, message: "Failed to pause quiz" });
     }
   });
@@ -2507,10 +2513,10 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("quiz-resumed", { resumedBy: socket.user.username });
-      logger.info(`Quiz resumed in room ${roomCode}`);
+      console.log(`Quiz resumed in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Resume quiz error:", error);
+      console.error("Resume quiz error:", error);
       callback({ success: false, message: "Failed to resume quiz" });
     }
   });
@@ -2544,10 +2550,10 @@ io.on("connection", (socket) => {
         });
       }
 
-      logger.info(`Question skipped in room ${roomCode}`);
+      console.log(`Question skipped in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Skip question error:", error);
+      console.error("Skip question error:", error);
       callback({ success: false, message: "Failed to skip question" });
     }
   });
@@ -2562,10 +2568,10 @@ io.on("connection", (socket) => {
       if (session.status !== "active") return callback({ success: false, message: "Quiz is not active" });
 
       io.to(roomCode).emit("timer-extended", { additionalSeconds: seconds, extendedBy: socket.user.username });
-      logger.info(`Timer extended by ${seconds}s in room ${roomCode}`);
+      console.log(`Timer extended by ${seconds}s in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Extend timer error:", error);
+      console.error("Extend timer error:", error);
       callback({ success: false, message: "Failed to extend timer" });
     }
   });
@@ -2582,10 +2588,10 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("room-locked", { lockedBy: socket.user.username });
-      logger.info(`Room ${roomCode} locked`);
+      console.log(`Room ${roomCode} locked`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Lock room error:", error);
+      console.error("Lock room error:", error);
       callback({ success: false, message: "Failed to lock room" });
     }
   });
@@ -2602,10 +2608,10 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("room-unlocked", { unlockedBy: socket.user.username });
-      logger.info(`Room ${roomCode} unlocked`);
+      console.log(`Room ${roomCode} unlocked`);
       callback({ success: true });
     } catch (error) {
-      logger.error("Unlock room error:", error);
+      console.error("Unlock room error:", error);
       callback({ success: false, message: "Failed to unlock room" });
     }
   });

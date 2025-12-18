@@ -38,6 +38,8 @@ const HostSession = () => {
   const [questionDuration, setQuestionDuration] = useState(30);
   const [isPaused, setIsPaused] = useState(false); // Phase 1: Pause/Resume
   const [roomLocked, setRoomLocked] = useState(false); // Phase 1: Lock Room
+  const [settings, setSettings] = useState({ allowLateJoin: true, allowRejoin: true, showLeaderboard: true });
+  const [quizMetadata, setQuizMetadata] = useState(null); // New Metadata Card
 
   // Initialize session
   useEffect(() => {
@@ -55,7 +57,21 @@ const HostSession = () => {
         socketService.connect(token);
 
         if (routeRoomCode) {
-          socketService.joinSession(routeRoomCode, user?.username || 'Host');
+          socketService.joinSession(routeRoomCode, user?.username || 'Host', (response) => {
+            if (response.success && response.session) {
+              const q = response.session.quiz;
+              const s = response.session.settings;
+              setQuizMetadata({
+                title: q.title,
+                questionCount: q.questions?.length || 0,
+                timePerQuestion: s.questionTime,
+                scoringType: "Standard",
+                difficulty: q.difficulty || "Mixed",
+                source: q.aiGenerated ? "AI" : (q.sourceMaterial?.includes('PDF') ? "PDF" : "Manual")
+              });
+              setSettings(s);
+            }
+          });
           setRoomCode(routeRoomCode);
         } else {
           // Create mode
@@ -81,6 +97,16 @@ const HostSession = () => {
           setRoomCode(code);
           setSessionId(id);
           setTotalQuestions(questionsCount);
+
+          setQuizMetadata({
+            title: quiz.title,
+            questionCount: questionsCount,
+            timePerQuestion: session.settings.questionTime,
+            scoringType: "Standard",
+            difficulty: quiz.difficulty || "Mixed",
+            source: quiz.aiGenerated ? "AI" : (quiz.sourceMaterial?.includes('PDF') ? "PDF" : "Manual")
+          });
+          setSettings(session.settings);
 
           socketService.joinSession(code, user?.username || 'Host');
         }
@@ -345,6 +371,36 @@ const HostSession = () => {
     });
   };
 
+  const handleUpdateSetting = (key, value) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    // Optimistic update - send to server
+    if (socketService.updateSettings) {
+      socketService.updateSettings(roomCode, { [key]: value }, (res) => {
+        if (!res.success) {
+          toast.error('Failed to update settings');
+          setSettings(settings); // Revert
+        }
+      });
+    } else {
+      // Fallback if socketService not updated yet (for safety)
+      console.warn('updateSettings not implemented in socketService');
+    }
+  };
+
+  // Toggle Component
+  const Toggle = ({ label, checked, onChange }) => (
+    <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</span>
+      <button
+        onClick={() => onChange(!checked)}
+        className={`relative w-10 h-5 transition-colors rounded-full ${checked ? 'bg-indigo-500' : 'bg-slate-200'}`}
+      >
+        <span className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform transform ${checked ? 'translate-x-5' : 'translate-x-0'} shadow-sm`} />
+      </button>
+    </div>
+  );
+
   const handleToggleLock = () => {
     if (roomLocked) {
       socketService.unlockRoom(roomCode, (response) => {
@@ -465,6 +521,48 @@ const HostSession = () => {
           </div>
         </header>
 
+        {/* Quiz Metadata Bar */}
+        {quizMetadata && (
+          <div className="bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-6 overflow-x-auto shrink-0 shadow-sm z-10 custom-scrollbar">
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</span>
+              <span className="text-sm font-bold text-slate-800 max-w-[200px] truncate" title={quizMetadata.title}>{quizMetadata.title}</span>
+            </div>
+            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Questions</span>
+              <span className="text-sm font-bold text-slate-800">{quizMetadata.questionCount}</span>
+            </div>
+            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Time</span>
+              <span className="text-sm font-bold text-slate-800">{quizMetadata.timePerQuestion}s</span>
+            </div>
+            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scoring</span>
+              <span className="text-sm font-bold text-slate-800">{quizMetadata.scoringType}</span>
+            </div>
+            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Difficulty</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${quizMetadata.difficulty === 'easy' || quizMetadata.difficulty === 'beginner' ? 'bg-green-100 text-green-700' :
+                quizMetadata.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                  quizMetadata.difficulty === 'hard' || quizMetadata.difficulty === 'expert' ? 'bg-red-100 text-red-700' :
+                    'bg-slate-100 text-slate-700'
+                }`}>{quizMetadata.difficulty.toUpperCase()}</span>
+            </div>
+            <div className="w-px h-4 bg-slate-200 shrink-0"></div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Source</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${quizMetadata.source === 'AI' ? 'bg-purple-100 text-purple-700' :
+                quizMetadata.source === 'PDF' ? 'bg-red-100 text-red-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>{quizMetadata.source}</span>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
 
           {/* GAME AREA */}
@@ -483,6 +581,16 @@ const HostSession = () => {
                   <div className="mt-4 text-5xl font-mono font-black text-indigo-600 tracking-widest">
                     {roomCode}
                   </div>
+                  <button
+                    onClick={() => {
+                      const link = `${window.location.origin}/join/${roomCode}`;
+                      navigator.clipboard.writeText(link);
+                      toast.success('Link copied to clipboard!');
+                    }}
+                    className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 mx-auto"
+                  >
+                    📋 Copy Link
+                  </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 mb-6">
@@ -661,9 +769,21 @@ const HostSession = () => {
                       <span className="font-mono font-bold text-indigo-600">{entry.score} pts</span>
                     </div>
                   ))
+                ) : participants.length > 0 ? (
+                  participants.map((participant, idx) => (
+                    <div key={participant.userId || idx} className="flex items-center justify-between p-3 rounded-xl border bg-white border-slate-100 text-slate-500">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-slate-100 text-slate-400">
+                          {idx + 1}
+                        </span>
+                        <span className="font-bold truncate max-w-[120px]">{participant.username || participant.displayName}</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-400">{participant.score || 0} pts</span>
+                    </div>
+                  ))
                 ) : (
                   <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-sm">
-                    <p>Scores will appear here</p>
+                    <p>Waiting for players...</p>
                   </div>
                 )}
               </div>
@@ -713,8 +833,8 @@ const HostSession = () => {
 
                 {/* Phase 1: Lock/Unlock Room */}
                 <button onClick={handleToggleLock} className={`col-span-2 py-3 rounded-xl font-bold transition-colors border flex items-center justify-center gap-2 ${roomLocked
-                    ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200'
-                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+                  ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
                   }`}>
                   {roomLocked ? '🔓 UNLOCK ROOM' : '🔒 LOCK ROOM'}
                 </button>
@@ -732,6 +852,16 @@ const HostSession = () => {
                   <span className="text-xs font-normal opacity-70">SESSION</span>
                   END GAME
                 </button>
+              </div>
+            </div>
+
+            {/* Session Settings */}
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-5 shrink-0">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Session Settings</h3>
+              <div className="flex flex-col">
+                <Toggle label="Late Join" checked={settings?.allowLateJoin} onChange={(v) => handleUpdateSetting('allowLateJoin', v)} />
+                <Toggle label="Rejoin" checked={settings?.allowRejoin} onChange={(v) => handleUpdateSetting('allowRejoin', v)} />
+                <Toggle label="Leaderboard" checked={settings?.showLeaderboard} onChange={(v) => handleUpdateSetting('showLeaderboard', v)} />
               </div>
             </div>
 

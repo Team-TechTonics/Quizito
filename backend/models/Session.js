@@ -33,6 +33,7 @@ const sessionSchema = new mongoose.Schema({
         questionTime: { type: Number, default: 30, min: 5, max: 300 },
         showLeaderboard: { type: Boolean, default: true },
         allowLateJoin: { type: Boolean, default: true },
+        allowRejoin: { type: Boolean, default: true },
         randomizeQuestions: { type: Boolean, default: false },
         randomizeOptions: { type: Boolean, default: false },
         requireApproval: { type: Boolean, default: false },

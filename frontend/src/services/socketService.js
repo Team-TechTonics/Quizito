@@ -164,6 +164,10 @@ class SocketService {
         this.socket?.emit('kick-player', { roomCode, userId }, callback);
     }
 
+    updateSettings(roomCode, settings, callback) {
+        this.socket?.emit('update-settings', { roomCode, settings }, callback);
+    }
+
     // ============ NEW: Enhanced Quiz Controls ============
 
     pauseQuiz(roomCode, callback) {
