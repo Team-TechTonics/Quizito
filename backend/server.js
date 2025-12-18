@@ -391,6 +391,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/quizzes", require("./routes/quizzes"));
 app.use("/api/quiz-generation", require("./routes/quizGeneration"));
+app.use("/api/upload", require("./routes/upload")); // Python AI service proxy
 
 // Request Logging Middleware
 app.use((req, res, next) => {
