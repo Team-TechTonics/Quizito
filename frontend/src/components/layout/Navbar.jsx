@@ -13,6 +13,8 @@ import {
   X,
   Zap
 } from 'lucide-react'
+import LanguageSwitcher from '../common/LanguageSwitcher'
+import { useTranslation } from 'react-i18next'
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -25,11 +27,13 @@ const Navbar = () => {
     setIsMenuOpen(false)
   }
 
+  const { t } = useTranslation()
+
   const navLinks = [
-    { name: 'Home', path: '/', icon: <Home size={20} /> },
-    { name: 'Explore', path: '/explore', icon: <Compass size={20} /> },
-    { name: 'Create', path: '/create-quiz', icon: <PlusCircle size={20} /> },
-    { name: 'Host', path: '/create-quiz', icon: <Trophy size={20} /> },
+    { name: t('nav.home', 'Home'), path: '/', icon: <Home size={20} /> },
+    { name: t('nav.features', 'Features'), path: '/explore', icon: <Compass size={20} /> },
+    { name: t('nav.create_quiz', 'Create'), path: '/create-quiz', icon: <PlusCircle size={20} /> },
+    { name: t('nav.host', 'Host'), path: '/create-quiz', icon: <Trophy size={20} /> },
   ]
 
   return (
@@ -41,7 +45,7 @@ const Navbar = () => {
             <div className="bg-gradient-to-r from-primary-600 to-accent-600 p-2 rounded-lg">
               <Zap className="text-white" size={24} />
             </div>
-            <span className="text-2xl font-bold gradient-text">QUIZITO</span>
+            <span className="text-2xl font-bold gradient-text">{t('app.title', 'QUIZITO')}</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -58,8 +62,10 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Auth Section */}
+          {/* Language Switcher & Auth Section */}
           <div className="hidden md:flex items-center space-x-4">
+            <LanguageSwitcher />
+
             {isAuthenticated ? (
               <>
                 <div className="flex items-center space-x-2">
@@ -116,6 +122,9 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t">
             <div className="flex flex-col space-y-4">
+              <div className="px-2">
+                <LanguageSwitcher />
+              </div>
               {navLinks.map((link) => (
                 <Link
                   key={link.name}

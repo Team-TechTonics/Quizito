@@ -33,8 +33,10 @@ import Button from '../components/common/Button'
 import QuizitoModel from '../components/3d/QuizitoModel'
 import InteractiveCursor from '../components/ui/InteractiveCursor'
 import QuantumQuizModel from '../components/3d/QuantumQuizModel';
+import { useTranslation } from 'react-i18next'
 
 const Home = () => {
+  const { t } = useTranslation()
   const { isAuthenticated, loginWithToken } = useAuth()
   const { quizzes, fetchQuizzes } = useQuiz()
   const navigate = useNavigate()
@@ -117,8 +119,8 @@ const Home = () => {
   const features = [
     {
       icon: <Cpu className="text-white" size={28} />,
-      title: 'Neural Quiz Engine',
-      description: 'AI that understands context and adapts difficulty in real-time',
+      title: t('home.features.neural_engine.title', 'Neural Quiz Engine'),
+      description: t('home.features.neural_engine.desc', 'AI that understands context and adapts difficulty in real-time'),
       color: 'from-indigo-500 to-purple-600',
       gradient: 'bg-gradient-to-br from-indigo-500/10 to-purple-600/10',
       stats: 'IQ-Adjusted',
@@ -126,8 +128,8 @@ const Home = () => {
     },
     {
       icon: <CloudLightning className="text-white" size={28} />,
-      title: 'Zero-Lag Sessions',
-      description: 'Sub-50ms response time for seamless global competitions',
+      title: t('home.features.zero_lag.title', 'Zero-Lag Sessions'),
+      description: t('home.features.zero_lag.desc', 'Sub-50ms response time for seamless global competitions'),
       color: 'from-cyan-500 to-blue-600',
       gradient: 'bg-gradient-to-br from-cyan-500/10 to-blue-600/10',
       stats: '50ms Response',
@@ -135,8 +137,8 @@ const Home = () => {
     },
     {
       icon: <Eye className="text-white" size={28} />,
-      title: 'Predictive Analytics',
-      description: 'Anticipate learning gaps before they become obstacles',
+      title: t('home.features.analytics.title', 'Predictive Analytics'),
+      description: t('home.features.analytics.desc', 'Anticipate learning gaps before they become obstacles'),
       color: 'from-emerald-500 to-green-600',
       gradient: 'bg-gradient-to-br from-emerald-500/10 to-green-600/10',
       stats: 'Pre-emptive Insights',
@@ -144,8 +146,8 @@ const Home = () => {
     },
     {
       icon: <MessageSquare className="text-white" size={28} />,
-      title: 'Collaborative Quizzing',
-      description: 'Team-based challenges with synchronized problem-solving',
+      title: t('home.features.collaborative.title', 'Collaborative Quizzing'),
+      description: t('home.features.collaborative.desc', 'Team-based challenges with synchronized problem-solving'),
       color: 'from-amber-500 to-orange-600',
       gradient: 'bg-gradient-to-br from-amber-500/10 to-orange-600/10',
       stats: 'Synced Teams',
@@ -154,10 +156,10 @@ const Home = () => {
   ]
 
   const stats = [
-    { value: '237K+', label: 'Knowledge Sessions', icon: <Play />, color: 'text-cyan-300' },
-    { value: '89.4%', label: 'Retention Boost', icon: <Brain />, color: 'text-emerald-300' },
-    { value: '4.2M', label: 'Questions Answered', icon: <Target />, color: 'text-amber-300' },
-    { value: '154', label: 'Countries Active', icon: <Globe />, color: 'text-purple-300' },
+    { value: '237K+', label: t('home.stats.sessions', 'Knowledge Sessions'), icon: <Play />, color: 'text-cyan-300' },
+    { value: '89.4%', label: t('home.stats.retention', 'Retention Boost'), icon: <Brain />, color: 'text-emerald-300' },
+    { value: '4.2M', label: t('home.stats.questions', 'Questions Answered'), icon: <Target />, color: 'text-amber-300' },
+    { value: '154', label: t('home.stats.countries', 'Countries Active'), icon: <Globe />, color: 'text-purple-300' },
   ]
 
   const testimonials = [
@@ -241,27 +243,17 @@ const Home = () => {
               {/* Main headline with reveal effect inspired by[citation:7] */}
               <div className="relative mb-10">
                 <h1 className={`text-5xl md:text-7xl lg:text-8xl font-black mb-6 tracking-tighter transition-all duration-1000 ${textRevealed ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-10 opacity-0 blur-sm'}`}>
-                  <span className="block text-white">
-                    <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent animate-gradient">
-                      INTELLIGENT
-                    </span>{' '}
-                    QUIZZING
-                  </span>
-                  <span className="block text-gray-300 text-4xl md:text-5xl lg:text-6xl mt-4 font-bold">
-                    MEETS IMMERSIVE{' '}
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-                      EXPERIENCE
-                    </span>
+                  <span className="block text-white bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent animate-gradient">
+                    {t('hero.title', 'Learn Anything through Quizzes')}
                   </span>
                 </h1>
 
-                {/* Animated subtitle with typewriter effect */}
                 <p className={`text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed transition-all duration-1000 delay-300 ${textRevealed ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-                  Where <span className="text-cyan-300 font-semibold">cognitive science</span> meets{' '}
-                  <span className="text-purple-300 font-semibold">cutting-edge technology</span> to create learning
-                  experiences that <span className="text-emerald-300 font-semibold">actually stick</span>.
+                  {t('hero.subtitle', 'The most engaging way to teach, learn, and assess.')}
                 </p>
               </div>
+
+
 
               {/* Interactive CTA buttons */}
               <div className={`flex flex-col sm:flex-row gap-6 justify-center mb-16 transition-all duration-1000 delay-500 ${textRevealed ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
@@ -274,7 +266,7 @@ const Home = () => {
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                       <span className="relative flex items-center gap-3 font-bold tracking-wide">
                         <Zap className="animate-pulse" size={24} />
-                        LAUNCH NEURAL QUIZ
+                        {t('home.cta.launch', 'LAUNCH NEURAL QUIZ')}
                       </span>
                     </Button>
 
@@ -284,7 +276,7 @@ const Home = () => {
                     >
                       <span className="relative flex items-center gap-3 font-bold tracking-wide">
                         <Brain className="group-hover:scale-110 transition-transform" size={24} />
-                        EXPLORE CAPABILITIES
+                        {t('home.cta.explore', 'EXPLORE CAPABILITIES')}
                       </span>
                     </Button>
                   </>
@@ -297,7 +289,7 @@ const Home = () => {
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                       <span className="relative flex items-center gap-3 font-bold tracking-wide">
                         <Rocket className="group-hover:rotate-12 transition-transform" size={24} />
-                        BEGIN YOUR JOURNEY
+                        {t('home.cta.begin', 'BEGIN YOUR JOURNEY')}
                       </span>
                     </Button>
 
@@ -306,7 +298,7 @@ const Home = () => {
                       className="group relative overflow-hidden bg-white/5 backdrop-blur-md border border-white/20 text-white text-lg px-10 py-5 rounded-2xl hover:bg-white/10 transform hover:-translate-y-1 transition-all duration-300"
                     >
                       <span className="relative flex items-center gap-3 font-bold tracking-wide">
-                        WITNESS THE IMPACT
+                        {t('home.cta.witness', 'WITNESS THE IMPACT')}
                         <ArrowRight className="group-hover:translate-x-2 transition-transform" size={24} />
                       </span>
                     </Button>
@@ -374,21 +366,18 @@ const Home = () => {
                   </div>
 
                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-                    Join a{' '}
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-                      Live Session
-                    </span>
+                    {t('home.join.title', 'Join a Live Session')}
                   </h2>
 
                   <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                    Have a room code? Enter it below to join an active quiz session instantly
+                    {t('home.join.subtitle', 'Have a room code? Enter it below to join an active quiz session instantly')}
                   </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto">
                   <input
                     type="text"
-                    placeholder="Enter Room Code (e.g., ABC123)"
+                    placeholder={t('home.join.placeholder', 'Enter Room Code (e.g., ABC123)')}
                     className="flex-1 px-6 py-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all text-lg font-medium tracking-wider uppercase"
                     maxLength={6}
                     onChange={(e) => {
@@ -421,7 +410,7 @@ const Home = () => {
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                     <span className="relative flex items-center gap-2">
                       <Play size={20} />
-                      JOIN NOW
+                      {t('home.join.button', 'JOIN NOW')}
                     </span>
                   </button>
                 </div>

@@ -1,5 +1,5 @@
 // src/pages/CreateQuiz.jsx
-import { useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import AIGenerator from '../components/ai/AIGenerator'
@@ -198,7 +198,38 @@ const CreateQuiz = () => {
         description: quizData.description || `Quiz about ${topic}`,
         category: quizData.category || 'General Knowledge',
         difficulty: difficulty || 'medium',
-        questions: quizData.questions || [],
+        questions: (quizData.questions || []).map(q => {
+          // Identify correct index/answer for normalization
+          let correctIndex = -1;
+          const options = q.options || [];
+
+          if (q.correctIndex !== undefined) {
+            correctIndex = q.correctIndex;
+          } else if (typeof q.correctAnswer === 'number') {
+            correctIndex = q.correctAnswer;
+          } else if (q.correctAnswer) {
+            // Try to find string match
+            correctIndex = options.findIndex(opt =>
+              String(typeof opt === 'string' ? opt : opt.text).toLowerCase().trim() ===
+              String(q.correctAnswer).toLowerCase().trim()
+            );
+          }
+
+          // Default to 0 if not found
+          const validCorrectIndex = correctIndex >= 0 ? correctIndex : 0;
+
+          // Normalize options to objects
+          const standardizedOptions = options.map((opt, idx) => ({
+            text: typeof opt === 'string' ? opt : (opt.text || ""),
+            isCorrect: idx === validCorrectIndex
+          }));
+
+          return {
+            ...q,
+            options: standardizedOptions,
+            correctAnswer: standardizedOptions[validCorrectIndex]?.text
+          };
+        }),
         aiGenerated: !!quizData.aiGenerated,
         aiModel: quizData.aiModel || 'fallback',
         settings: {

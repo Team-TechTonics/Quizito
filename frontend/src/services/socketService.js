@@ -232,6 +232,10 @@ class SocketService {
         this.socket?.removeAllListeners();
     }
 
+    on(event, callback) {
+        this.socket?.on(event, callback);
+    }
+
     off(event, callback) {
         this.socket?.off(event, callback);
     }
@@ -243,7 +247,7 @@ class SocketService {
     }
 
     sendChatMessage(data) {
-        this.socket?.emit('send-message', data);
+        this.socket?.emit('chat-message', data);
     }
 
 }

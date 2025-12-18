@@ -20,12 +20,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
 const QuizCreator = ({ onCreate, loading, initialData }) => {
-  const [quizData, setQuizData] = useState(initialData || {
-    title: '',
-    description: '',
-    category: '',
-    difficulty: 'medium',
-    questions: []
+  const [quizData, setQuizData] = useState({
+    title: initialData?.title || '',
+    description: initialData?.description || '',
+    category: initialData?.category || '',
+    difficulty: initialData?.difficulty || 'medium',
+    questions: initialData?.questions || []
   })
 
   // Update state if initialData changes (e.g. re-selecting template)
@@ -297,7 +297,7 @@ const QuizCreator = ({ onCreate, loading, initialData }) => {
 
       {/* Added Questions List */}
       <AnimatePresence>
-        {quizData.questions.length > 0 && (
+        {quizData.questions?.length > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -307,10 +307,10 @@ const QuizCreator = ({ onCreate, loading, initialData }) => {
             <div className="flex items-center justify-between px-2">
               <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
                 <Hash className="text-purple-500" size={20} />
-                Questions Added ({quizData.questions.length})
+                Questions Added ({quizData.questions?.length || 0})
               </h3>
               <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                Total Points: {quizData.questions.reduce((sum, q) => sum + (q.points || 0), 0)}
+                Total Points: {quizData.questions?.reduce((sum, q) => sum + (q.points || 0), 0) || 0}
               </div>
             </div>
 
@@ -612,12 +612,12 @@ const QuizCreator = ({ onCreate, loading, initialData }) => {
         <div className="container mx-auto max-w-4xl flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-500">Total Questions</div>
-            <div className="font-bold text-xl text-gray-800">{quizData.questions.length}</div>
+            <div className="font-bold text-xl text-gray-800">{quizData.questions?.length || 0}</div>
           </div>
 
           <button
             onClick={handleSubmit}
-            disabled={loading || quizData.questions.length === 0}
+            disabled={loading || !quizData.questions || quizData.questions.length === 0}
             className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
           >
             {loading ? 'Creating Quiz...' : 'Create & Host Quiz 🚀'}

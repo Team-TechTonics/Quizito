@@ -1,5 +1,5 @@
 // src/pages/LeaderboardPage.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, TrendingDown, Minus, Flame, Award, Loader } from 'lucide-react';
 import { mockGamificationData } from '../utils/mockData';

@@ -86,7 +86,7 @@ export const QuizProvider = ({ children }) => {
     newSocket.on('connect', () => {
       setIsConnected(true);
       console.log('✅ Socket connected');
-      
+
       // Join user's personal room for notifications
       if (user) {
         newSocket.emit('join-user-room', user.id || user._id);
@@ -96,7 +96,7 @@ export const QuizProvider = ({ children }) => {
     newSocket.on('disconnect', (reason) => {
       setIsConnected(false);
       console.log('❌ Socket disconnected:', reason);
-      
+
       if (reason === 'io server disconnect') {
         // Server disconnected, try to reconnect
         newSocket.connect();
@@ -123,7 +123,7 @@ export const QuizProvider = ({ children }) => {
       setCurrentQuiz(null);
       setActiveSession(null);
       toast.success('Quiz completed! Check your results');
-      
+
       // Save results to localStorage for analytics
       const pastResults = JSON.parse(localStorage.getItem('quizito_results') || '[]');
       pastResults.push(results);
@@ -171,7 +171,7 @@ export const QuizProvider = ({ children }) => {
       };
       setNotifications(prev => [notification, ...prev]);
       setUnreadNotifications(prev => prev + 1);
-      
+
       toast.custom((t) => (
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-lg shadow-lg">
           <div className="flex items-center justify-between">
@@ -214,7 +214,7 @@ export const QuizProvider = ({ children }) => {
 
       if (response.data.success) {
         const quizData = response.data.data;
-        
+
         // Enhance quiz with additional metadata
         const enhancedQuiz = {
           ...quizData,
@@ -232,7 +232,7 @@ export const QuizProvider = ({ children }) => {
     } catch (error) {
       console.error('AI generation error:', error);
       toast.error(error.response?.data?.error || 'AI service unavailable. Using fallback.');
-      
+
       // Fallback: Generate simple quiz
       const fallbackQuiz = await generateFallbackQuiz(data);
       return { success: true, quiz: fallbackQuiz, note: 'Using fallback generation' };
@@ -251,8 +251,8 @@ export const QuizProvider = ({ children }) => {
       });
 
       if (response.data.success) {
-        return { 
-          success: true, 
+        return {
+          success: true,
           text: response.data.data.text,
           analysis: response.data.data.analysis
         };
@@ -260,7 +260,7 @@ export const QuizProvider = ({ children }) => {
     } catch (error) {
       console.error('PDF extraction error:', error);
     }
-    
+
     return { success: false, text: '' };
   }, []);
 
@@ -277,7 +277,7 @@ export const QuizProvider = ({ children }) => {
     } catch (error) {
       console.error('Topic analysis error:', error);
     }
-    
+
     return { success: false, analysis: null };
   }, []);
 
@@ -340,13 +340,13 @@ export const QuizProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/register', userData);
       const { token: newToken, user: newUser } = response.data;
-      
+
       localStorage.setItem('quizito_token', newToken);
       localStorage.setItem('quizito_user', JSON.stringify(newUser));
-      
+
       setToken(newToken);
       setUser(newUser);
-      
+
       toast.success('Account created successfully! Welcome to Quizito!');
       return { success: true, user: newUser };
     } catch (error) {
@@ -363,19 +363,19 @@ export const QuizProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', credentials);
       const { token: newToken, user: newUser } = response.data;
-      
+
       localStorage.setItem('quizito_token', newToken);
       localStorage.setItem('quizito_user', JSON.stringify(newUser));
-      
+
       setToken(newToken);
       setUser(newUser);
-      
+
       // Update user stats
       const stats = {
         lastLogin: new Date().toISOString(),
         loginCount: (newUser.stats?.loginCount || 0) + 1
       };
-      
+
       toast.success(`Welcome back, ${newUser.username}!`);
       return { success: true, user: newUser };
     } catch (error) {
@@ -395,12 +395,12 @@ export const QuizProvider = ({ children }) => {
     setCurrentQuiz(null);
     setActiveSession(null);
     setLeaderboard([]);
-    
+
     if (socket) {
       socket.disconnect();
       setSocket(null);
     }
-    
+
     toast.success('Logged out successfully');
     navigate('/auth');
   }, [socket, navigate]);
@@ -410,10 +410,10 @@ export const QuizProvider = ({ children }) => {
     try {
       const response = await api.put('/auth/profile', profileData);
       const updatedUser = response.data.user;
-      
+
       localStorage.setItem('quizito_user', JSON.stringify(updatedUser));
       setUser(updatedUser);
-      
+
       toast.success('Profile updated successfully!');
       return { success: true, user: updatedUser };
     } catch (error) {
@@ -429,7 +429,7 @@ export const QuizProvider = ({ children }) => {
     setLoading(true);
     try {
       let quizToCreate = quizData;
-      
+
       // If AI generation is requested
       if (quizData.generateWithAI) {
         const aiResult = await generateQuizWithAI(quizData);
@@ -442,8 +442,8 @@ export const QuizProvider = ({ children }) => {
         }
       }
 
-      const response = await api.post('/quizzes', quizToCreate);
-      
+      const response = await api.post('/api/quizzes', quizToCreate);
+
       if (response.data.success) {
         toast.success('Quiz created successfully!');
         return { success: true, quiz: response.data.data };
@@ -461,7 +461,7 @@ export const QuizProvider = ({ children }) => {
     try {
       const response = await api.post(`/sessions/${sessionId}/join`, { username });
       const data = response.data;
-      
+
       if (data.success && socket) {
         socket.emit('join-room', sessionId, user?.id || user?._id);
         toast.success(`Joined quiz as ${username}!`);
@@ -498,10 +498,10 @@ export const QuizProvider = ({ children }) => {
 
   const getLeaderboard = useCallback(async (quizId = null) => {
     try {
-      const url = quizId 
+      const url = quizId
         ? `/leaderboard/quiz/${quizId}`
         : '/leaderboard/global';
-      
+
       const response = await api.get(url);
       setLeaderboard(response.data.data || []);
       return response.data.data || [];
@@ -551,22 +551,22 @@ export const QuizProvider = ({ children }) => {
     activeSession,
     notifications,
     unreadNotifications,
-    
+
     // API instances
     api,
     aiApi,
-    
+
     // Authentication
     register,
     login,
     logout,
     updateProfile,
-    
+
     // AI Functions
     generateQuizWithAI,
     extractTextFromPDF,
     analyzeTopic,
-    
+
     // Quiz Functions
     createQuiz,
     joinQuiz,
@@ -575,7 +575,7 @@ export const QuizProvider = ({ children }) => {
     getLeaderboard,
     getQuizAnalytics,
     getUserStats,
-    
+
     // Notification Functions
     markNotificationsAsRead,
   };

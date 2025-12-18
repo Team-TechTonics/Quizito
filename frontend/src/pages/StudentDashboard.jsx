@@ -1,8 +1,9 @@
 // src/pages/StudentDashboard.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { classService } from '../services'; // Import Class Service
+import { classService } from '../services';
+import { quizService } from '../services/quizService';
 import { recommendationService } from '../services/recommendationService';
 import {
     Brain,
@@ -24,7 +25,7 @@ import { motion } from 'framer-motion';
 
 const StudentDashboard = () => {
     const { user } = useAuth();
-    const [assignments, setAssignments] = useState([]); // Assignments State
+    const [assignments, setAssignments] = useState([]);
     const [loadingAssignments, setLoadingAssignments] = useState(true);
     const [stats, setStats] = useState({
         totalQuizzes: 0,
@@ -34,40 +35,58 @@ const StudentDashboard = () => {
         level: 1,
         points: 0
     });
+    const [recentActivity, setRecentActivity] = useState([]);
     const [recommendations, setRecommendations] = useState([]);
 
     useEffect(() => {
-        // TODO: Fetch student stats from API
-        // For now, using mock data
-        setStats({
-            totalQuizzes: user?.stats?.totalQuizzes || 0,
-            averageScore: user?.stats?.averageScore || 0,
-            currentStreak: user?.stats?.currentStreak || 0,
-            rank: user?.stats?.rank || 0,
-            level: user?.stats?.level || 1,
-            points: user?.stats?.experience || 0
-        });
-
-        fetchAssignments();
-        fetchRecommendations();
+        if (user?._id) {
+            fetchDashboardData();
+        }
     }, [user]);
 
-    const fetchRecommendations = () => {
-        // Mock history for now, in real app this would come from API or user context
-        const history = user?.history || [];
-        const recs = recommendationService.getRecommendations(history);
-        setRecommendations(recs);
-    };
-
-    const fetchAssignments = async () => {
+    const fetchDashboardData = async () => {
         try {
-            const data = await classService.getStudentAssignments();
-            setAssignments(data || []);
+            const [analyticsData, assignmentsData] = await Promise.all([
+                quizService.getUserAnalytics(user._id),
+                classService.getStudentAssignments()
+            ]);
+
+            // Update stats from real analytics
+            if (analyticsData.success) {
+                const { overview, recentPerformance } = analyticsData.analytics;
+                setStats({
+                    totalQuizzes: overview.totalQuizzesTaken || 0,
+                    averageScore: overview.averageScore || 0,
+                    currentStreak: overview.currentStreak || 0,
+                    rank: overview.rank || 0,
+                    level: overview.level || 1,
+                    points: overview.experience || 0
+                });
+                setRecentActivity(recentPerformance || []);
+
+                // Fetch recommendations based on real history
+                const recs = recommendationService.getRecommendations(recentPerformance);
+                setRecommendations(recs);
+            }
+
+            setAssignments(assignmentsData || []);
         } catch (error) {
-            console.error("Failed to fetch assignments", error);
+            console.error("Failed to fetch dashboard data", error);
         } finally {
             setLoadingAssignments(false);
         }
+    };
+
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+
+        if (diffInSeconds < 60) return 'Just now';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} mins ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+        if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+        return date.toLocaleDateString();
     };
 
     return (
@@ -118,7 +137,7 @@ const StudentDashboard = () => {
                                     <TrendingUp className="text-white" size={24} />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-green-700">{stats.averageScore}%</p>
+                                    <p className="text-2xl font-bold text-green-700">{Math.round(stats.averageScore)}%</p>
                                     <p className="text-sm text-green-600">Avg Score</p>
                                 </div>
                             </div>
@@ -313,28 +332,35 @@ const StudentDashboard = () => {
                         >
                             <h2 className="text-2xl font-bold text-gray-800 mb-4">Recent Activity</h2>
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="p-2 bg-blue-100 rounded-lg">
-                                            <Brain className="text-blue-600" size={20} />
+                                {recentActivity.length > 0 ? (
+                                    recentActivity.map((activity, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="p-2 bg-blue-100 rounded-lg">
+                                                    <Brain className="text-blue-600" size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">{activity.quizTitle || 'Quiz Activity'}</p>
+                                                    <p className="text-sm text-gray-600">{activity.category} • {formatDate(activity.date)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={`text-lg font-bold ${activity.percentage >= 70 ? 'text-green-600' :
+                                                    activity.percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                    {Math.round(activity.percentage)}%
+                                                </p>
+                                                <p className="text-xs text-gray-500">Score: {activity.score}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-semibold text-gray-800">Mathematics Quiz</p>
-                                            <p className="text-sm text-gray-600">Completed 2 hours ago</p>
-                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <p>No recent activity</p>
+                                        <Link to="/explore" className="text-indigo-600 hover:underline">
+                                            Start a quiz now!
+                                        </Link>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-bold text-green-600">85%</p>
-                                        <p className="text-xs text-gray-500">+50 XP</p>
-                                    </div>
-                                </div>
-
-                                <div className="text-center py-8 text-gray-500">
-                                    <p>No recent activity</p>
-                                    <Link to="/explore" className="text-indigo-600 hover:underline">
-                                        Start a quiz now!
-                                    </Link>
-                                </div>
+                                )}
                             </div>
                         </motion.div>
                     </div>

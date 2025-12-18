@@ -7,7 +7,7 @@ export const quizService = {
      */
     async getQuizzes(filters = {}) {
         try {
-            const response = await api.get('/quizzes', { params: filters });
+            const response = await api.get('/api/quizzes', { params: filters });
             return response.data.quizzes || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -19,7 +19,7 @@ export const quizService = {
      */
     async getQuizById(id) {
         try {
-            const response = await api.get(`/quizzes/${id}`);
+            const response = await api.get(`/api/quizzes/${id}`);
             return response.data.quiz || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -31,7 +31,7 @@ export const quizService = {
      */
     async createQuiz(quizData) {
         try {
-            const response = await api.post('/quizzes', quizData);
+            const response = await api.post('/api/quizzes', quizData);
             return response.data.quiz || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -43,7 +43,7 @@ export const quizService = {
      */
     async updateQuiz(id, quizData) {
         try {
-            const response = await api.put(`/quizzes/${id}`, quizData);
+            const response = await api.put(`/api/quizzes/${id}`, quizData);
             return response.data.quiz || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -55,7 +55,7 @@ export const quizService = {
      */
     async deleteQuiz(id) {
         try {
-            const response = await api.delete(`/quizzes/${id}`);
+            const response = await api.delete(`/api/quizzes/${id}`);
             return response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -67,7 +67,7 @@ export const quizService = {
      */
     async submitQuizResults(quizId, results) {
         try {
-            const response = await api.post(`/quizzes/${quizId}/submit`, results);
+            const response = await api.post(`/api/quizzes/${quizId}/submit`, results);
             return response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -79,7 +79,7 @@ export const quizService = {
      */
     async getUserQuizzes(userId) {
         try {
-            const response = await api.get(`/users/${userId}/quizzes`);
+            const response = await api.get(`/api/users/${userId}/quizzes`);
             return response.data.quizzes || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -91,7 +91,7 @@ export const quizService = {
      */
     async generateAIQuiz(topic, options = {}) {
         try {
-            const response = await api.post('/ai/generate', {
+            const response = await api.post('/api/ai/generate', {
                 type: "topic",
                 content: topic,
                 options
@@ -107,7 +107,7 @@ export const quizService = {
      */
     async generateFromPDF(formData, onUploadProgress) {
         try {
-            const response = await api.post('/quiz/generate-from-pdf', formData, {
+            const response = await api.post('/api/quiz/generate-from-pdf', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -124,7 +124,7 @@ export const quizService = {
      */
     async generateFromAudio(formData, onUploadProgress) {
         try {
-            const response = await api.post('/quiz-generation/from-audio', formData, {
+            const response = await api.post('/api/quiz-generation/from-audio', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -141,8 +141,22 @@ export const quizService = {
      */
     async createSession(sessionData) {
         try {
-            const response = await api.post('/sessions', sessionData);
+            const response = await api.post('/api/sessions', sessionData);
             return response.data.session || response.data;
+        } catch (error) {
+            throw error.response?.data || error;
+        }
+    },
+
+    /**
+     * Get user analytics
+     */
+    async getUserAnalytics(userId, period = '30d') {
+        try {
+            const response = await api.get(`/api/analytics/user/${userId}`, {
+                params: { period }
+            });
+            return response.data;
         } catch (error) {
             throw error.response?.data || error;
         }

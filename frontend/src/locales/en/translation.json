@@ -1,0 +1,84 @@
+{
+    "app": {
+        "title": "Quizito",
+        "shag": "Create, Share, and Play Quizzes instantly"
+    },
+    "nav": {
+        "home": "Home",
+        "features": "Features",
+        "library": "Library",
+        "create_quiz": "Create",
+        "host": "Host",
+        "join": "Join",
+        "login": "Login",
+        "register": "Register",
+        "dashboard": "Dashboard",
+        "profile": "Profile"
+    },
+    "hero": {
+        "title": "Learn Anything through Quizzes",
+        "subtitle": "The most engaging way to teach, learn, and assess. AI-powered quizzes generated in seconds.",
+        "cta_start": "Get Started",
+        "cta_join": "Join a Party"
+    },
+    "auth": {
+        "welcome_back": "Welcome Back!",
+        "sign_in_to_continue": "Sign in to continue your learning journey",
+        "email_label": "Email Address",
+        "password_label": "Password",
+        "forgot_password": "Forgot Password?",
+        "sign_in_button": "Sign In",
+        "no_account": "Don't have an account?",
+        "sign_up_link": "Sign up for free",
+        "create_account": "Create Account",
+        "join_community": "Join our community of learners",
+        "name_label": "Full Name",
+        "confirm_password_label": "Confirm Password",
+        "sign_up_button": "Sign Up",
+        "already_have_account": "Already have an account?",
+        "sign_in_link": "Sign in",
+        "demo_account": "Try Demo Account",
+        "github_login": "Sign in with GitHub",
+        "subtitle": "AI-Powered Quiz Platform"
+    },
+    "home": {
+        "features": {
+            "neural_engine": {
+                "title": "Neural Quiz Engine",
+                "desc": "AI that understands context and adapts difficulty in real-time"
+            },
+            "zero_lag": {
+                "title": "Zero-Lag Sessions",
+                "desc": "Sub-50ms response time for seamless global competitions"
+            },
+            "analytics": {
+                "title": "Predictive Analytics",
+                "desc": "Anticipate learning gaps before they become obstacles"
+            },
+            "collaborative": {
+                "title": "Collaborative Quizzing",
+                "desc": "Team-based challenges with synchronized problem-solving"
+            }
+        },
+        "stats": {
+            "sessions": "Knowledge Sessions",
+            "retention": "Retention Boost",
+            "questions": "Questions Answered",
+            "countries": "Countries Active"
+        },
+        "join": {
+            "title": "Join a Live Session",
+            "subtitle": "Have a room code? Enter it below to join an active quiz session instantly",
+            "placeholder": "Enter Room Code (e.g., ABC123)",
+            "button": "JOIN NOW"
+        },
+        "cta": {
+            "launch": "LAUNCH NEURAL QUIZ",
+            "explore": "EXPLORE CAPABILITIES",
+            "begin": "BEGIN YOUR JOURNEY",
+            "witness": "WITNESS THE IMPACT",
+            "ready_title": "Redefine Cognitive Engagement?",
+            "ready_subtitle": "Join 14,873 educational institutions, corporations, and innovators who have transformed passive learning into active neural development."
+        }
+    }
+}

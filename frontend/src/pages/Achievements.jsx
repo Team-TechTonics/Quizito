@@ -1,5 +1,5 @@
 // src/pages/Achievements.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Lock, Star, TrendingUp, Loader } from 'lucide-react';
 import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, RARITY_COLORS } from '../utils/achievements';

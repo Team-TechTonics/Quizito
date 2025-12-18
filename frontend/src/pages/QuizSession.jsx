@@ -304,7 +304,16 @@ const QuizSession = () => {
   };
 
   const handleAnswerSelect = (answerIndex) => {
-    if (answerSubmitted || quizStatus !== 'active') return;
+    console.log('handleAnswerSelect called with:', answerIndex, {
+      answerSubmitted,
+      quizStatus
+    });
+
+    if (answerSubmitted || quizStatus !== 'active') {
+      console.warn('Selection ignored in parent: submitted or inactive');
+      return;
+    }
+
     setSelectedAnswer(answerIndex);
 
     // Play selection sound
@@ -436,9 +445,9 @@ const QuizSession = () => {
                     </span>
                     <span className="text-gray-400">•</span>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${quizStatus === 'active' ? 'bg-green-100 text-green-800' :
-                        quizStatus === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
-                          quizStatus === 'completed' ? 'bg-gray-100 text-gray-800' :
-                            'bg-red-100 text-red-800'
+                      quizStatus === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                        quizStatus === 'completed' ? 'bg-gray-100 text-gray-800' :
+                          'bg-red-100 text-red-800'
                       }`}>
                       {quizStatus.toUpperCase()}
                     </span>
@@ -548,8 +557,8 @@ const QuizSession = () => {
             ) : quizStatus === 'active' && currentQuestion ? (
               <QuizQuestion
                 question={currentQuestion}
-                selectedAnswer={selectedAnswer}
-                onAnswerSelect={handleAnswerSelect}
+                selectedOption={selectedAnswer}
+                onOptionSelect={handleAnswerSelect}
                 onSubmit={handleSubmitAnswer}
                 answerSubmitted={answerSubmitted}
                 timeRemaining={timeRemaining}
@@ -723,8 +732,8 @@ const QuizSession = () => {
                 onClick={handleNextQuestion}
                 disabled={!answerSubmitted}
                 className={`flex-1 px-6 py-3 rounded-xl flex items-center justify-center gap-2 ${answerSubmitted
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

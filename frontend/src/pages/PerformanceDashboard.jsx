@@ -1,5 +1,5 @@
 // frontend/src/pages/PerformanceDashboard.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, Target, Award, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';

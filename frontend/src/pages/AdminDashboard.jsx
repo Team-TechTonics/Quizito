@@ -1,5 +1,5 @@
 // src/pages/AdminDashboard.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3, Users, Trophy, Zap, Clock, TrendingUp,
   Settings, Download, Filter, Calendar, Eye, Edit, Trash2,
@@ -208,8 +208,8 @@ const AdminDashboard = () => {
                       key={range}
                       onClick={() => setTimeRange(range)}
                       className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-all ${timeRange === range
-                          ? 'bg-white text-indigo-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
                         }`}
                     >
                       {range}

@@ -1,4 +1,3 @@
-// src/pages/HostSession.jsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -11,6 +10,7 @@ import '../styles/globals.css';
 import { quizService, socketService } from '../services';
 import useSpeech from '../hooks/useSpeech';
 import Chat from '../components/Chat';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const HostSession = () => {
   const navigate = useNavigate();
@@ -27,6 +27,7 @@ const HostSession = () => {
   const [error, setError] = useState(null);
   const [gameStatus, setGameStatus] = useState('lobby'); // lobby, starting, question, answer, finished
   const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [countdown, setCountdown] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -34,6 +35,7 @@ const HostSession = () => {
   const [sessionId, setSessionId] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  const [questionDuration, setQuestionDuration] = useState(30);
 
   // Initialize session
   useEffect(() => {
@@ -47,29 +49,12 @@ const HostSession = () => {
         let quizTitle = "";
         let questionsCount = 0;
 
-        // 1. Get/Create Session Logic
-        if (routeRoomCode) {
-          console.log('Restoring session:', routeRoomCode);
-          const response = await quizService.getQuizById(routeRoomCode).catch(() => null); // Adjust if getSessionByRoomCode exists
-          // Since getQuizById takes ID not room code, we probably need a specific endpoint or assume local handling for now.
-          // Wait, the previous code used api.get(`/api/sessions/${routeRoomCode}`)
-
-          // Let's use direct API call for session if quizService doesn't have it explicitly yet, or add it.
-          // For now, I'll stick to logic similar to before but cleaner, or assume quizService.getSession(code)
-          // To be safe, let's assume we need to fetch it.
-          // TODO: Add getSession to quizService properly. For now, inline or rely on what we have.
-        }
-
-        // Actually, let's keep the logic robust. 
-        // If routeRoomCode exists, we fetch session. If not, we create one.
-
         // Connect Socket
         socketService.connect(token);
 
         if (routeRoomCode) {
           socketService.joinSession(routeRoomCode, user?.username || 'Host');
           setRoomCode(routeRoomCode);
-          // We would ideally fetch session details here to populate state if joining an existing one
         } else {
           // Create mode
           const quiz = currentQuiz || JSON.parse(localStorage.getItem('currentQuiz'));
@@ -111,7 +96,6 @@ const HostSession = () => {
 
         const handleParticipantDisconnected = (data) => {
           setParticipants(prev => prev.filter(p => p.userId !== data.userId));
-          toast(`${data.username || 'A player'} left`, { icon: '👋' });
         };
 
         const handleQuizStarted = (data) => {
@@ -123,9 +107,26 @@ const HostSession = () => {
           setGameStatus('question');
           setCurrentQuestion(question);
           setCurrentQuestionIndex(data.questionIndex);
-          setTimeRemaining(data.timeRemaining || 30);
+
+          // Set dynamic time
+          const duration = question.timeLimit || 30; // Default to 30 if missing
+          setQuestionDuration(duration);
+          setTimeRemaining(data.timeRemaining || duration);
+
           setTotalQuestions(data.totalQuestions);
           setSelectedOption(null);
+          setCountdown(null);
+        };
+
+        const handleCountdown = (data) => {
+          setCountdown(data.countdown);
+          // Play beep sound logic or speech
+          const synth = window.speechSynthesis;
+          if (synth && data.countdown <= 3) {
+            const utterance = new SpeechSynthesisUtterance(data.countdown.toString());
+            utterance.rate = 1.5;
+            synth.speak(utterance);
+          }
         };
 
         const handleNextQuestion = (data) => {
@@ -136,22 +137,24 @@ const HostSession = () => {
           setGameStatus('question');
           setCurrentQuestion(question);
           setCurrentQuestionIndex(data.questionIndex);
-          setTimeRemaining(data.timeRemaining || 30);
+
+          // Set dynamic time
+          const duration = question.timeLimit || 30;
+          setQuestionDuration(duration);
+          setTimeRemaining(data.timeRemaining || duration);
+
           setSelectedOption(null);
         };
 
         const handleQuestionCompleted = (data) => {
           setGameStatus('answer');
-          if (data.explanation) {
-            toast.success(`Answer: ${data.correctAnswer}`, { duration: 4000 });
-          }
         };
 
         const handleQuizCompleted = (data) => {
           setGameStatus('finished');
           setLeaderboard(data.finalResults?.leaderboard || []);
           localStorage.setItem('quizResults', JSON.stringify(data.finalResults));
-          setTimeout(() => navigate('/results', { state: data.finalResults }), 5000);
+          setTimeout(() => navigate('/results', { state: data.finalResults }), 8000);
         };
 
         const handleLeaderboardUpdate = (data) => {
@@ -168,6 +171,13 @@ const HostSession = () => {
           setChatMessages(prev => [...prev, message]);
         };
 
+        const handlePlayerReady = (data) => {
+          // Ideally update participant ready state here
+          setParticipants(prev => prev.map(p =>
+            p.userId === data.userId ? { ...p, isReady: data.isReady } : p
+          ));
+        };
+
         // Register listeners
         socketService.onParticipantJoined(handleParticipantJoined);
         socketService.onParticipantDisconnected(handleParticipantDisconnected);
@@ -176,15 +186,17 @@ const HostSession = () => {
         socketService.onQuestionCompleted(handleQuestionCompleted);
         socketService.onQuestionTimeUp((data) => {
           setGameStatus('answer');
-          toast.error("Time's up!");
         });
         socketService.onQuizCompleted(handleQuizCompleted);
         socketService.onLeaderboardUpdate(handleLeaderboardUpdate);
         socketService.onTimerUpdate((data) => setTimeRemaining(data.timeRemaining));
         socketService.onChatMessage(handleChatMessage);
+        socketService.onPlayerReadyUpdate(handlePlayerReady);
+        socketService.on('countdown', handleCountdown);
+
         socketService.onSessionEndedByHost(() => {
           toast('Session ended', { icon: '🏁' });
-          navigate(`/dashboard`); // Go back to dashboard on forced end
+          navigate(`/dashboard`);
         });
 
       } catch (err) {
@@ -198,13 +210,8 @@ const HostSession = () => {
 
     initializeSession();
 
-    // Cleanup
     return () => {
       socketService.removeAllListeners();
-      // Optionally disconnect if we want to clean up completely, 
-      // but usually we keep socket open for other features. 
-      // For a specific session page, maybe just leave room?
-      // socketService.leaveSession(roomCode); // If method existed
     };
   }, [navigate, routeRoomCode, currentQuiz, user, token]);
 
@@ -219,6 +226,26 @@ const HostSession = () => {
     }
   }, [currentQuestion, gameStatus, speechEnabled, speak, stop]);
 
+  // Host Gameplay Interaction
+  const handleOptionClick = (index) => {
+    // Only allow selection if game is active and not already selected
+    if (gameStatus !== 'question' || selectedOption !== null) return;
+
+    setSelectedOption(index);
+
+    // Submit answer to socket
+    // NOTE: Host usually shouldn't play, but user requested it.
+    // Ensure backend supports host answering if roomCode/userId logic matches.
+    socketService.submitAnswer({
+      roomCode,
+      questionIndex: currentQuestionIndex,
+      answer: index
+    });
+
+    // Optional: sound
+    const audio = new Audio('/sounds/select.mp3');
+    audio.play().catch(() => { });
+  };
 
   const handleStartQuiz = () => {
     if (participants.length === 0) {
@@ -230,8 +257,6 @@ const HostSession = () => {
 
   const handleEndQuiz = () => {
     socketService.endSession(roomCode);
-    // Also call API to ensure DB update
-    // api.post(...) handled by socket mostly, but good redundancy to keep if needed
   };
 
   const handleNextForce = () => {
@@ -253,248 +278,329 @@ const HostSession = () => {
     });
   };
 
-  if (loading) return <LoadingSpinner text="Setting up session..." fullScreen={true} color="cyan" />;
+  if (loading) return <LoadingSpinner text="Setting up party..." fullScreen={true} color="purple" />;
   if (error) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-red-900/30 border border-red-500 rounded-xl p-8 max-w-md text-center">
         <h2 className="text-xl font-bold text-red-200 mb-4">Connection Error</h2>
         <p className="text-gray-300 mb-6">{error}</p>
-        <button
-          onClick={() => navigate('/create-quiz')}
-          className="px-6 py-2 bg-red-600 rounded-lg text-white font-bold hover:bg-red-700"
-        >
-          Back to Create
-        </button>
+        <button onClick={() => navigate('/create-quiz')} className="px-6 py-2 bg-red-600 rounded-lg text-white font-bold hover:bg-red-700">Back</button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-950 to-black text-white p-4 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 font-sans overflow-hidden">
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-gray-800/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
-          <div>
-            <span className="text-purple-400 font-bold tracking-wider text-sm uppercase">Host Panel</span>
-            <h1 className="text-3xl font-bold">Quiz Session</h1>
+      {/* Background Decorations - Subtle */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-[20%] -right-[10%] w-[70vh] h-[70vh] rounded-full bg-indigo-100/50 blur-3xl"></div>
+        <div className="absolute top-[20%] -left-[10%] w-[50vh] h-[50vh] rounded-full bg-purple-100/50 blur-3xl"></div>
+      </div>
+
+      {/* COUNTDOWN OVERLAY */}
+      <AnimatePresence>
+        {countdown !== null && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.5, opacity: 0 }}
+            key={countdown}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotate: -10 }}
+              animate={{ scale: 1.2, rotate: 0 }}
+              className="text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 drop-shadow-2xl"
+            >
+              {countdown}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="max-w-7xl mx-auto relative z-10 flex flex-col h-[calc(100vh-2rem)]">
+
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-3 rounded-xl shadow-md text-white">
+              <span className="text-xl font-bold">Q</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Host Panel</h1>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                Code:
+                <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded tracking-wider border border-indigo-100">
+                  {roomCode}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="text-center">
-              <p className="text-gray-400 text-xs uppercase font-bold">Room Code</p>
-              <div className="flex items-center gap-2">
-                <span className="text-4xl font-mono font-bold text-cyan-400 tracking-wider">{roomCode}</span>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(roomCode); toast.success('Copied!'); }}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  📋
-                </button>
+            <div className="text-right hidden md:block">
+              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Status</p>
+              <div className="flex items-center gap-2 justify-end">
+                <span className={`w-2.5 h-2.5 rounded-full ${gameStatus === 'lobby' ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`}></span>
+                <span className="font-bold text-slate-700 text-sm">{gameStatus.toUpperCase()}</span>
               </div>
             </div>
-            <div className="h-10 w-px bg-white/10 hidden md:block"></div>
+            <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
             <div className="text-right hidden md:block">
-              <p className="text-sm text-gray-400">Status: <span className="text-white capitalize font-bold">{gameStatus}</span></p>
-              <p className="text-sm text-gray-400">Players: <span className="text-white font-bold">{participants.length}</span></p>
+              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Players</p>
+              <p className="font-bold text-slate-700 text-lg leading-none">{participants.length}</p>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
 
-          {/* Left Column: Game Area */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* GAME AREA */}
+          <div className="lg:col-span-2 flex flex-col h-full min-h-0">
 
-            {/* Lobby View */}
+            {/* LOBBY VIEW */}
             {!quizStarted && (
-              <div className="bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 min-h-[400px]">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                  Waiting Room ({participants.length})
-                </h2>
-
-                {participants.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {participants.map(p => (
-                      <div key={p.userId} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 flex items-center justify-center font-bold">
-                            {p.username[0].toUpperCase()}
-                          </div>
-                          <span className="font-medium truncate max-w-[100px]">{p.username}</span>
-                        </div>
-                        <button
-                          onClick={() => handleKickPlayer(p.userId)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded transition-all"
-                          title="Kick Player"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+              <div className="flex-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-8 flex flex-col relative overflow-hidden">
+                <div className="text-center mb-10">
+                  <h2 className="text-4xl font-black text-slate-800 mb-3">
+                    Waiting for Players...
+                  </h2>
+                  <p className="text-slate-500 text-lg">
+                    Join at <span className="text-indigo-600 font-bold">quizito.com</span> using code
+                  </p>
+                  <div className="mt-4 text-5xl font-mono font-black text-indigo-600 tracking-widest">
+                    {roomCode}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 animate-pulse">
-                      <span className="text-2xl">⏳</span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 mb-6">
+                  {participants.length > 0 ? (
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      <AnimatePresence>
+                        {participants.map((p, i) => (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            key={p.userId}
+                            className="aspect-square bg-slate-50 rounded-2xl flex flex-col items-center justify-center relative group hover:bg-white hover:shadow-lg transition-all border-2 border-slate-100 hover:border-indigo-200"
+                          >
+                            <div className="mb-2 text-4xl transform group-hover:scale-110 transition-transform">
+                              {p.avatar ? <img src={p.avatar} alt="avatar" className="w-14 h-14 rounded-full shadow-sm" /> : '😎'}
+                            </div>
+                            <p className="font-bold text-sm truncate w-full text-center px-2 text-slate-700">{p.username}</p>
+                            {p.isReady && (
+                              <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
+                            )}
+                            <button
+                              onClick={() => handleKickPlayer(p.userId)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md scale-90 hover:scale-110"
+                            >
+                              ✕
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
-                    <p className="text-lg">Waiting for players to join...</p>
-                    <p className="text-sm">Join code: <span className="text-cyan-400 font-mono">{roomCode}</span></p>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                      <div className="w-20 h-20 rounded-full border-4 border-slate-100 border-t-indigo-200 animate-spin mb-4"></div>
+                      <p className="text-lg font-medium">Waiting for someone to join...</p>
+                    </div>
+                  )}
+                </div>
 
-                <div className="mt-8 flex justify-center">
+                <div className="mt-auto flex justify-center pt-6 border-t border-slate-100">
                   <button
                     onClick={handleStartQuiz}
                     disabled={participants.length === 0}
-                    className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-xl shadow-lg shadow-cyan-500/20 hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+                    className="px-16 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-2xl text-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center gap-3"
                   >
-                    Start Quiz 🚀
+                    <span>START GAME</span>
+                    <span className="text-2xl">🚀</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Question View */}
+            {/* QUESTION VIEW */}
             {quizStarted && currentQuestion && (
-              <div className="bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl p-8 relative overflow-hidden">
-                {/* Progress Bar */}
-                <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-purple-500 to-cyan-500 transition-all duration-1000"
-                  style={{ width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%` }}></div>
+              <div className="flex-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-6 md:p-8 flex flex-col relative overflow-hidden">
+                {/* Timer Bar */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100">
+                  <motion.div
+                    initial={{ width: "100%" }}
+                    animate={{ width: "0%" }}
+                    transition={{ duration: questionDuration, ease: "linear" }}
+                    key={currentQuestionIndex + gameStatus}
+                    className="h-full bg-indigo-500"
+                  />
+                </div>
 
-                <div className="flex justify-between items-center mb-6">
-                  <span className="bg-white/10 px-3 py-1 rounded-full text-sm font-bold">
+                <div className="flex justify-between items-center mb-6 mt-2">
+                  <span className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wider border border-slate-200">
                     Question {currentQuestionIndex + 1} / {totalQuestions}
                   </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={toggleSpeech}
-                      className={`p-2 rounded-full ${speechEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-gray-400'}`}
-                    >
-                      {speechEnabled ? '🔊' : '🔇'}
-                    </button>
-                    <QuizTimer time={timeRemaining} totalTime={currentQuestion.timeLimit} isActive={gameStatus === 'question'} />
+                  <QuizTimer time={timeRemaining} totalTime={questionDuration} isActive={gameStatus === 'question'} size="sm" />
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center min-h-0">
+                  <div className="flex-1 flex items-center justify-center mb-8">
+                    <h2 className="text-2xl md:text-4xl font-bold text-center text-slate-800 leading-snug">
+                      {currentQuestion.question}
+                    </h2>
+                  </div>
+
+                  {/* Options - Interactivity ENABLED for Host (per user request) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+                    {currentQuestion.options?.map((opt, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleOptionClick(i)}
+                        disabled={gameStatus !== 'question' || selectedOption !== null}
+                        className={`p-5 rounded-xl border-2 transition-all flex items-center gap-4 text-left group relative
+                                   ${gameStatus === 'answer' && opt.isCorrect
+                            ? 'border-green-500 bg-green-50 shadow-md ring-1 ring-green-200'
+                            : gameStatus === 'answer' && !opt.isCorrect
+                              ? 'border-slate-100 bg-slate-50 opacity-50'
+                              : selectedOption === i
+                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg transform scale-[1.02]'
+                                : 'border-slate-200 bg-white shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md cursor-pointer'}
+                                `}
+                      >
+                        <div className={`w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-xl shadow-sm transition-colors
+                                      ${gameStatus === 'answer' && opt.isCorrect
+                            ? 'bg-green-500 text-white'
+                            : selectedOption === i
+                              ? 'bg-white/20 text-white'
+                              : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
+                                   `}>
+                          {['A', 'B', 'C', 'D'][i]}
+                        </div>
+                        <span className={`text-lg font-medium transition-colors ${gameStatus === 'answer' && opt.isCorrect ? 'text-green-800' :
+                            selectedOption === i ? 'text-white' : 'text-slate-700'
+                          }`}>
+                          {typeof opt === 'string' ? opt : opt.text}
+                        </span>
+
+                        {/* Status Icons */}
+                        {gameStatus === 'answer' && opt.isCorrect && (
+                          <div className="ml-auto text-green-600">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                          </div>
+                        )}
+                        {selectedOption === i && gameStatus === 'question' && (
+                          <div className="ml-auto text-white/80 animate-pulse">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-tight">
-                  {currentQuestion.question}
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {currentQuestion.options?.map((opt, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-xl border-2 transition-all opacity-90
-                                        ${gameStatus === 'answer' && opt.isCorrect ? 'border-green-500 bg-green-500/20' :
-                          gameStatus === 'answer' && !opt.isCorrect ? 'border-white/5 bg-white/5 opacity-50' :
-                            'border-white/10 bg-white/5'}
-                                    `}
+                <AnimatePresence>
+                  {gameStatus === 'answer' && (
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 20, opacity: 0 }}
+                      className="absolute bottom-6 left-1/2 -translate-x-1/2 w-3/4 md:w-1/2 bg-white/95 backdrop-blur shadow-2xl p-6 rounded-2xl border border-indigo-100 text-center z-20"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold
-                                            ${gameStatus === 'answer' && opt.isCorrect ? 'bg-green-500 text-black' : 'bg-white/10'}
-                                        `}>
-                          {String.fromCharCode(65 + idx)}
-                        </div>
-                        <span className="font-medium text-lg">{opt.text}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      <p className="text-indigo-600 font-extrabold mb-1 uppercase tracking-widest text-xs">Explanation</p>
+                      <p className="text-slate-800 font-medium text-lg leading-relaxed">{currentQuestion.explanation || "Great work!"}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
-                {gameStatus === 'answer' && (
-                  <div className="mt-8 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                    <h4 className="text-green-400 font-bold mb-1">Answer & Explanation</h4>
-                    <p className="text-gray-300">{currentQuestion.explanation || "Correct answer: " + currentQuestion.correctAnswer}</p>
+          </div>
+
+          {/* CONTROLS & CHAT SIDEBAR */}
+          <div className="flex flex-col gap-6 min-h-0 h-full">
+
+            {/* Leaderboard Mini */}
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-5 flex-[2] min-h-0 flex flex-col">
+              <h3 className="font-bold text-lg flex items-center gap-2 mb-4 text-slate-800 pb-2 border-b border-slate-100">
+                <span>🏆 Leaderboard</span>
+              </h3>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                {leaderboard.length > 0 ? (
+                  leaderboard.map((entry, idx) => (
+                    <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border ${idx === 0
+                        ? 'bg-yellow-50 border-yellow-200 text-yellow-900 shadow-sm'
+                        : idx === 1
+                          ? 'bg-slate-50 border-slate-200 text-slate-700'
+                          : idx === 2
+                            ? 'bg-orange-50 border-orange-200 text-orange-800'
+                            : 'bg-white border-transparent text-slate-500'
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${idx === 0 ? 'bg-yellow-500 text-white' :
+                            idx === 1 ? 'bg-slate-400 text-white' :
+                              idx === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-bold truncate max-w-[120px]">{entry.username}</span>
+                      </div>
+                      <span className="font-mono font-bold text-indigo-600">{entry.score} pts</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-sm">
+                    <p>Scores will appear here</p>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Right Column: Stats & Controls */}
-          <div className="space-y-6">
+            {/* Controls */}
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-5 shrink-0">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Host Controls</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {gameStatus === 'question' && (
+                  <button onClick={handleNextForce} className="col-span-2 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors border border-indigo-200 flex items-center justify-center gap-2">
+                    SKIP TO ANSWER ⏩
+                  </button>
+                )}
 
-            {/* Chat Panel */}
-            <div className="bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden flex flex-col h-[400px]">
-              <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  💬 Live Chat
-                </h3>
-                <button
-                  onClick={() => {
-                    const newState = !chatEnabled;
-                    setChatEnabled(newState);
-                    socketService.toggleChat(roomCode, newState);
-                    toast.success(`Chat ${newState ? 'enabled' : 'disabled'}`);
-                  }}
-                  className={`text-xs px-2 py-1 rounded border ${chatEnabled ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-red-500/20 text-red-400 border-red-500/50'}`}
-                >
-                  {chatEnabled ? 'ON' : 'OFF'}
+                <button onClick={() => setChatEnabled(!chatEnabled)} className={`py-3 rounded-xl font-bold transition-colors border flex flex-col items-center justify-center ${chatEnabled
+                    ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                    : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
+                  }`}>
+                  <span className="text-xs font-normal opacity-70">CHAT</span>
+                  {chatEnabled ? 'ENABLED' : 'DISABLED'}
+                </button>
+
+                <button onClick={handleEndQuiz} className="py-3 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl font-bold transition-colors flex flex-col items-center justify-center">
+                  <span className="text-xs font-normal opacity-70">SESSION</span>
+                  END GAME
                 </button>
               </div>
-              <div className="flex-1 overflow-hidden">
+            </div>
+
+            {/* CHAT COMPONENT */}
+            <div className={`bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden flex flex-col flex-1 min-h-[200px] transition-all duration-300 ${chatEnabled ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'}`}>
+              <div className="bg-slate-50 p-3 border-b border-slate-100 font-bold text-slate-700 text-sm flex items-center gap-2">
+                <span>💬 Live Chat</span>
+                {!chatEnabled && <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded">PAUSED</span>}
+              </div>
+              <div className="flex-1 overflow-hidden relative">
                 <Chat
                   messages={chatMessages}
                   onSendMessage={handleSendMessage}
+                  disabled={!chatEnabled}
                   currentUser={user}
                 />
               </div>
             </div>
 
-            {/* Control Panel */}
-            <div className="bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl p-6">
-              <h3 className="text-lg font-bold mb-4">Host Controls</h3>
-              <div className="space-y-3">
-                {gameStatus === 'question' && (
-                  <button
-                    onClick={handleNextForce}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold transition-colors"
-                  >
-                    Skip Timer ⏩
-                  </button>
-                )}
-                <button
-                  onClick={handleEndQuiz}
-                  className="w-full py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/50 rounded-xl font-bold transition-colors"
-                >
-                  End Session 🛑
-                </button>
-              </div>
-            </div>
-
-            {/* Leaderboard */}
-            <div className="bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex-1 max-h-[500px] flex flex-col">
-              <h3 className="text-lg font-bold mb-4 flex items-center justify-between">
-                <span>🏆 Leaderboard</span>
-                <span className="text-xs text-gray-400 bg-white/5 px-2 py-1 rounded">Live</span>
-              </h3>
-
-              <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                {leaderboard.length > 0 ? (
-                  leaderboard.map((entry, idx) => (
-                    <div key={entry.userId} className={`flex items-center justify-between p-3 rounded-xl ${idx === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' : 'bg-white/5'}`}>
-                      <div className="flex items-center gap-3">
-                        <span className={`font-bold w-6 text-center ${idx === 0 ? 'text-yellow-400' : 'text-gray-400'}`}>#{idx + 1}</span>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm">{entry.username}</span>
-                          <span className="text-xs text-gray-500">{entry.correctAnswers || 0} correct</span>
-                        </div>
-                      </div>
-                      <span className="font-mono font-bold text-cyan-400">{entry.score}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No scores yet
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
+
         </div>
       </div>
     </div>
