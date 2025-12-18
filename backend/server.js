@@ -1729,7 +1729,9 @@ io.use(async (socket, next) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).select("_id username email avatar role displayName");
+    // JWT payload has structure: { user: { id, role } }
+    const userId = decoded.user?.id || decoded.id; // Support both formats
+    const user = await User.findById(userId).select("_id username email avatar role displayName");
 
     if (!user) {
       return next(new Error("User not found"));
