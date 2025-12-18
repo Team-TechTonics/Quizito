@@ -97,8 +97,17 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 }
             );
 
-            // OpenRouter response structure is standard OpenAI format
-            const content = response.data.choices[0].message.content;
+            console.log('[QuizGenerationService] Raw API response:', JSON.stringify(response.data));
+
+            // Safe access with null checks
+            const content = response.data?.choices?.[0]?.message?.content;
+
+            if (!content) {
+                console.error('[QuizGenerationService] Empty or invalid response structure:', response.data);
+                throw new Error('Empty AI response - no content returned');
+            }
+
+            console.log('[QuizGenerationService] Content received, length:', content.length);
 
             // Clean the response - find JSON array
             const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -106,6 +115,7 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
 
             // Validate it looks like JSON
             if (!cleanedContent.trim().startsWith('[')) {
+                console.error('[QuizGenerationService] Response is not a JSON array:', cleanedContent.substring(0, 200));
                 throw new Error('Response does not contain a valid JSON array');
             }
 
@@ -116,6 +126,11 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 throw new Error('API response is not an array');
             }
 
+            if (questions.length === 0) {
+                throw new Error('API returned empty questions array');
+            }
+
+            console.log('[QuizGenerationService] Successfully parsed', questions.length, 'questions');
             return questions;
         } catch (error) {
             console.error('[QuizGenerationService] API call error:', {

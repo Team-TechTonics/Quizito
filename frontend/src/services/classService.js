@@ -7,7 +7,7 @@ export const classService = {
      */
     async getClasses() {
         try {
-            const response = await api.get('/classes');
+            const response = await api.get('/api/classes');
             return response.data.classes || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -19,7 +19,7 @@ export const classService = {
      */
     async getClass(classId) {
         try {
-            const response = await api.get(`/classes/${classId}`);
+            const response = await api.get(`/api/classes/${classId}`);
             return response.data.class || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -31,7 +31,7 @@ export const classService = {
      */
     async createClass(classData) {
         try {
-            const response = await api.post('/classes', classData);
+            const response = await api.post('/api/classes', classData);
             return response.data.class || response.data;
         } catch (error) {
             throw error.response?.data || error;
@@ -129,7 +129,7 @@ export const classService = {
      */
     async getStudentAssignments() {
         try {
-            const response = await api.get('/classes/student/assignments');
+            const response = await api.get('/api/classes/student/assignments');
             return response.data.assignments || response.data;
         } catch (error) {
             console.warn("Failed to fetch student assignments", error);

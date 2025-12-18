@@ -18,11 +18,17 @@ router.use(aiLimiter);
  * @access  Private
  */
 router.post('/generate', async (req, res) => {
+    console.log('[AI Route] ==> POST /generate HIT');
+    console.log('[AI Route] Request body:', JSON.stringify(req.body));
+
     try {
         const { type, content, options = {} } = req.body;
         const { numQuestions = 10, difficulty = 'medium' } = options;
 
+        console.log('[AI Route] Parsed params:', { type, content: content?.substring(0, 50), numQuestions, difficulty });
+
         if (!content) {
+            console.log('[AI Route] ERROR: No content provided');
             return res.status(400).json({
                 success: false,
                 message: 'Content is required'
@@ -56,7 +62,9 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
   }
 ]`;
 
+            console.log('[AI Route] Calling DeepSeek API...');
             questions = await quizGenerationService.callDeepSeekAPI(prompt);
+            console.log('[AI Route] API call successful, got', questions.length, 'questions');
         } else if (type === 'text') {
             console.log(`[AI Route] Generating quiz from text (length: ${content.length})`);
             questions = await quizGenerationService.generateFromText(content, {
@@ -64,12 +72,14 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 difficulty
             });
         } else {
+            console.log('[AI Route] ERROR: Invalid type:', type);
             return res.status(400).json({
                 success: false,
                 message: 'Invalid generation type. Must be "topic" or "text"'
             });
         }
 
+        console.log('[AI Route] Formatting questions...');
         // Validate and format response
         const formattedQuestions = questions.map((q, index) => {
             const options = Array.isArray(q.options) ? q.options : [];
@@ -93,6 +103,7 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
             };
         });
 
+        console.log('[AI Route] Sending response with', formattedQuestions.length, 'formatted questions');
         res.json({
             success: true,
             quiz: {
@@ -105,7 +116,8 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
         });
 
     } catch (error) {
-        console.error('[AI Route] Error:', error);
+        console.error('[AI Route] EXCEPTION:', error);
+        console.error('[AI Route] Stack:', error.stack);
         res.status(500).json({
             success: false,
             message: error.message || 'Failed to generate quiz',
