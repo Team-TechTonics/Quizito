@@ -1,6 +1,6 @@
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
 
 import {
   Trophy,
@@ -44,7 +44,7 @@ const Leaderboard = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('quizito_token');
-        
+
         // Try to fetch from the leaderboard endpoint
         const response = await fetch(
           `http://localhost:10000/api/leaderboard?timeFilter=${timeFilter}`,
@@ -60,7 +60,7 @@ const Leaderboard = () => {
         }
 
         const data = await response.json();
-        
+
         // Transform backend data to match UI format
         const formattedData = (data.leaderboard || []).map((user, index) => ({
           id: user._id || index,
@@ -75,7 +75,7 @@ const Leaderboard = () => {
         }));
 
         setLeaderboardData(formattedData);
-        
+
         // Update stats
         if (data.stats) {
           setStats({
@@ -140,17 +140,16 @@ const Leaderboard = () => {
                 <button
                   key={filter}
                   onClick={() => setTimeFilter(filter)}
-                  className={`px-4 py-2 rounded-xl font-medium transition-all ${
-                    filter === timeFilter
+                  className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === timeFilter
                       ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
+                    }`}
                 >
                   {filter}
                 </button>
               ))}
             </div>
-            
+
             <div className="flex space-x-3">
               <button className="px-4 py-2 bg-gray-700 text-gray-300 rounded-xl hover:bg-gray-600 flex items-center transition-all">
                 <Filter className="mr-2" size={18} />
@@ -236,28 +235,24 @@ const Leaderboard = () => {
                       initial={{ y: 50 }}
                       animate={{ y: 0 }}
                       transition={{ delay: index * 0.1, type: 'spring' }}
-                      className={`relative ${
-                        player.rank === 1 
-                          ? 'order-2 -mt-8' 
-                          : player.rank === 2 
-                            ? 'order-1' 
+                      className={`relative ${player.rank === 1
+                          ? 'order-2 -mt-8'
+                          : player.rank === 2
+                            ? 'order-1'
                             : 'order-3'
-                      }`}
+                        }`}
                     >
-                      <div className={`bg-gradient-to-b ${
-                        player.rank === 1 ? 'from-yellow-500/20 to-yellow-600/20' :
-                        player.rank === 2 ? 'from-gray-400/20 to-gray-600/20' :
-                        'from-amber-700/20 to-amber-900/20'
-                      } rounded-2xl p-6 text-center border ${
-                        player.rank === 1 ? 'border-yellow-500/50' : 'border-gray-600'
-                      }`}>
+                      <div className={`bg-gradient-to-b ${player.rank === 1 ? 'from-yellow-500/20 to-yellow-600/20' :
+                          player.rank === 2 ? 'from-gray-400/20 to-gray-600/20' :
+                            'from-amber-700/20 to-amber-900/20'
+                        } rounded-2xl p-6 text-center border ${player.rank === 1 ? 'border-yellow-500/50' : 'border-gray-600'
+                        }`}>
                         {/* Rank Badge */}
                         <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                            player.rank === 1 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                            player.rank === 2 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
-                            'bg-gradient-to-r from-amber-700 to-amber-900'
-                          }`}>
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${player.rank === 1 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                              player.rank === 2 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
+                                'bg-gradient-to-r from-amber-700 to-amber-900'
+                            }`}>
                             {player.rank === 1 ? (
                               <Crown className="text-white" size={24} />
                             ) : (
@@ -303,22 +298,19 @@ const Leaderboard = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: (index + 3) * 0.05 }}
-                    className={`flex items-center p-6 border-b border-gray-700/50 last:border-b-0 ${
-                      player.isCurrentUser
+                    className={`flex items-center p-6 border-b border-gray-700/50 last:border-b-0 ${player.isCurrentUser
                         ? 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10'
                         : 'hover:bg-gray-700/30'
-                    } transition-all`}
+                      } transition-all`}
                   >
                     {/* Rank */}
                     <div className="w-12 text-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto ${
-                        player.rank <= 10
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto ${player.rank <= 10
                           ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30'
                           : 'bg-gray-700'
-                      }`}>
-                        <span className={`font-bold ${
-                          player.rank <= 10 ? 'text-indigo-300' : 'text-gray-400'
                         }`}>
+                        <span className={`font-bold ${player.rank <= 10 ? 'text-indigo-300' : 'text-gray-400'
+                          }`}>
                           {player.rank}
                         </span>
                       </div>
@@ -326,11 +318,10 @@ const Leaderboard = () => {
 
                     {/* Avatar & Name */}
                     <div className="flex items-center space-x-4 flex-1">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        player.isCurrentUser
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${player.isCurrentUser
                           ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
                           : 'bg-gray-700'
-                      }`}>
+                        }`}>
                         <span className={`font-bold ${player.isCurrentUser ? 'text-white' : 'text-gray-300'}`}>
                           {player.avatar}
                         </span>
