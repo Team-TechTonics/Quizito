@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const ResponseFeedback = ({ isCorrect, points, streak, explanation }) => {
+const ResponseFeedback = ({ isCorrect, points, streak }) => {
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -18,20 +18,20 @@ const ResponseFeedback = ({ isCorrect, points, streak, explanation }) => {
             </motion.div>
 
             <h1 className="text-6xl md:text-7xl font-extrabold mb-4 tracking-tight drop-shadow-md">
-                {isCorrect ? 'Awesome!' : 'Oops!'}
+                {isCorrect ? 'Correct!' : 'Wrong!'}
             </h1>
 
-            {isCorrect && points > 0 && (
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-white/20 backdrop-blur-md px-8 py-3 rounded-full border border-white/30 shadow-xl"
-                >
-                    <span className="text-4xl font-bold">+{points} pts</span>
-                </motion.div>
-            )}
+            {/* Always show points */}
+            <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white/20 backdrop-blur-md px-8 py-3 rounded-full border border-white/30 shadow-xl"
+            >
+                <span className="text-4xl font-bold">{isCorrect ? `+${points}` : '0'} pts</span>
+            </motion.div>
 
+            {/* Streak indicator */}
             {streak > 1 && isCorrect && (
                 <motion.div
                     initial={{ scale: 0 }}
@@ -41,24 +41,6 @@ const ResponseFeedback = ({ isCorrect, points, streak, explanation }) => {
                 >
                     <span className="text-5xl mb-1">🔥</span>
                     <span className="text-xl font-bold uppercase tracking-widest text-orange-200">Streak {streak}</span>
-                </motion.div>
-            )}
-
-            {!isCorrect && (
-                <p className="text-2xl opacity-80 font-medium mt-4">Better luck next time!</p>
-            )}
-
-            {explanation && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="mt-8 bg-black/20 p-6 rounded-2xl max-w-2xl backdrop-blur-sm border border-white/10"
-                >
-                    <p className="text-sm uppercase tracking-widest font-bold opacity-70 mb-2">Explanation</p>
-                    <p className="text-lg md:text-xl font-medium leading-relaxed">
-                        {explanation}
-                    </p>
                 </motion.div>
             )}
         </motion.div>

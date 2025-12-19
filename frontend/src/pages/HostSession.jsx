@@ -192,8 +192,8 @@ const HostSession = () => {
           setGameStatus('finished');
           setLeaderboard(data.finalResults?.leaderboard || []);
           localStorage.setItem('quizResults', JSON.stringify(data.finalResults));
-          // Redirect Host to Dashboard (as requested)
-          setTimeout(() => navigate('/dashboard'), 5000);
+          // Redirect Host to Results page to see full leaderboard and analytics
+          setTimeout(() => navigate(`/results/${data.finalResults?.sessionId}`), 5000);
         };
 
         const handleLeaderboardUpdate = (data) => {
@@ -353,7 +353,16 @@ const HostSession = () => {
   };
 
   const handleEndQuiz = () => {
-    socketService.endSession(roomCode);
+    socketService.endSession(roomCode, (response) => {
+      if (response?.success) {
+        toast.success('Session ended');
+        // Redirect host to results page to see analytics
+        // Use the current session's room code or session ID
+        setTimeout(() => navigate(`/results/${roomCode}`), 1000);
+      } else {
+        toast.error(response?.message || 'Failed to end session');
+      }
+    });
   };
 
   const handleNextForce = () => {
