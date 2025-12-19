@@ -255,8 +255,13 @@ const PlayQuiz = () => {
 
 
   const handleSendMessage = (text) => {
-    socketService.sendChatMessage(roomCode, text);
+    socketService.sendChatMessage({
+      roomCode: roomCode,
+      message: text,
+      sender: user?.username || localStorage.getItem('username') || 'Guest'
+    });
   };
+
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 relative overflow-hidden bg-[url('/bg-pattern.svg')]">

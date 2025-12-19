@@ -524,23 +524,41 @@ const CreateQuiz = () => {
 
               {/* Floating Icons Animation */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                {[...Array(6)].map((_, i) => (
+                {[
+                  { icon: "📚", startX: 10, endX: 80, startY: -10, endY: 110, duration: 12, delay: 0 },
+                  { icon: "🎓", startX: 90, endX: 20, startY: 110, endY: -10, duration: 14, delay: 2 },
+                  { icon: "✨", startX: 30, endX: 70, startY: -10, endY: 110, duration: 11, delay: 1 },
+                  { icon: "🧠", startX: 70, endX: 15, startY: 110, endY: -10, duration: 13, delay: 3 },
+                  { icon: "💡", startX: 50, endX: 85, startY: -10, endY: 110, duration: 15, delay: 1.5 },
+                  { icon: "🚀", startX: 85, endX: 30, startY: 110, endY: -10, duration: 12, delay: 4 },
+                  { icon: "📖", startX: 20, endX: 60, startY: -10, endY: 110, duration: 14, delay: 2.5 },
+                  { icon: "⭐", startX: 60, endX: 10, startY: 110, endY: -10, duration: 13, delay: 3.5 }
+                ].map((item, i) => (
                   <motion.div
                     key={i}
-                    initial={{ y: "100%", x: `${i * 20}%`, opacity: 0 }}
+                    initial={{
+                      x: `${item.startX}%`,
+                      y: `${item.startY}%`,
+                      opacity: 0,
+                      rotate: 0,
+                      scale: 0.8
+                    }}
                     animate={{
-                      y: "-100%",
-                      opacity: [0, 1, 1, 0],
+                      x: `${item.endX}%`,
+                      y: `${item.endY}%`,
+                      opacity: [0, 0.7, 0.7, 0],
+                      rotate: 360,
+                      scale: [0.8, 1.2, 0.8]
                     }}
                     transition={{
-                      duration: 8 + i,
+                      duration: item.duration,
                       repeat: Infinity,
-                      delay: i * 0.5,
-                      ease: "linear"
+                      delay: item.delay,
+                      ease: "easeInOut"
                     }}
                     className="absolute text-4xl"
                   >
-                    {["📚", "🎓", "✨", "🧠", "💡", "🚀"][i]}
+                    {item.icon}
                   </motion.div>
                 ))}
               </div>
