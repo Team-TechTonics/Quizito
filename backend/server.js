@@ -2305,6 +2305,12 @@ io.on("connection", (socket) => {
         hintUsed: false, // Implement hint system
       }, userPerformance) : 0;
 
+      // Apply multiplier (Powerup)
+      if (points > 0 && participant.multiplier > 1) {
+        points = Math.floor(points * participant.multiplier);
+        participant.multiplier = 1; // Consume
+      }
+
       // Update participant
       participant.answers.push({
         questionIndex,
