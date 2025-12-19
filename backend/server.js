@@ -2609,6 +2609,7 @@ io.on("connection", (socket) => {
       // Calculate distribution
       const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
       session.participants.forEach(p => {
+        if (!p.answers) return; // Safety check
         const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
         if (lastAns && lastAns.selectedIndex >= 0) {
           distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
@@ -3058,51 +3059,57 @@ const startQuestionTimer = async (roomCode, session) => {
   let timeRemaining = questionTime;
 
   const timerInterval = setInterval(async () => {
-    timeRemaining--;
+    try {
+      timeRemaining--;
 
-    // Update session state
-    session.currentState.timeRemaining = timeRemaining;
+      // Update session state
+      session.currentState.timeRemaining = timeRemaining;
 
-    // Broadcast to room
-    io.to(roomCode).emit("timer-update", { timeRemaining });
+      // Broadcast to room
+      io.to(roomCode).emit("timer-update", { timeRemaining });
 
-    if (timeRemaining <= 0) {
+      if (timeRemaining <= 0) {
+        clearInterval(timerInterval);
+
+        // Time's up - process unanswered questions
+        session.currentState.phase = "answer";
+        await session.save();
+
+        // Get current question
+        const quiz = await Quiz.findById(session.quizId);
+        const question = quiz.questions[session.currentState.questionIndex];
+        const correctOption = question.options?.find(opt => opt.isCorrect);
+
+        // Gather stats for distribution
+        const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
+        session.participants.forEach(p => {
+          if (!p.answers) return; // Safety check
+          const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
+          if (lastAns && lastAns.selectedIndex >= 0) {
+            distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
+          }
+        });
+
+        io.to(roomCode).emit("question-completed", {
+          questionIndex: session.currentState.questionIndex,
+          correctAnswer: correctOption?.text || question.correctAnswer,
+          explanation: question.explanation,
+          stats: {
+            totalAnswers: session.currentState.answersReceived,
+            correctAnswers: session.currentState.correctAnswers,
+            accuracy: session.currentState.answersReceived > 0 ? (session.currentState.correctAnswers / session.currentState.answersReceived) * 100 : 0,
+            distribution
+          }
+        });
+
+        // Move to next question after delay
+        setTimeout(() => {
+          nextQuestion(roomCode, session);
+        }, 5000);
+      }
+    } catch (error) {
+      console.error("Timer interval error:", error);
       clearInterval(timerInterval);
-
-      // Time's up - process unanswered questions
-      session.currentState.phase = "answer";
-      await session.save();
-
-      // Get current question
-      const quiz = await Quiz.findById(session.quizId);
-      const question = quiz.questions[session.currentState.questionIndex];
-      const correctOption = question.options?.find(opt => opt.isCorrect);
-
-      // Gather stats for distribution
-      const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
-      session.participants.forEach(p => {
-        const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
-        if (lastAns && lastAns.selectedIndex >= 0) {
-          distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
-        }
-      });
-
-      io.to(roomCode).emit("question-completed", { // Renamed from question-time-up to question-completed to unify logic
-        questionIndex: session.currentState.questionIndex,
-        correctAnswer: correctOption?.text || question.correctAnswer,
-        explanation: question.explanation,
-        stats: {
-          totalAnswers: session.currentState.answersReceived,
-          correctAnswers: session.currentState.correctAnswers,
-          accuracy: session.currentState.answersReceived > 0 ? (session.currentState.correctAnswers / session.currentState.answersReceived) * 100 : 0,
-          distribution
-        }
-      });
-
-      // Move to next question after delay
-      setTimeout(() => {
-        nextQuestion(roomCode, session);
-      }, 5000);
     }
   }, 1000);
 
