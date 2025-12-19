@@ -86,7 +86,32 @@ const Results = () => {
         }
       }
 
-      // 3. If no data, show empty state
+      // 3. If no data, try API fetch
+      if (!resultsData && sessionId) {
+        try {
+          const token = localStorage.getItem('quizito_token');
+          const API_URL = import.meta.env.VITE_API_URL || 'https://quizito-backend.onrender.com'; // Fallback to likely prod URL
+
+          const res = await fetch(`${API_URL}/api/analytics/results/${sessionId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success) {
+              resultsData = data.result;
+              console.log('Loaded results from API:', resultsData);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch from API:', err);
+        }
+      }
+
+      // 4. If still no data, show empty state
       if (!resultsData) {
         console.warn('No results data found');
         setLoading(false);

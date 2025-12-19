@@ -88,4 +88,41 @@ router.get('/user/:userId', authenticate, async (req, res) => {
     }
 });
 
+/**
+ * @route   GET /api/analytics/results/:sessionId
+ * @desc    Get results for specific session
+ * @access  Private
+ */
+router.get('/results/:sessionId', authenticate, async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const userId = req.user.id;
+
+        const QuizResult = require('../models/QuizResult');
+        const Session = require('../models/Session');
+
+        const [userResult, session] = await Promise.all([
+            QuizResult.findOne({ sessionId, userId }),
+            Session.findById(sessionId).lean()
+        ]);
+
+        if (!userResult && !session) {
+            return res.status(404).json({ success: false, message: "Results not found" });
+        }
+
+        // Merge data
+        const result = {
+            ...userResult?.toObject(),
+            leaderboard: session?.leaderboard || [],
+            sessionId,
+            quizId: session?.quizId
+        };
+
+        res.json({ success: true, result });
+    } catch (error) {
+        console.error('[Analytics] Session results error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;
