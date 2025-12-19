@@ -176,7 +176,10 @@ const PlayQuiz = () => {
       setLeaderboard(data.leaderboard || []);
     };
 
-    socketService.onCountdown((count) => setCountdown(count > 0 ? count : null));
+    socketService.onCountdown((data) => {
+      const count = typeof data === 'object' ? data.countdown : data;
+      setCountdown(count > 0 ? count : null);
+    });
     socketService.onQuizStarted((data) => {
       setCountdown(null);
       handleQuizStarted(data);

@@ -2136,8 +2136,8 @@ io.on("connection", (socket) => {
             // Start question timer
             startQuestionTimer(roomCode, session);
           });
+          return;
         }
-
         countdown--;
       }, 1000);
 
@@ -2526,7 +2526,8 @@ io.on("connection", (socket) => {
   });
 
   // START QUIZ
-  socket.on("start-quiz", async (data, callback) => {
+  // Renamed to avoid currency - LEGACY
+  socket.on("start-quiz-legacy", async (data, callback) => {
     try {
       const { roomCode } = data;
       const session = await Session.findOne({ roomCode }).populate("quizId");
