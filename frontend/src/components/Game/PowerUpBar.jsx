@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 
 const PowerUpBar = ({ powerUps, onUse, disabled }) => {
     const items = [
-        { id: '50-50', label: '50/50', icon: '✂️', key: 'fiftyFifty' },
-        { id: 'time-freeze', label: 'Freeze', icon: '❄️', key: 'timeFreeze' },
-        { id: 'double-points', label: '2x', icon: '⚡', key: 'doublePoints' }
+        { id: '50-50', label: '50/50', icon: '✂️', key: 'fiftyFifty', tooltip: 'Remove 2 wrong answers' },
+        { id: 'time-freeze', label: 'Freeze', icon: '❄️', key: 'timeFreeze', tooltip: 'Stop timer for 10s' },
+        { id: 'double-points', label: '2x', icon: '⚡', key: 'doublePoints', tooltip: 'Double points for this question' }
     ];
 
     return (
@@ -19,6 +19,7 @@ const PowerUpBar = ({ powerUps, onUse, disabled }) => {
                         whileTap={{ scale: 0.95 }}
                         onClick={() => onUse(item.id)}
                         disabled={disabled || count <= 0}
+                        title={item.tooltip}
                         className={`
               relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl
               ${count > 0 && !disabled

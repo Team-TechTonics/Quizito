@@ -157,8 +157,8 @@ class SocketService {
     }
 
     submitAnswer(data, callback) {
-  this.socket?.emit('submit-answer', data, callback || (() => {}));
-}
+        this.socket?.emit('submit-answer', data, callback || (() => { }));
+    }
 
     kickPlayer(roomCode, userId, callback) {
         this.socket?.emit('kick-player', { roomCode, userId }, callback);
@@ -348,6 +348,14 @@ class SocketService {
 
     sendChatMessage(data) {
         this.socket?.emit('chat-message', data);
+    }
+
+    sendReaction(roomCode, reaction) {
+        this.socket?.emit('send-reaction', { roomCode, reaction });
+    }
+
+    onReaction(callback) {
+        this.socket?.on('reaction-received', callback);
     }
 
 }

@@ -55,16 +55,19 @@ const PlayQuiz = () => {
       if (data.userId !== user?._id) {
         toast(data.reaction, {
           icon: data.username,
-          position: 'bottom-left',
-          style: { borderRadius: '20px', background: 'rgba(255,255,255,0.9)' }
+          position: 'bottom-right',
+          style: { borderRadius: '20px', background: 'rgba(255,255,255,0.9)', fontSize: '24px' },
+          duration: 2000
         });
       }
     };
     socketService.onChatMessage(onChat);
-    socketService.on('user-reaction', onReaction);
+    socketService.onReaction(onReaction);
+
     return () => {
-      socketService.off('user-reaction', onReaction);
-      // socketService.offChatMessage? (If exists, else ignore)
+      // Cleanup handled by socketService.removeAllListeners() or specific off
+      socketService.socket?.off('reaction-received');
+      socketService.socket?.off('chat-message');
     };
   }, [isChatOpen, user]);
 
@@ -194,12 +197,7 @@ const PlayQuiz = () => {
     };
   }, [roomCode, user, navigate]);
 
-  // Handle sending reactions
-  const sendReaction = (emoji) => {
-    socketService.emit('send-reaction', { roomCode, reaction: emoji });
-    // Show local feedback
-    toast(emoji, { position: 'bottom-center', duration: 1000 });
-  };
+
 
   const handleOptionSelect = (index) => {
     if (gameState !== 'question' || selectedOption !== null) return;
@@ -207,8 +205,8 @@ const PlayQuiz = () => {
     const timeTaken = Math.max(0, 30 - timeRemaining);
     socketService.submitAnswer({
       roomCode,
-      questionId: currentQuestion._id,
-      selectedOption: index,
+      questionIndex: currentQuestionIndex, // Send index for backend lookup
+      answer: index, // Backend now accepts index (number)
       timeTaken
     });
   };
@@ -260,6 +258,25 @@ const PlayQuiz = () => {
       message: text,
       sender: user?.username || localStorage.getItem('username') || 'Guest'
     });
+  };
+
+  const sendReaction = (emoji) => {
+    socketService.sendReaction(roomCode, emoji);
+    // Show local feedback immediately
+    toast(emoji, {
+      position: 'bottom-right',
+      style: { borderRadius: '50px', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', color: 'white' },
+      duration: 1000
+    });
+  };
+
+  const speakQuestion = () => {
+    if (!currentQuestion) return;
+    window.speechSynthesis.cancel(); // Stop any previous speech
+    const text = `${currentQuestion.question}. ${currentQuestion.options.map((opt, i) => `Option ${i + 1}: ${typeof opt === 'string' ? opt : opt.text}`).join('. ')}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
   };
 
 
@@ -356,9 +373,18 @@ const PlayQuiz = () => {
                   </div>
 
                   <div className="p-6 md:p-8">
-                    <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-tight">
-                      {currentQuestion?.question || currentQuestion?.text}
-                    </h2>
+                    <div className="flex justify-between items-start mb-8">
+                      <h2 className="text-2xl md:text-3xl font-bold leading-tight flex-1">
+                        {currentQuestion?.question || currentQuestion?.text}
+                      </h2>
+                      <button
+                        onClick={speakQuestion}
+                        className="ml-4 p-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-full transition-all"
+                        title="Read Question"
+                      >
+                        🗣️
+                      </button>
+                    </div>
 
                     <div className="grid grid-cols-1 gap-4">
                       {currentQuestion?.options?.map((opt, idx) => {

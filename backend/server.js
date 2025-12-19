@@ -2274,8 +2274,18 @@ io.on("connection", (socket) => {
 
       if (question.type === "multiple-choice") {
         const correctOption = question.options.find(opt => opt.isCorrect);
-        isCorrect = correctOption && answer === correctOption.text;
-        correctAnswer = correctOption?.text || "";
+
+        // Handle both index (number) and text (string) answers
+        if (typeof answer === 'number') {
+          // If answer is an index, check if that option index is marked correct
+          const selectedOption = question.options[answer];
+          isCorrect = selectedOption && selectedOption.isCorrect === true;
+        } else {
+          // If answer is text, compare with correct option text
+          isCorrect = correctOption && answer === correctOption.text;
+        }
+
+        correctAnswer = correctOption?.text || "";  // Always return text for display
       } else if (question.type === "true-false") {
         isCorrect = answer === question.correctAnswer;
         correctAnswer = question.correctAnswer;
@@ -2404,11 +2414,17 @@ io.on("connection", (socket) => {
 
       const session = await Session.findOne({ roomCode });
       if (!session) {
-        return callback({ success: false, message: "Session not found" });
+        if (typeof callback === 'function') {
+          return callback({ success: false, message: "Session not found" });
+        }
+        return;
       }
 
       if (!session.chatEnabled) {
-        return callback({ success: false, message: "Chat is disabled" });
+        if (typeof callback === 'function') {
+          return callback({ success: false, message: "Chat is disabled" });
+        }
+        return;
       }
 
       // Add message to session
@@ -2836,7 +2852,9 @@ io.on("connection", (socket) => {
       const key = typeMap[powerupType];
       if (!key) return callback({ success: false, message: "Invalid powerup type" });
 
-      let powerup = participant.powerups.find(p => p.type === key);
+      let powerup = participant.powerups && Array.isArray(participant.powerups)
+        ? participant.powerups.find(p => p.type === key)
+        : null;
 
       // If not found in array (legacy data), try to add it or fail
       if (!powerup) {
@@ -3386,8 +3404,10 @@ const completeQuiz = async (roomCode, session) => {
 
     await session.save();
 
-    // Save quiz results to database
-    saveQuizResults(session);
+
+
+    // Save results to database
+    await saveQuizResults(session);
 
     // Send final results
     io.to(roomCode).emit("quiz-completed", {
