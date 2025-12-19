@@ -1,13 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const ResponseFeedback = ({ isCorrect, points, streak }) => {
+const ResponseFeedback = ({ isCorrect, points, streak, explanation }) => {
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-            className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${isCorrect ? 'bg-green-500' : 'bg-red-500'} text-white overflow-hidden`}
+            className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${isCorrect ? 'bg-green-500' : 'bg-red-500'} text-white overflow-hidden p-6 text-center`}
         >
             <motion.div
                 animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
@@ -46,6 +46,20 @@ const ResponseFeedback = ({ isCorrect, points, streak }) => {
 
             {!isCorrect && (
                 <p className="text-2xl opacity-80 font-medium mt-4">Better luck next time!</p>
+            )}
+
+            {explanation && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="mt-8 bg-black/20 p-6 rounded-2xl max-w-2xl backdrop-blur-sm border border-white/10"
+                >
+                    <p className="text-sm uppercase tracking-widest font-bold opacity-70 mb-2">Explanation</p>
+                    <p className="text-lg md:text-xl font-medium leading-relaxed">
+                        {explanation}
+                    </p>
+                </motion.div>
             )}
         </motion.div>
     );

@@ -14,6 +14,7 @@ import QuizTimer from "../components/QuizTimer";
 import LobbyView from "../components/Game/LobbyView";
 import ResponseFeedback from "../components/Game/ResponseFeedback";
 import PowerUpBar from "../components/Game/PowerUpBar";
+import Chat from "../components/Chat";
 
 const PlayQuiz = () => {
   const { roomCode } = useParams();
@@ -37,6 +38,7 @@ const PlayQuiz = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [sessionSettings, setSessionSettings] = useState(null);
   const [quizInfo, setQuizInfo] = useState(null);
+  const [currentExplanation, setCurrentExplanation] = useState(null);
 
   const { playSound, soundEnabled, toggleSound } = useSoundSettings();
 
@@ -103,6 +105,7 @@ const PlayQuiz = () => {
     const handleQuestionCompleted = (data) => {
       setGameState('answer');
       setCorrectAnswer(data.correctAnswer);
+      setCurrentExplanation(data.explanation);
 
       const isCorrect = selectedOptionRef.current === data.correctAnswer;
       if (isCorrect) {
@@ -196,20 +199,102 @@ const PlayQuiz = () => {
       }
     });
   };
+  // Tips rotation
+  const [tipIndex, setTipIndex] = useState(0);
+  const TIPS = [
+    "🔥 Speed matters! Faster answers get more points.",
+    "🎯 Accuracy is key - wrong answers break your streak.",
+    "💎 Use powerups wisely, they are limited!",
+    "👀 Watch the timer, don't let it run out.",
+    "🏆 Consecutive correct answers build a Streak Multiplier!",
+    "🤫 Don't tell your friends the answers (or do, we can't stop you).",
+    "⚡ The Double Points powerup is best used on high-value questions."
+  ];
 
-  if (gameState === 'connecting') {
-    return <LoadingSpinner text="Joining session..." fullScreen={true} color="purple" />;
-  }
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTipIndex(prev => (prev + 1) % TIPS.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (gameState === 'waiting') {
     const player = { username: user?.username || localStorage.getItem('username'), avatar: '😎' };
-    return <LobbyView roomCode={roomCode} player={player} settings={sessionSettings} quizInfo={quizInfo} />;
+    return <LobbyView
+      roomCode={roomCode}
+      player={player}
+      settings={sessionSettings}
+      quizInfo={quizInfo}
+      currentTip={TIPS[tipIndex]}
+    />;
   }
+
+  // Toggle Chat
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
+
+  useEffect(() => {
+    // Listen for incoming chat
+    const onChat = (msg) => {
+      setChatMessages(prev => [...prev, msg]);
+      if (!isChatOpen) setUnreadMessages(prev => prev + 1);
+    };
+    socketService.onChatMessage(onChat);
+
+    // Listen for OTHERS' reactions to show floating animation
+    const onReaction = (data) => {
+      if (data.userId !== user?._id) { // Don't double show ours if handled locally
+        // Trigger floating animation? For now toast
+        toast(data.reaction, {
+          icon: data.username,
+          position: 'bottom-left',
+          style: { borderRadius: '20px', background: 'rgba(255,255,255,0.9)' }
+        });
+      }
+    };
+    socketService.on('user-reaction', onReaction);
+
+    return () => {
+      socketService.off('user-reaction', onReaction);
+    };
+  }, [isChatOpen, user]);
+
+  const handleSendMessage = (text) => {
+    socketService.sendChatMessage(roomCode, text);
+  };
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 relative overflow-hidden bg-[url('/bg-pattern.svg')]">
+      {/* ... existing standard UI ... */}
       {showConfetti && <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={500} />}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 opacity-90"></div>
+
+      {/* CHAT TOGGLE BUTTON */}
+      <button
+        onClick={() => { setIsChatOpen(true); setUnreadMessages(0); }}
+        className="fixed bottom-20 right-4 z-50 bg-indigo-600 p-3 rounded-full shadow-lg border border-indigo-400 hover:bg-indigo-500 transition-transform hover:scale-105"
+      >
+        💬 {unreadMessages > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-xs w-5 h-5 flex items-center justify-center rounded-full border border-white">{unreadMessages}</span>}
+      </button>
+
+      {/* CHAT DRAWER */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+            className="fixed inset-y-0 right-0 w-full md:w-80 bg-white text-slate-900 z-50 shadow-2xl flex flex-col"
+          >
+            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold">Live Chat</h3>
+              <button onClick={() => setIsChatOpen(false)} className="p-1 hover:bg-slate-200 rounded">✕</button>
+            </div>
+            <div className="flex-1 overflow-hidden relative">
+              <Chat messages={chatMessages} onSendMessage={handleSendMessage} currentUserId={user?._id} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="relative z-10 h-full flex flex-col">
         {/* Top Bar */}
@@ -242,6 +327,7 @@ const PlayQuiz = () => {
                 isCorrect={selectedOptionRef.current === correctAnswer}
                 points={pointsEarned}
                 streak={streak}
+                explanation={currentExplanation}
               />
             )}
           </AnimatePresence>

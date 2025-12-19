@@ -1,7 +1,7 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const LobbyView = ({ roomCode, player, settings, quizInfo }) => {
+const LobbyView = ({ roomCode, player, settings, quizInfo, currentTip }) => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex flex-col items-center justify-center text-white p-6 relative overflow-hidden">
             {/* Background blobs */}
@@ -71,7 +71,20 @@ const LobbyView = ({ roomCode, player, settings, quizInfo }) => {
                         <span className="w-2 h-2 bg-white rounded-full animation-delay-200"></span>
                         <span className="w-2 h-2 bg-white rounded-full animation-delay-400"></span>
                     </motion.div>
-                    <p className="mt-4 text-sm opacity-60 italic font-medium">"Tip: Answer fast to earn more points!"</p>
+
+                    {/* Animated Tips Section */}
+                    <AnimatePresence mode="wait">
+                        <motion.p
+                            key={currentTip || "default"}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.5 }}
+                            className="mt-4 text-sm opacity-80 italic font-medium bg-black/20 p-3 rounded-lg border border-white/10"
+                        >
+                            "{currentTip || "Get ready to play!"}"
+                        </motion.p>
+                    </AnimatePresence>
                 </div>
             </motion.div>
         </div>

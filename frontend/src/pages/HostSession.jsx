@@ -192,7 +192,8 @@ const HostSession = () => {
           setGameStatus('finished');
           setLeaderboard(data.finalResults?.leaderboard || []);
           localStorage.setItem('quizResults', JSON.stringify(data.finalResults));
-          setTimeout(() => navigate('/results', { state: data.finalResults }), 8000);
+          // Redirect Host to Dashboard (as requested)
+          setTimeout(() => navigate('/dashboard'), 5000);
         };
 
         const handleLeaderboardUpdate = (data) => {
