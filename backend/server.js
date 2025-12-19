@@ -1395,43 +1395,8 @@ const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
   return newDifficulty;
 };
 
-// Calculate points with bonuses
-const calculatePoints = (question, answerData, userPerformance) => {
-  const basePoints = question.points || 100;
-  const { timeTaken, isCorrect, streak, hintUsed } = answerData;
+// Duplicate calculatePoints removed
 
-  if (!isCorrect) return 0;
-
-  let points = basePoints;
-
-  // Speed bonus (faster = more points)
-  const maxTime = question.timeLimit || 30;
-  const timeRatio = Math.max(0.1, 1 - (timeTaken / maxTime));
-  const speedBonus = Math.round(basePoints * 0.3 * timeRatio);
-
-  // Streak bonus
-  const streakBonus = streak >= 3 ? Math.round(basePoints * (streak - 2) * 0.05) : 0;
-
-  // Difficulty multiplier
-  const difficultyMultipliers = {
-    easy: 0.8,
-    medium: 1.0,
-    hard: 1.3,
-    expert: 1.6,
-  };
-  const difficultyMultiplier = difficultyMultipliers[question.difficulty] || 1.0;
-
-  // Hint penalty
-  const hintPenalty = hintUsed ? Math.round(basePoints * 0.1) : 0;
-
-  // Calculate total points
-  points = Math.round(
-    (basePoints + speedBonus + streakBonus - hintPenalty) * difficultyMultiplier
-  );
-
-  // Ensure minimum points
-  return Math.max(points, 10);
-};
 // AI-powered question generation
 const generateQuestionsWithAI = async (content, options = {}) => {
   const {
@@ -7923,52 +7888,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Submit Answer - CORE SCORING LOGIC
-  socket.on('submit-answer', async (data) => {
-    try {
-      const { roomCode, questionId, selectedOption, timeTaken } = data;
-      const code = roomCode.toUpperCase();
+  // Legacy duplicate submit-answer handler removed
 
-      // Basic scoring algorithm
-      let points = 0;
-      let isCorrect = false;
-      let correctAnswer = 0;
 
-      if (activeSessions.has(code)) {
-        const sessionData = activeSessions.get(code);
-        const session = await Session.findById(sessionData.sessionId).populate('quizId');
-        if (session) {
-          const question = session.quizId.questions.find(q => q._id.toString() === questionId);
-          if (question) {
-            isCorrect = question.correctAnswer === selectedOption;
-            correctAnswer = question.correctAnswer;
-            if (isCorrect) {
-              const maxTime = session.settings.questionTime || 30;
-              const ratio = Math.max(0, 1 - (timeTaken / maxTime));
-              points = 1000 + Math.round(ratio * 500);
-            }
-          }
-        }
-      }
 
-      // Emit result back to user
-      socket.emit('answer-result', {
-        isCorrect,
-        points,
-        correctAnswer
-      });
-
-      // Broadcast leaderboard update
-      io.to(code).emit('leaderboard-update', {
-        players: [
-          { username: socket.data.displayName, score: points, userId: socket.data.userId }
-        ]
-      });
-
-    } catch (error) {
-      logger.error(`Error submitting answer: ${error.message}`);
-    }
-  });
 
   // Chat Message
   socket.on('send-message', (data) => {
