@@ -2857,7 +2857,7 @@ io.on("connection", (socket) => {
     try {
       const { roomCode, powerupType } = data;
 
-      const session = await Session.findOne({ roomCode });
+      const session = await Session.findOne({ roomCode }).populate('quizId');
       if (!session) {
         return callback({ success: false, message: "Session not found" });
       }
@@ -2906,8 +2906,21 @@ io.on("connection", (socket) => {
         participant.multiplier = 2;
       }
 
+      let extraData = {};
+      if (key === 'fiftyFifty') {
+        const question = session.quizId.questions[session.currentState.questionIndex];
+        // Find correct index
+        const correctIndex = question.options?.findIndex(o => o.isCorrect);
+        // Find wrong indices
+        const wrongIndices = question.options?.map((_, i) => i).filter(i => i !== correctIndex);
+
+        // Randomly pick 2 wrong ones (or all if less than 2)
+        const shuffled = wrongIndices.sort(() => 0.5 - Math.random());
+        extraData.removedOptions = shuffled.slice(0, 2);
+      }
+
       await session.save();
-      callback({ success: true, remaining: powerup.count });
+      callback({ success: true, remaining: powerup.count, ...extraData });
     } catch (error) {
       console.error("Powerup error:", error);
       callback({ success: false, message: "Failed to use powerup" });

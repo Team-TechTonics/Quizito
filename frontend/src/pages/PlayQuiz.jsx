@@ -27,6 +27,7 @@ const PlayQuiz = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [hiddenOptions, setHiddenOptions] = useState([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [score, setScore] = useState(0);
   const [rank, setRank] = useState(0);
@@ -122,6 +123,7 @@ const PlayQuiz = () => {
       setTimeRemaining(data.timeRemaining || 30);
       setSelectedOption(null);
       setCorrectAnswer(null);
+      setHiddenOptions([]);
     };
 
     const handleNextQuestion = (data) => {
@@ -131,6 +133,7 @@ const PlayQuiz = () => {
       setTimeRemaining(data.timeRemaining || 30);
       setSelectedOption(null);
       setCorrectAnswer(null);
+      setHiddenOptions([]);
     };
 
     const handleQuestionCompleted = (data) => {
@@ -227,6 +230,9 @@ const PlayQuiz = () => {
         const key = typeMap[type];
         if (key) {
           setPowerUps(prev => ({ ...prev, [key]: Math.max(0, prev[key] - 1) }));
+        }
+        if (response.removedOptions) {
+          setHiddenOptions(response.removedOptions);
         }
       } else {
         toast.error(response.message || "Failed to use powerup");
@@ -396,6 +402,7 @@ const PlayQuiz = () => {
 
                     <div className="grid grid-cols-1 gap-4">
                       {currentQuestion?.options?.map((opt, idx) => {
+                        if (hiddenOptions.includes(idx)) return null;
                         const text = typeof opt === 'object' ? opt.text : opt;
                         let statusClass = "bg-gray-700 hover:bg-gray-600 border-gray-600";
 
