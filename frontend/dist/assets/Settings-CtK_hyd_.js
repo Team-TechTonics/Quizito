@@ -1,1 +1,0 @@
-import{j as e}from"./index-D94il1hI.js";function t(){return e.jsxs("div",{className:"p-6",children:[e.jsx("h1",{className:"text-2xl font-bold mb-4",children:"Settings"}),e.jsx("p",{children:"Account preferences go here."})]})}export{t as default};

@@ -456,12 +456,94 @@ const CreateQuiz = () => {
         {/* Main Content Area */}
         <div className="bg-white rounded-3xl shadow-xl p-6 md:p-10 border border-gray-100 min-h-[500px]">
 
-          {/* Loading Overlay */}
+          {/* Loading Overlay with Educational Tips */}
           {loading && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-3xl">
-              <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">Creating Magic...</h3>
-              <p className="text-gray-500">{uploadProgress > 0 ? `Uploading: ${uploadProgress}%` : 'Please wait while we process'}</p>
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-indigo-50 z-50 flex flex-col items-center justify-center rounded-3xl p-8">
+              {/* Animated Spinner */}
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-20 h-20 border-4 border-purple-200 border-t-purple-600 rounded-full mb-8"
+              />
+
+              <h3 className="text-2xl font-bold text-gray-800 mb-4">Creating Magic...</h3>
+
+              {/* Progress Bar */}
+              {uploadProgress > 0 && (
+                <div className="w-full max-w-md mb-6">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      className="h-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600 text-center mt-2">{uploadProgress}% Complete</p>
+                </div>
+              )}
+
+              {/* Educational Tips Carousel */}
+              <motion.div
+                key={Math.floor(Date.now() / 4000)} // Change every 4 seconds
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="max-w-2xl text-center"
+              >
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-purple-100">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
+                      <Sparkles className="text-white" size={20} />
+                    </div>
+                  </div>
+                  <p className="text-lg font-semibold text-gray-800 mb-2">
+                    {[
+                      "💡 Did you know?",
+                      "🧠 Learning Tip:",
+                      "✨ Fun Fact:",
+                      "📚 Study Hack:",
+                      "🎯 Pro Tip:"
+                    ][Math.floor(Date.now() / 4000) % 5]}
+                  </p>
+                  <p className="text-gray-600 leading-relaxed">
+                    {[
+                      "Spaced repetition increases retention by 200%! Review material at increasing intervals for better memory.",
+                      "Teaching others is the best way to learn. Explaining concepts reinforces your own understanding.",
+                      "The brain can only focus for 25-30 minutes. Take short breaks to maximize learning efficiency!",
+                      "Active recall (testing yourself) is 50% more effective than passive reading for long-term retention.",
+                      "Sleep consolidates memories. Getting 7-8 hours after studying improves recall by up to 40%!",
+                      "Handwriting notes activates more brain regions than typing, leading to better comprehension.",
+                      "The Feynman Technique: Explain concepts in simple terms to identify gaps in your knowledge.",
+                      "Interleaving (mixing topics) improves problem-solving skills more than studying one topic at a time.",
+                      "Mnemonics and visual imagery can boost memory retention by creating stronger neural connections.",
+                      "Regular exercise increases brain-derived neurotrophic factor (BDNF), enhancing learning and memory!"
+                    ][Math.floor(Date.now() / 4000) % 10]}
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* Floating Icons Animation */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ y: "100%", x: `${i * 20}%`, opacity: 0 }}
+                    animate={{
+                      y: "-100%",
+                      opacity: [0, 1, 1, 0],
+                    }}
+                    transition={{
+                      duration: 8 + i,
+                      repeat: Infinity,
+                      delay: i * 0.5,
+                      ease: "linear"
+                    }}
+                    className="absolute text-4xl"
+                  >
+                    {["📚", "🎓", "✨", "🧠", "💡", "🚀"][i]}
+                  </motion.div>
+                ))}
+              </div>
             </div>
           )}
 

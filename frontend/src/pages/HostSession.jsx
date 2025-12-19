@@ -749,11 +749,13 @@ const HostSession = () => {
                         className={`p-5 rounded-xl border-2 transition-all flex items-center gap-4 text-left group relative
                                    ${gameStatus === 'answer' && opt.isCorrect
                             ? 'border-green-500 bg-green-50 shadow-md ring-1 ring-green-200'
-                            : gameStatus === 'answer' && !opt.isCorrect
-                              ? 'border-slate-100 bg-slate-50 opacity-50'
-                              : selectedOption === i
-                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg transform scale-[1.02]'
-                                : 'border-slate-200 bg-white shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md cursor-pointer'}
+                            : gameStatus === 'answer' && selectedOption === i && !opt.isCorrect
+                              ? 'border-red-500 bg-red-50 shadow-md ring-1 ring-red-200'
+                              : gameStatus === 'answer' && !opt.isCorrect
+                                ? 'border-slate-100 bg-slate-50 opacity-50'
+                                : selectedOption === i
+                                  ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg transform scale-[1.02]'
+                                  : 'border-slate-200 bg-white shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md cursor-pointer'}
                                 `}
                       >
                         <div className={`w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-xl shadow-sm transition-colors
@@ -788,31 +790,28 @@ const HostSession = () => {
                 </div>
 
                 <AnimatePresence>
-                  {gameStatus === 'answer' && (
+                  {gameStatus === 'answer' && answerStats?.distribution && (
                     <motion.div
                       initial={{ y: 20, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: 20, opacity: 0 }}
                       className="absolute bottom-6 left-1/2 -translate-x-1/2 w-3/4 md:w-1/2 bg-white/95 backdrop-blur shadow-2xl p-6 rounded-2xl border border-indigo-100 text-center z-20"
                     >
-                      <p className="text-indigo-600 font-extrabold mb-1 uppercase tracking-widest text-xs">Explanation</p>
-                      <p className="text-slate-800 font-medium text-lg leading-relaxed">{currentQuestion.explanation || "Great work!"}</p>
+                      <p className="text-indigo-600 font-extrabold mb-3 uppercase tracking-widest text-xs">Answer Distribution</p>
 
                       {/* Distribution Chart */}
-                      {answerStats?.distribution && (
-                        <div className="mt-4 flex items-end justify-center gap-4 h-24">
-                          {Object.entries(answerStats.distribution).map(([idx, count]) => (
-                            <div key={idx} className="flex flex-col items-center gap-1 w-8">
-                              <div
-                                className={`w-full rounded-t-md ${idx == currentQuestion.correctIndex ? 'bg-green-500' : 'bg-slate-300'}`}
-                                style={{ height: `${(count / (answerStats.totalAnswers || 1)) * 100}%`, minHeight: '4px' }}
-                              />
-                              <span className="text-xs font-bold text-slate-500">{['A', 'B', 'C', 'D'][idx]}</span>
-                              <span className="text-[10px] text-slate-400">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex items-end justify-center gap-4 h-24">
+                        {Object.entries(answerStats.distribution).map(([idx, count]) => (
+                          <div key={idx} className="flex flex-col items-center gap-1 w-8">
+                            <div
+                              className={`w-full rounded-t-md ${idx == currentQuestion.correctIndex ? 'bg-green-500' : 'bg-slate-300'}`}
+                              style={{ height: `${(count / (answerStats.totalAnswers || 1)) * 100}%`, minHeight: '4px' }}
+                            />
+                            <span className="text-xs font-bold text-slate-500">{['A', 'B', 'C', 'D'][idx]}</span>
+                            <span className="text-[10px] text-slate-400">{count}</span>
+                          </div>
+                        ))}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>

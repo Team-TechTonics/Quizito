@@ -77,31 +77,28 @@ const Results = () => {
       if (!resultsData) {
         const savedResults = localStorage.getItem('quizResults');
         if (savedResults) {
-          resultsData = JSON.parse(savedResults);
+          try {
+            resultsData = JSON.parse(savedResults);
+            console.log('Loaded results from localStorage:', resultsData);
+          } catch (e) {
+            console.error('Failed to parse localStorage:', e);
+          }
         }
       }
 
-      // 3. If no data, render empty state (or fetch from API if you had an endpoint)
+      // 3. If no data, show empty state
       if (!resultsData) {
-        // Fallback or just stop
+        console.warn('No results data found');
         setLoading(false);
         return;
       }
 
-      // Handle both "participant" view and "host" view structures
-      // Host view usually sends { leaderboard, finalResults, ... }
-      // Participant view might send simplified data.
-
       // Normalize leaderboard
       const lb = resultsData.leaderboard || resultsData.finalResults?.leaderboard || [];
-
-      // Find current user stats
       const username = user?.username || localStorage.getItem('username');
       const userId = user?._id;
 
       let currentUserData = null;
-
-      // Try finding by ID then Username
       if (resultsData.participants) {
         currentUserData = resultsData.participants.find(p => p.userId === userId || p.username === username);
       }
@@ -109,21 +106,12 @@ const Results = () => {
         currentUserData = lb.find(p => p.userId === userId || p.username === username);
       }
 
-      // Use REAL data from session
-      // If we are host, we might not have "userScore" for ourselves if we didn't play.
-      // But we requested "Host Can Play", so likely we are in the list.
-
       const userScore = currentUserData?.score || 0;
       const userCorrect = currentUserData?.correctAnswers || 0;
-      const totalQuestions = resultsData.totalQuestions || 10;
-      // Safety check for div by zero
+      const totalQuestions = resultsData.totalQuestions || resultsData.finalResults?.totalQuestions || 10;
       const userAccuracy = totalQuestions > 0 ? (userCorrect / totalQuestions) * 100 : 0;
       const userAnswers = currentUserData?.answers || [];
-
-      // Calculate total time
       const totalTime = userAnswers.reduce((sum, a) => sum + (a.timeTaken || 0), 0);
-
-      // Rank calculation
       const myRank = lb.findIndex(p => p.userId === userId || p.username === username) + 1;
 
       setResults({
@@ -134,13 +122,12 @@ const Results = () => {
         timeTaken: totalTime,
         answers: userAnswers,
         rank: myRank || 0,
-        leaderboard: lb // Store full leaderboard in results too for easy access
+        leaderboard: lb
       });
 
       setLeaderboard(lb);
       setUserRank(myRank || 0);
 
-      // Only generate if we have valid data
       if (currentUserData || lb.length > 0) {
         generatePerformanceData({ ...resultsData, participants: resultsData.participants || lb });
       }

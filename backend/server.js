@@ -3231,6 +3231,112 @@ const nextQuestion = async (roomCode, session) => {
   }
 };
 
+// Helper function to save quiz results to database
+const saveQuizResults = async (session) => {
+  try {
+    if (!session.quizId || !session.participants) {
+      logger.warn('Cannot save quiz results: missing quiz or participants data');
+      return;
+    }
+
+    const sortedParticipants = [...session.participants]
+      .filter(p => p.userId)
+      .sort((a, b) => b.score - a.score);
+
+    for (const [index, participant] of sortedParticipants.entries()) {
+      try {
+        const quizResult = new QuizResult({
+          sessionId: session._id,
+          quizId: session.quizId._id,
+          userId: participant.userId,
+
+          // Performance Metrics
+          score: participant.score || 0,
+          maxScore: session.quizId.questions.length * 100,
+          percentage: session.quizId.questions.length > 0
+            ? (participant.correctAnswers / session.quizId.questions.length) * 100
+            : 0,
+          correctAnswers: participant.correctAnswers || 0,
+          incorrectAnswers: (session.quizId.questions.length || 0) - (participant.correctAnswers || 0),
+          totalQuestions: session.quizId.questions.length || 0,
+          timeSpent: participant.totalTime || 0,
+          averageTimePerQuestion: participant.averageTime || 0,
+
+          // Timing
+          startedAt: session.startedAt,
+          completedAt: session.endedAt,
+          duration: session.duration || 0,
+
+          // Rankings
+          rank: index + 1,
+          totalParticipants: sortedParticipants.length,
+          percentile: sortedParticipants.length > 0
+            ? ((sortedParticipants.length - index) / sortedParticipants.length) * 100
+            : 0,
+
+          // Detailed Analysis
+          questionBreakdown: (participant.answers || []).map((answer) => {
+            const question = session.quizId.questions[answer.questionIndex];
+            return {
+              questionIndex: answer.questionIndex,
+              question: question?.question || '',
+              type: question?.type || 'multiple-choice',
+              difficulty: question?.difficulty || 'medium',
+              selectedAnswer: answer.selectedOption,
+              correctAnswer: question?.correctAnswer || '',
+              isCorrect: answer.isCorrect || false,
+              timeTaken: answer.timeTaken || 0,
+              points: answer.pointsEarned || 0,
+              maxPoints: question?.points || 100,
+              options: question?.options || [],
+            };
+          }),
+
+          // Session Context
+          sessionType: "multiplayer",
+          mode: "timed",
+
+          // Status
+          status: "completed",
+        });
+
+        await quizResult.save();
+        logger.info(`✅ Saved quiz result for user ${participant.username} (${participant.userId})`);
+
+        // Update user stats (from the removed duplicate function)
+        await User.findByIdAndUpdate(participant.userId, {
+          $inc: {
+            "stats.totalQuizzes": 1,
+            "stats.totalSessions": 1,
+            "stats.totalScore": participant.score || 0,
+            "stats.totalCorrect": participant.correctAnswers || 0,
+            "stats.totalQuestions": session.quizId.questions.length || 0,
+            "stats.experience": Math.floor((participant.score || 0) / 10),
+          },
+          $set: {
+            lastActive: new Date(),
+          },
+        });
+
+      } catch (error) {
+        logger.error(`❌ Failed to save result for user ${participant.userId}:`, error.message);
+      }
+    }
+
+    // Update quiz stats (from the removed duplicate function)
+    await Quiz.findByIdAndUpdate(session.quizId._id, {
+      $inc: {
+        "stats.totalPlays": 1,
+        "stats.totalCompletions": 1,
+      },
+    });
+
+    logger.info(`✅ Saved ${sortedParticipants.length} quiz results to database`);
+  } catch (error) {
+    logger.error('❌ Error in saveQuizResults:', error);
+  }
+};
+
 // Helper function to complete quiz
 const completeQuiz = async (roomCode, session) => {
   try {
@@ -3331,93 +3437,7 @@ const updateSessionLeaderboard = async (roomCode) => {
   }
 };
 
-// Helper function to save quiz results
-const saveQuizResults = async (session) => {
-  try {
-    const quiz = await Quiz.findById(session.quizId);
 
-    const savePromises = session.participants
-      .filter(p => p.userId && p.answers.length > 0)
-      .map(async (participant) => {
-        try {
-          const result = await QuizResult.create({
-            sessionId: session._id,
-            quizId: session.quizId._id,
-            userId: participant.userId,
-            username: participant.username,
-            score: participant.score,
-            maxScore: quiz.questions.length * 100,
-            percentage: quiz.questions.length > 0 ?
-              (participant.score / (quiz.questions.length * 100)) * 100 : 0,
-            correctAnswers: participant.correctAnswers,
-            incorrectAnswers: participant.answers.length - participant.correctAnswers,
-            totalQuestions: quiz.questions.length,
-            timeSpent: participant.totalTime,
-            averageTimePerQuestion: participant.answers.length > 0 ?
-              participant.totalTime / participant.answers.length : 0,
-            startedAt: session.startedAt,
-            completedAt: new Date(),
-            rank: session.leaderboard.find(l =>
-              l.userId && l.userId.equals(participant.userId)
-            )?.rank || 0,
-            totalParticipants: session.participants.filter(p => p.userId).length,
-            sessionType: "multiplayer",
-            questionBreakdown: participant.answers.map(ans => {
-              const question = quiz.questions[ans.questionIndex];
-              const correctOption = question?.options?.find(opt => opt.isCorrect);
-
-              return {
-                questionIndex: ans.questionIndex,
-                question: question?.question,
-                selectedAnswer: ans.selectedOption,
-                correctAnswer: correctOption?.text || question?.correctAnswer,
-                isCorrect: ans.isCorrect,
-                timeTaken: ans.timeTaken,
-                points: ans.pointsEarned,
-                maxPoints: question?.points || 100,
-              };
-            }),
-          });
-
-          // Update user stats
-          await User.findByIdAndUpdate(participant.userId, {
-            $inc: {
-              "stats.totalQuizzes": 1,
-              "stats.totalSessions": 1,
-              "stats.totalScore": participant.score,
-              "stats.totalCorrect": participant.correctAnswers,
-              "stats.totalQuestions": quiz.questions.length,
-              "stats.experience": Math.floor(participant.score / 10),
-            },
-            $set: {
-              "stats.highestScore": {
-                $max: ["$stats.highestScore", participant.score]
-              },
-              lastActive: new Date(),
-            },
-          });
-
-          return result;
-        } catch (err) {
-          logger.error(`Error saving result for user ${participant.userId}:`, err);
-          return null;
-        }
-      });
-
-    await Promise.all(savePromises);
-
-    // Update quiz stats
-    await Quiz.findByIdAndUpdate(session.quizId, {
-      $inc: {
-        "stats.totalPlays": 1,
-        "stats.totalCompletions": 1,
-      },
-    });
-
-  } catch (error) {
-    logger.error("Save quiz results error:", error);
-  }
-};
 
 // Add to calculatePoints function (make sure it exists)
 const calculatePoints = (question, answerData, userPerformance) => {
