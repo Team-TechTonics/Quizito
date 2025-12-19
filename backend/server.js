@@ -1874,7 +1874,9 @@ io.on("connection", (socket) => {
       });
     } catch (error) {
       logger.error("Create session error:", error);
-      callback({ success: false, message: "Failed to create session" });
+      if (typeof callback === 'function') {
+        callback({ success: false, message: "Failed to create session" });
+      }
     }
   });
 
@@ -2384,10 +2386,14 @@ io.on("connection", (socket) => {
       });
       // ===== END FIX #1 =====
 
-      callback({ success: true });
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
     } catch (error) {
       logger.error("Submit answer error:", error);
-      callback({ success: false, message: "Failed to submit answer" });
+      if (typeof callback === 'function') {
+        callback({ success: false, message: "Failed to submit answer" });
+      }
     }
   });
 
@@ -2424,10 +2430,14 @@ io.on("connection", (socket) => {
         avatar: socket.user.avatar,
       });
 
-      callback({ success: true });
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
     } catch (error) {
       logger.error("Chat message error:", error);
-      callback({ success: false, message: "Failed to send message" });
+      if (typeof callback === 'function') {
+        callback({ success: false, message: "Failed to send message" });
+      }
     }
   });
 
@@ -2804,6 +2814,9 @@ io.on("connection", (socket) => {
         return callback({ success: false, message: "Session not found" });
       }
 
+      if (!session || !session.participants) {
+        return socket.emit('powerup-error', { message: 'Session not found' });
+      }
       const participant = session.participants.find(
         p => p.userId && p.userId.equals(socket.user._id)
       );
@@ -2975,7 +2988,9 @@ io.on("connection", (socket) => {
       callback({ success: true });
     } catch (error) {
       logger.error("Force next question error:", error);
-      callback({ success: false, message: "Failed to skip question" });
+      if (typeof callback === 'function') {
+        callback({ success: false, message: "Failed to skip question" });
+      }
     }
   });
 
@@ -3024,7 +3039,9 @@ io.on("connection", (socket) => {
 
   // Handle ping/pong for connection health
   socket.on("ping", (callback) => {
-    callback({ success: true, timestamp: Date.now(), userId: socket.user._id });
+    if (typeof callback === 'function') {
+      callback({ success: true, timestamp: Date.now(), userId: socket.user._id });
+    }
   });
 
   // Handle disconnect
@@ -3276,7 +3293,8 @@ const saveQuizResults = async (session) => {
 
           // Detailed Analysis
           questionBreakdown: (participant.answers || []).map((answer) => {
-            const question = session.quizId.questions[answer.questionIndex];
+            const question = session.quizId?.questions?.[answer.questionIndex];
+            if (!question) return null;
             return {
               questionIndex: answer.questionIndex,
               question: question?.question || '',
@@ -3290,7 +3308,7 @@ const saveQuizResults = async (session) => {
               maxPoints: question?.points || 100,
               options: question?.options || [],
             };
-          }),
+          }).filter(Boolean),
 
           // Session Context
           sessionType: "multiplayer",

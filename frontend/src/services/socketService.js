@@ -157,8 +157,8 @@ class SocketService {
     }
 
     submitAnswer(data, callback) {
-        this.socket?.emit('submit-answer', data, callback);
-    }
+  this.socket?.emit('submit-answer', data, callback || (() => {}));
+}
 
     kickPlayer(roomCode, userId, callback) {
         this.socket?.emit('kick-player', { roomCode, userId }, callback);
