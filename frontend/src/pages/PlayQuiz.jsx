@@ -135,10 +135,12 @@ const PlayQuiz = () => {
 
     const handleQuestionCompleted = (data) => {
       setGameState('answer');
-      setCorrectAnswer(data.correctAnswer);
+      // Use index for comparison since selectedOption is an index
+      const correctIdx = data.correctIndex !== undefined ? data.correctIndex : data.correctAnswer;
+      setCorrectAnswer(correctIdx);
       setCurrentExplanation(data.explanation);
 
-      const isCorrect = selectedOptionRef.current === data.correctAnswer;
+      const isCorrect = selectedOptionRef.current === correctIdx;
       if (isCorrect) {
         setPointsEarned(1000);
         setStreak(s => s + 1);

@@ -2673,6 +2673,7 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("question-completed", {
         questionIndex: session.currentState.questionIndex,
         correctAnswer: correctOption?.text || question.correctAnswer,
+        correctIndex: question.options?.findIndex(o => o.isCorrect), // Add index
         explanation: question.explanation,
         stats: {
           totalAnswers: session.currentState.answersReceived,
@@ -3209,6 +3210,7 @@ const startQuestionTimer = async (roomCode, session) => {
           io.to(roomCode).emit("question-completed", {
             questionIndex: freshSession.currentState.questionIndex,
             correctAnswer: correctOption?.text || question.correctAnswer,
+            correctIndex: question.options?.findIndex(o => o.isCorrect), // Add index
             explanation: question.explanation,
             stats: {
               totalAnswers: freshSession.currentState.answersReceived,
