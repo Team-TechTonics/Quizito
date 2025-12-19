@@ -186,6 +186,12 @@ const HostSession = () => {
         const handleQuestionCompleted = (data) => {
           setGameStatus('answer');
           setAnswerStats(data.stats);
+          if (data.correctIndex !== undefined) {
+            setCurrentQuestion(prev => ({ ...prev, correctIndex: data.correctIndex }));
+          } else if (data.correctAnswer) {
+            // Fallback for text
+            setCurrentQuestion(prev => ({ ...prev, correctAnswer: data.correctAnswer }));
+          }
         };
 
         const handleQuizCompleted = (data) => {

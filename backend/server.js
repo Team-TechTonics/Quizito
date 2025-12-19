@@ -1395,23 +1395,23 @@ const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
   return newDifficulty;
 };
 
-/*// Calculate points with bonuses
+// Calculate points with bonuses
 const calculatePoints = (question, answerData, userPerformance) => {
   const basePoints = question.points || 100;
   const { timeTaken, isCorrect, streak, hintUsed } = answerData;
-  
+
   if (!isCorrect) return 0;
-  
+
   let points = basePoints;
-  
+
   // Speed bonus (faster = more points)
   const maxTime = question.timeLimit || 30;
   const timeRatio = Math.max(0.1, 1 - (timeTaken / maxTime));
   const speedBonus = Math.round(basePoints * 0.3 * timeRatio);
-  
+
   // Streak bonus
   const streakBonus = streak >= 3 ? Math.round(basePoints * (streak - 2) * 0.05) : 0;
-  
+
   // Difficulty multiplier
   const difficultyMultipliers = {
     easy: 0.8,
@@ -1420,19 +1420,18 @@ const calculatePoints = (question, answerData, userPerformance) => {
     expert: 1.6,
   };
   const difficultyMultiplier = difficultyMultipliers[question.difficulty] || 1.0;
-  
+
   // Hint penalty
   const hintPenalty = hintUsed ? Math.round(basePoints * 0.1) : 0;
-  
+
   // Calculate total points
   points = Math.round(
     (basePoints + speedBonus + streakBonus - hintPenalty) * difficultyMultiplier
   );
-  
+
   // Ensure minimum points
   return Math.max(points, 10);
 };
-*/
 // AI-powered question generation
 const generateQuestionsWithAI = async (content, options = {}) => {
   const {
