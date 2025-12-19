@@ -2316,8 +2316,8 @@ io.on("connection", (socket) => {
         timeTaken,
       });
 
-      // Update leaderboard
-      updateSessionLeaderboard(roomCode);
+      // Update leaderboard - Race Condition Fix: Don't call async update here, we emit manually below
+      session.markModified('participants');
 
       // Check if all players have answered
       // Exclude host from the active players count unless they have explicitly joined as a player (which logic might need refinement, but for now assuming host doesn't play)
