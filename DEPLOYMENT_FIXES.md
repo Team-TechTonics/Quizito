@@ -21,6 +21,12 @@
 **Fix:** Added missing methods and UI buttons.
 **Result:** Interactive features working.
 
+## ✅ 5. Power-ups (50-50)
+**Fix:**
+- Backend: Calculates removed options for 50-50 correctly.
+- Frontend: Hides the options returned by backend so users see the effect.
+**Result:** 50-50 Powerup now visibly removes 2 items.
+
 ## ⚠️ Action Required
 **You must REDEPLOY this commit to Render for these changes to take effect.**
 1. Go to Render Dashboard.
