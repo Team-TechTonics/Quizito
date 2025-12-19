@@ -45,6 +45,8 @@ const HostSession = () => {
   const [roomLocked, setRoomLocked] = useState(false); // Phase 1: Lock Room
   const [settings, setSettings] = useState({ allowLateJoin: true, allowRejoin: true, showLeaderboard: true });
   const [quizMetadata, setQuizMetadata] = useState(null); // New Metadata Card
+  const [reactions, setReactions] = useState([]);
+  const [answerStats, setAnswerStats] = useState(null);
 
   // Initialize session
   useEffect(() => {
@@ -183,6 +185,7 @@ const HostSession = () => {
 
         const handleQuestionCompleted = (data) => {
           setGameStatus('answer');
+          setAnswerStats(data.stats);
         };
 
         const handleQuizCompleted = (data) => {
@@ -259,6 +262,13 @@ const HostSession = () => {
         socketService.onSessionEndedByHost(() => {
           toast('Session ended', { icon: '🏁' });
           navigate(`/dashboard`);
+        });
+
+        // Reaction Listener
+        socketService.on('receive-reaction', (data) => {
+          const id = Date.now() + Math.random();
+          setReactions(prev => [...prev, { ...data, id }]);
+          setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 2000); // Cleanup
         });
 
       } catch (err) {
@@ -381,6 +391,16 @@ const HostSession = () => {
     });
   };
 
+  const handleSkipToAnswer = () => {
+    socketService.showAnswerNow(roomCode, (response) => {
+      if (response.success) {
+        toast.success('Revealing answer...');
+      } else {
+        toast.error(response.message || 'Failed to reveal answer');
+      }
+    });
+  };
+
   const handleExtendTimer = (seconds) => {
     socketService.extendTimer(roomCode, seconds, (response) => {
       if (response.success) {
@@ -485,6 +505,21 @@ const HostSession = () => {
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-[20%] -right-[10%] w-[70vh] h-[70vh] rounded-full bg-indigo-100/50 blur-3xl"></div>
         <div className="absolute top-[20%] -left-[10%] w-[50vh] h-[50vh] rounded-full bg-purple-100/50 blur-3xl"></div>
+        {/* Helper for Reactions */}
+        <AnimatePresence>
+          {reactions.map(r => (
+            <motion.div
+              key={r.id}
+              initial={{ y: window.innerHeight, x: Math.random() * window.innerWidth, opacity: 1, scale: 0.5 }}
+              animate={{ y: -100, opacity: 0, scale: 1.5 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, ease: "easeOut" }}
+              className="fixed text-4xl pointer-events-none z-[100]"
+            >
+              {r.reaction}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* COUNTDOWN OVERLAY */}
@@ -571,7 +606,7 @@ const HostSession = () => {
             <div className="flex-1"></div>
             <div className="flex items-center gap-3">
               <span className={`text-xs font-bold px-3 py-1 rounded-full border ${quizMetadata.difficulty === 'easy' ? 'bg-green-50 text-green-600 border-green-100' :
-                  quizMetadata.difficulty === 'hard' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+                quizMetadata.difficulty === 'hard' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'
                 }`}>
                 {quizMetadata.difficulty?.toUpperCase()}
               </span>
@@ -752,6 +787,22 @@ const HostSession = () => {
                     >
                       <p className="text-indigo-600 font-extrabold mb-1 uppercase tracking-widest text-xs">Explanation</p>
                       <p className="text-slate-800 font-medium text-lg leading-relaxed">{currentQuestion.explanation || "Great work!"}</p>
+
+                      {/* Distribution Chart */}
+                      {answerStats?.distribution && (
+                        <div className="mt-4 flex items-end justify-center gap-4 h-24">
+                          {Object.entries(answerStats.distribution).map(([idx, count]) => (
+                            <div key={idx} className="flex flex-col items-center gap-1 w-8">
+                              <div
+                                className={`w-full rounded-t-md ${idx == currentQuestion.correctIndex ? 'bg-green-500' : 'bg-slate-300'}`}
+                                style={{ height: `${(count / (answerStats.totalAnswers || 1)) * 100}%`, minHeight: '4px' }}
+                              />
+                              <span className="text-xs font-bold text-slate-500">{['A', 'B', 'C', 'D'][idx]}</span>
+                              <span className="text-[10px] text-slate-400">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -817,7 +868,7 @@ const HostSession = () => {
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Host Controls</h3>
               <div className="grid grid-cols-2 gap-3">
                 {gameStatus === 'question' && (
-                  <button onClick={handleNextForce} className="col-span-2 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors border border-indigo-200 flex items-center justify-center gap-2">
+                  <button onClick={handleSkipToAnswer} className="col-span-2 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors border border-indigo-200 flex items-center justify-center gap-2">
                     SKIP TO ANSWER ⏩
                   </button>
                 )}

@@ -1,6 +1,6 @@
 // src/pages/Results.jsx
 import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQuiz } from '../context/QuizContext'
 import Confetti from 'react-confetti'
@@ -38,6 +38,7 @@ import {
 const Results = () => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { getSession, saveResults } = useQuiz()
 
@@ -53,10 +54,10 @@ const Results = () => {
   const [showAnswerDetails, setShowAnswerDetails] = useState(false)
 
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId || location.state) {
       fetchResults()
     }
-  }, [sessionId])
+  }, [sessionId, location.state])
 
   useEffect(() => {
     if (results?.score > 80) {
@@ -69,41 +70,61 @@ const Results = () => {
   const fetchResults = async () => {
     setLoading(true);
     try {
-      // Get results from localStorage (saved by HostSession)
-      const savedResults = localStorage.getItem('quizResults');
-      let resultsData = null;
+      // 1. Try location state (most fresh)
+      let resultsData = location.state;
 
-      if (savedResults) {
-        resultsData = JSON.parse(savedResults);
-      }
-
-      // If no saved results, create empty structure
+      // 2. Try localStorage (backup)
       if (!resultsData) {
-        resultsData = {
-          sessionId: sessionId,
-          roomCode: '',
-          leaderboard: [],
-          totalQuestions: 0,
-          participants: []
-        };
+        const savedResults = localStorage.getItem('quizResults');
+        if (savedResults) {
+          resultsData = JSON.parse(savedResults);
+        }
       }
 
-      // Find current user in participants/leaderboard
-      const currentUserData = resultsData.participants?.find(p =>
-        p.username === user?.username || p.userId === user?._id
-      ) || resultsData.leaderboard?.find(p =>
-        p.username === user?.username || p.userId === user?._id
-      );
+      // 3. If no data, render empty state (or fetch from API if you had an endpoint)
+      if (!resultsData) {
+        // Fallback or just stop
+        setLoading(false);
+        return;
+      }
+
+      // Handle both "participant" view and "host" view structures
+      // Host view usually sends { leaderboard, finalResults, ... }
+      // Participant view might send simplified data.
+
+      // Normalize leaderboard
+      const lb = resultsData.leaderboard || resultsData.finalResults?.leaderboard || [];
+
+      // Find current user stats
+      const username = user?.username || localStorage.getItem('username');
+      const userId = user?._id;
+
+      let currentUserData = null;
+
+      // Try finding by ID then Username
+      if (resultsData.participants) {
+        currentUserData = resultsData.participants.find(p => p.userId === userId || p.username === username);
+      }
+      if (!currentUserData && lb.length > 0) {
+        currentUserData = lb.find(p => p.userId === userId || p.username === username);
+      }
 
       // Use REAL data from session
+      // If we are host, we might not have "userScore" for ourselves if we didn't play.
+      // But we requested "Host Can Play", so likely we are in the list.
+
       const userScore = currentUserData?.score || 0;
       const userCorrect = currentUserData?.correctAnswers || 0;
-      const totalQuestions = resultsData.totalQuestions || currentUserData?.answers?.length || 10;
+      const totalQuestions = resultsData.totalQuestions || 10;
+      // Safety check for div by zero
       const userAccuracy = totalQuestions > 0 ? (userCorrect / totalQuestions) * 100 : 0;
       const userAnswers = currentUserData?.answers || [];
 
-      // Calculate total time from answers
+      // Calculate total time
       const totalTime = userAnswers.reduce((sum, a) => sum + (a.timeTaken || 0), 0);
+
+      // Rank calculation
+      const myRank = lb.findIndex(p => p.userId === userId || p.username === username) + 1;
 
       setResults({
         score: userScore,
@@ -112,17 +133,17 @@ const Results = () => {
         accuracy: userAccuracy,
         timeTaken: totalTime,
         answers: userAnswers,
-        rank: resultsData.leaderboard?.findIndex(p =>
-          p.username === user?.username || p.userId === user?._id
-        ) + 1 || 0
+        rank: myRank || 0,
+        leaderboard: lb // Store full leaderboard in results too for easy access
       });
 
-      setLeaderboard(resultsData.leaderboard || []);
-      setUserRank(resultsData.leaderboard?.findIndex(p =>
-        p.username === user?.username || p.userId === user?._id
-      ) + 1 || 0);
+      setLeaderboard(lb);
+      setUserRank(myRank || 0);
 
-      generatePerformanceData(resultsData);
+      // Only generate if we have valid data
+      if (currentUserData || lb.length > 0) {
+        generatePerformanceData({ ...resultsData, participants: resultsData.participants || lb });
+      }
 
     } catch (error) {
       console.error('Failed to fetch results:', error);
@@ -378,18 +399,18 @@ const Results = () => {
                   <Clock className="text-blue-600" size={24} />
                 </div>
                 <div className="text-2xl font-bold text-blue-600">
-                  {formatTime(results.timeSpent)}
+                  {formatTime(results.timeTaken)}
                 </div>
               </div>
               <h3 className="text-2xl font-bold mb-2">
-                {Math.round(results.timeSpent / results.totalQuestions)}s
+                {Math.round(results.timeTaken / results.totalQuestions)}s
               </h3>
               <p className="text-gray-600">Average Time per Question</p>
               <div className="mt-4">
                 <div className="flex items-center space-x-2 text-sm">
                   <TrendingUp className="text-green-500" size={16} />
                   <span className="text-gray-600">
-                    {results.timeSpent < 180 ? 'Fast' : results.timeSpent < 300 ? 'Average' : 'Slow'} pace
+                    {results.timeTaken < 180 ? 'Fast' : results.timeTaken < 300 ? 'Average' : 'Slow'} pace
                   </span>
                 </div>
               </div>
@@ -797,9 +818,6 @@ const Results = () => {
                             {results.accuracy > 75 ? 'Above average!' : 'Room for improvement'}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          vs. your average
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -807,68 +825,6 @@ const Results = () => {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Action Buttons */}
-          <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={handlePlayAgain}
-              className="btn-primary px-8 py-4 text-lg flex items-center justify-center space-x-2"
-            >
-              <RefreshCw size={24} />
-              <span>Play Another Quiz</span>
-            </button>
-            <button
-              onClick={handleShare}
-              className="btn-secondary px-8 py-4 text-lg flex items-center justify-center space-x-2"
-            >
-              <Share2 size={24} />
-              <span>Share Results</span>
-            </button>
-            <Link
-              to="/"
-              className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors text-lg font-medium flex items-center justify-center space-x-2"
-            >
-              <Home size={24} />
-              <span>Go Home</span>
-            </Link>
-          </div>
-
-          {/* Tips & Recommendations */}
-          <div className="mt-12 bg-gradient-to-r from-primary-50 to-accent-50 rounded-2xl p-8">
-            <h3 className="text-2xl font-bold mb-6 flex items-center space-x-2">
-              <Zap className="text-primary-600" size={24} />
-              <span>Tips for Improvement</span>
-            </h3>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl p-6">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <Clock className="text-blue-600" size={24} />
-                </div>
-                <h4 className="font-bold mb-2">Time Management</h4>
-                <p className="text-gray-600">
-                  Try to maintain a consistent pace. Aim for 20-25 seconds per question.
-                </p>
-              </div>
-              <div className="bg-white rounded-xl p-6">
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center mb-4">
-                  <Target className="text-green-600" size={24} />
-                </div>
-                <h4 className="font-bold mb-2">Accuracy Focus</h4>
-                <p className="text-gray-600">
-                  Focus on understanding the question fully before selecting an answer.
-                </p>
-              </div>
-              <div className="bg-white rounded-xl p-6">
-                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
-                  <TrendingUp className="text-purple-600" size={24} />
-                </div>
-                <h4 className="font-bold mb-2">Practice Regularly</h4>
-                <p className="text-gray-600">
-                  Try different categories to improve your overall knowledge base.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

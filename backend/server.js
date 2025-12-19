@@ -1947,6 +1947,11 @@ io.on("connection", (socket) => {
           role: isHost ? "host" : "player",
           isReady: isHost ? true : false,
           status: "waiting",
+          powerups: [
+            { type: 'fiftyFifty', count: 2 },
+            { type: 'timeFreeze', count: 1 },
+            { type: 'doublePoints', count: 1 }
+          ],
         };
         session.participants.push(participant);
       }
@@ -2002,6 +2007,7 @@ io.on("connection", (socket) => {
           role: participant.role,
           isReady: participant.isReady,
           status: participant.status,
+          powerups: participant.powerups,
         },
       };
 
@@ -2332,8 +2338,9 @@ io.on("connection", (socket) => {
       updateSessionLeaderboard(roomCode);
 
       // Check if all players have answered
+      // Exclude host from the active players count unless they have explicitly joined as a player (which logic might need refinement, but for now assuming host doesn't play)
       const activePlayers = session.participants.filter(p =>
-        p.status === "ready" || p.status === "playing"
+        (p.status === "ready" || p.status === "playing") && p.role !== "host"
       );
 
       if (session.currentState.answersReceived >= activePlayers.length) {
@@ -2577,6 +2584,61 @@ io.on("connection", (socket) => {
     }
   });
 
+  // SHOW ANSWER NOW
+  socket.on("show-answer-now", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode }).populate("quizId");
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can action" });
+      if (session.currentState.phase !== "question") return callback({ success: false, message: "Not in question phase" });
+
+      // Force end question
+      session.currentState.phase = "answer";
+      await session.save();
+
+      // Clear timer
+      if (sessionTimers.has(roomCode)) {
+        clearInterval(sessionTimers.get(roomCode));
+      }
+
+      // Calculate stats
+      const question = session.quizId.questions[session.currentState.questionIndex];
+      const correctOption = question.options?.find(opt => opt.isCorrect);
+
+      // Calculate distribution
+      const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
+      session.participants.forEach(p => {
+        const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
+        if (lastAns && lastAns.selectedIndex >= 0) {
+          distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
+        }
+      });
+
+      io.to(roomCode).emit("question-completed", {
+        questionIndex: session.currentState.questionIndex,
+        correctAnswer: correctOption?.text || question.correctAnswer,
+        explanation: question.explanation,
+        stats: {
+          totalAnswers: session.currentState.answersReceived,
+          correctAnswers: session.currentState.correctAnswers,
+          accuracy: session.currentState.answersReceived > 0 ? (session.currentState.correctAnswers / session.currentState.answersReceived) * 100 : 0,
+          distribution // New field
+        }
+      });
+
+      // Move to next
+      setTimeout(() => {
+        nextQuestion(roomCode, session);
+      }, 5000);
+
+      callback({ success: true });
+    } catch (error) {
+      console.error("Show answer error:", error);
+      callback({ success: false, message: "Failed" });
+    }
+  });
+
   // SKIP QUESTION
   socket.on("skip-question", async (data, callback) => {
     try {
@@ -2743,12 +2805,20 @@ io.on("connection", (socket) => {
       const key = typeMap[powerupType];
       if (!key) return callback({ success: false, message: "Invalid powerup type" });
 
-      if (!participant.powerUps || participant.powerUps[key] <= 0) {
+      let powerup = participant.powerups.find(p => p.type === key);
+
+      // If not found in array (legacy data), try to add it or fail
+      if (!powerup) {
+        participant.powerups.push({ type: key, count: 0 });
+        powerup = participant.powerups.find(p => p.type === key);
+      }
+
+      if (!powerup || powerup.count <= 0) {
         return callback({ success: false, message: `No ${powerupType} remaining` });
       }
 
       // Decrement
-      participant.powerUps[key]--;
+      powerup.count--;
 
       // Apply effects
       if (key === 'doublePoints') {
@@ -2756,7 +2826,7 @@ io.on("connection", (socket) => {
       }
 
       await session.save();
-      callback({ success: true, remaining: participant.powerUps[key] });
+      callback({ success: true, remaining: powerup.count });
     } catch (error) {
       console.error("Powerup error:", error);
       callback({ success: false, message: "Failed to use powerup" });
@@ -3008,10 +3078,25 @@ const startQuestionTimer = async (roomCode, session) => {
       const question = quiz.questions[session.currentState.questionIndex];
       const correctOption = question.options?.find(opt => opt.isCorrect);
 
-      io.to(roomCode).emit("question-time-up", {
+      // Gather stats for distribution
+      const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
+      session.participants.forEach(p => {
+        const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
+        if (lastAns && lastAns.selectedIndex >= 0) {
+          distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
+        }
+      });
+
+      io.to(roomCode).emit("question-completed", { // Renamed from question-time-up to question-completed to unify logic
         questionIndex: session.currentState.questionIndex,
         correctAnswer: correctOption?.text || question.correctAnswer,
         explanation: question.explanation,
+        stats: {
+          totalAnswers: session.currentState.answersReceived,
+          correctAnswers: session.currentState.correctAnswers,
+          accuracy: session.currentState.answersReceived > 0 ? (session.currentState.correctAnswers / session.currentState.answersReceived) * 100 : 0,
+          distribution
+        }
       });
 
       // Move to next question after delay

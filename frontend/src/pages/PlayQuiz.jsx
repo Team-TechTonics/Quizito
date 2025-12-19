@@ -63,6 +63,11 @@ const PlayQuiz = () => {
               // socketService.getCurrentState? (Not implemented yet).
               // I will stick to 'waiting' if not implemented, or assume events fire
             }
+            if (response.participant?.powerups) {
+              const pMap = {};
+              response.participant.powerups.forEach(p => pMap[p.type] = p.count);
+              setPowerUps(pMap);
+            }
           } else {
             toast.error(response.message || "Failed to join");
             navigate('/');
@@ -148,10 +153,22 @@ const PlayQuiz = () => {
       navigate('/');
     });
 
+    socketService.onSessionEndedByHost(() => {
+      toast.error("Host ended the session");
+      navigate('/');
+    });
+
     return () => {
       socketService.removeAllListeners();
     };
   }, [roomCode, user, navigate]);
+
+  // Handle sending reactions
+  const sendReaction = (emoji) => {
+    socketService.emit('send-reaction', { roomCode, reaction: emoji });
+    // Show local feedback
+    toast(emoji, { position: 'bottom-center', duration: 1000 });
+  };
 
   const handleOptionSelect = (index) => {
     if (gameState !== 'question' || selectedOption !== null) return;
@@ -199,7 +216,9 @@ const PlayQuiz = () => {
         <div className="max-w-3xl mx-auto flex justify-between items-center mb-8 bg-gray-800/50 p-4 rounded-xl backdrop-blur-sm w-full">
           <div className="flex flex-col">
             <span className="text-xs text-gray-400 uppercase font-bold">Score</span>
-            <span className="text-2xl font-bold text-yellow-400">{score}</span>
+            <span className="text-2xl font-bold text-yellow-400">{score}
+              {streak > 2 && <span className="ml-2 animate-bounce inline-block">🔥 {streak}</span>}
+            </span>
             {rank > 0 && <span className="text-xs text-green-400">Rank #{rank}</span>}
           </div>
 
@@ -277,6 +296,19 @@ const PlayQuiz = () => {
                   onUse={handleUsePowerUp}
                   disabled={gameState !== 'question' || selectedOption !== null}
                 />
+
+                {/* Reaction FAB */}
+                <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                  {['❤️', '😂', '😮', '😡'].map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => sendReaction(emoji)}
+                      className="w-10 h-10 bg-white/10 rounded-full hover:bg-white/20 backdrop-blur text-xl shadow-lg transition-transform hover:scale-110 active:scale-95"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : gameState === 'finished' ? (
