@@ -63,6 +63,21 @@ const sessionSchema = new mongoose.Schema({
     pausedAt: Date,
     roomLocked: { type: Boolean, default: false },
 
+    // Runtime State (Current Logic)
+    currentState: {
+        phase: {
+            type: String,
+            enum: ["lobby", "starting", "question", "answer", "finished"],
+            default: "lobby"
+        },
+        questionIndex: { type: Number, default: 0 },
+        questionStartTime: Date,
+        questionEndTime: Date,
+        timeRemaining: { type: Number, default: 30 },
+        answersReceived: { type: Number, default: 0 },
+        correctAnswers: { type: Number, default: 0 }
+    },
+
     // Participants
     participants: [{
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

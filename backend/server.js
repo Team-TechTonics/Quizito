@@ -2534,6 +2534,17 @@ io.on("connection", (socket) => {
       session.status = "active";
       session.startedAt = new Date();
       session.currentQuestionIndex = 0;
+
+      // Initialize runtime state
+      session.currentState = {
+        phase: "question",
+        questionIndex: 0,
+        questionStartTime: new Date(),
+        timeRemaining: session.settings.questionTime || 30,
+        answersReceived: 0,
+        correctAnswers: 0
+      };
+
       await session.save();
 
       // Notify everyone quiz started
@@ -2591,6 +2602,12 @@ io.on("connection", (socket) => {
       const session = await Session.findOne({ roomCode }).populate("quizId");
       if (!session) return callback({ success: false, message: "Session not found" });
       if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can action" });
+
+      // Ensure state exists
+      if (!session.currentState) {
+        session.currentState = { phase: "question", questionIndex: session.currentQuestionIndex || 0 };
+      }
+
       if (session.currentState.phase !== "question") return callback({ success: false, message: "Not in question phase" });
 
       // Force end question
@@ -3058,6 +3075,15 @@ const startQuestionTimer = async (roomCode, session) => {
   const questionTime = session.settings.questionTime || 30;
   let timeRemaining = questionTime;
 
+  // Ensure state exists
+  if (!session.currentState) {
+    session.currentState = {
+      phase: "question",
+      questionIndex: session.currentQuestionIndex || 0,
+      timeRemaining: questionTime
+    };
+  }
+
   const timerInterval = setInterval(async () => {
     try {
       timeRemaining--;
@@ -3071,41 +3097,48 @@ const startQuestionTimer = async (roomCode, session) => {
       if (timeRemaining <= 0) {
         clearInterval(timerInterval);
 
-        // Time's up - process unanswered questions
-        session.currentState.phase = "answer";
-        await session.save();
+        // RE-FETCH FRESH SESSION to ensure we have latest answers/participants
+        // The 'session' variable in closure is stale (30s old) and lacks recent submissions
+        const freshSession = await Session.findOne({ roomCode });
 
-        // Get current question
-        const quiz = await Quiz.findById(session.quizId);
-        const question = quiz.questions[session.currentState.questionIndex];
-        const correctOption = question.options?.find(opt => opt.isCorrect);
+        if (freshSession) {
+          // Time's up - process unanswered questions on FRESH session
+          freshSession.currentState.phase = "answer";
+          freshSession.currentState.timeRemaining = 0;
+          await freshSession.save();
 
-        // Gather stats for distribution
-        const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
-        session.participants.forEach(p => {
-          if (!p.answers) return; // Safety check
-          const lastAns = p.answers.find(a => a.questionIndex === session.currentState.questionIndex);
-          if (lastAns && lastAns.selectedIndex >= 0) {
-            distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
-          }
-        });
+          // Get stats from FRESH session
+          const quiz = await Quiz.findById(freshSession.quizId);
+          const question = quiz.questions[freshSession.currentState.questionIndex];
+          const correctOption = question.options?.find(opt => opt.isCorrect);
 
-        io.to(roomCode).emit("question-completed", {
-          questionIndex: session.currentState.questionIndex,
-          correctAnswer: correctOption?.text || question.correctAnswer,
-          explanation: question.explanation,
-          stats: {
-            totalAnswers: session.currentState.answersReceived,
-            correctAnswers: session.currentState.correctAnswers,
-            accuracy: session.currentState.answersReceived > 0 ? (session.currentState.correctAnswers / session.currentState.answersReceived) * 100 : 0,
-            distribution
-          }
-        });
+          // Gather stats for distribution
+          const distribution = { 0: 0, 1: 0, 2: 0, 3: 0 };
+          freshSession.participants.forEach(p => {
+            if (!p.answers) return;
+            const lastAns = p.answers.find(a => a.questionIndex === freshSession.currentState.questionIndex);
+            if (lastAns && lastAns.selectedIndex >= 0) {
+              distribution[lastAns.selectedIndex] = (distribution[lastAns.selectedIndex] || 0) + 1;
+            }
+          });
 
-        // Move to next question after delay
-        setTimeout(() => {
-          nextQuestion(roomCode, session);
-        }, 5000);
+          io.to(roomCode).emit("question-completed", {
+            questionIndex: freshSession.currentState.questionIndex,
+            correctAnswer: correctOption?.text || question.correctAnswer,
+            explanation: question.explanation,
+            stats: {
+              totalAnswers: freshSession.currentState.answersReceived,
+              correctAnswers: freshSession.currentState.correctAnswers,
+              accuracy: freshSession.currentState.answersReceived > 0 ? (freshSession.currentState.correctAnswers / freshSession.currentState.answersReceived) * 100 : 0,
+              distribution
+            }
+          });
+
+          // Move to next question after delay using fresh session
+          setTimeout(() => {
+            nextQuestion(roomCode, freshSession);
+          }, 5000);
+        }
       }
     } catch (error) {
       console.error("Timer interval error:", error);
