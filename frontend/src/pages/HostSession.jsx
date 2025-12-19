@@ -753,11 +753,11 @@ const HostSession = () => {
                         onClick={() => handleOptionClick(i)}
                         disabled={gameStatus !== 'question' || selectedOption !== null}
                         className={`p-5 rounded-xl border-2 transition-all flex items-center gap-4 text-left group relative
-                                   ${gameStatus === 'answer' && opt.isCorrect
+                                   ${gameStatus === 'answer' && (opt.isCorrect || i === currentQuestion.correctIndex)
                             ? 'border-green-500 bg-green-50 shadow-md ring-1 ring-green-200'
-                            : gameStatus === 'answer' && selectedOption === i && !opt.isCorrect
+                            : gameStatus === 'answer' && selectedOption === i && !(opt.isCorrect || i === currentQuestion.correctIndex)
                               ? 'border-red-500 bg-red-50 shadow-md ring-1 ring-red-200'
-                              : gameStatus === 'answer' && !opt.isCorrect
+                              : gameStatus === 'answer' && !(opt.isCorrect || i === currentQuestion.correctIndex)
                                 ? 'border-slate-100 bg-slate-50 opacity-50'
                                 : selectedOption === i
                                   ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg transform scale-[1.02]'
@@ -765,7 +765,7 @@ const HostSession = () => {
                                 `}
                       >
                         <div className={`w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-xl shadow-sm transition-colors
-                                      ${gameStatus === 'answer' && opt.isCorrect
+                                      ${gameStatus === 'answer' && (opt.isCorrect || i === currentQuestion.correctIndex)
                             ? 'bg-green-500 text-white'
                             : selectedOption === i
                               ? 'bg-white/20 text-white'
@@ -773,14 +773,14 @@ const HostSession = () => {
                                    `}>
                           {['A', 'B', 'C', 'D'][i]}
                         </div>
-                        <span className={`text-lg font-medium transition-colors ${gameStatus === 'answer' && opt.isCorrect ? 'text-green-800' :
+                        <span className={`text-lg font-medium transition-colors ${gameStatus === 'answer' && (opt.isCorrect || i === currentQuestion.correctIndex) ? 'text-green-800' :
                           selectedOption === i ? 'text-white' : 'text-slate-700'
                           }`}>
                           {typeof opt === 'string' ? opt : opt.text}
                         </span>
 
                         {/* Status Icons */}
-                        {gameStatus === 'answer' && opt.isCorrect && (
+                        {gameStatus === 'answer' && (opt.isCorrect || i === currentQuestion.correctIndex) && (
                           <div className="ml-auto text-green-600">
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                           </div>

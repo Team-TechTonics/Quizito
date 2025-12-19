@@ -2262,7 +2262,7 @@ io.on("connection", (socket) => {
         streak: participant.streak,
       };
 
-      const points = isCorrect ? calculatePoints(question, {
+      let points = isCorrect ? calculatePoints(question, {
         timeTaken,
         isCorrect,
         streak: participant.streak,

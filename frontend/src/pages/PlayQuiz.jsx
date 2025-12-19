@@ -193,14 +193,13 @@ const PlayQuiz = () => {
         toast('Time is up!', { icon: '⏰' });
       }
     });
-    socketService.onSessionEndedByHost(() => {
-      toast.error("Host ended the session");
-      navigate('/');
-    });
-
-    socketService.onSessionEndedByHost(() => {
-      toast.error("Host ended the session");
-      navigate('/');
+    socketService.onSessionEndedByHost((data) => {
+      toast("Session ended by host", { icon: '🏁' });
+      if (data.sessionId) {
+        navigate(`/results/${data.sessionId}`);
+      } else {
+        navigate('/');
+      }
     });
 
     return () => {
