@@ -40,6 +40,7 @@ const PlayQuiz = () => {
   const [quizInfo, setQuizInfo] = useState(null);
   const [currentExplanation, setCurrentExplanation] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [countdown, setCountdown] = useState(null);
 
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -175,7 +176,11 @@ const PlayQuiz = () => {
       setLeaderboard(data.leaderboard || []);
     };
 
-    socketService.onQuizStarted(handleQuizStarted);
+    socketService.onCountdown((count) => setCountdown(count > 0 ? count : null));
+    socketService.onQuizStarted((data) => {
+      setCountdown(null);
+      handleQuizStarted(data);
+    });
     socketService.onNextQuestion(handleNextQuestion);
     socketService.onQuestionCompleted(handleQuestionCompleted);
     socketService.onQuizCompleted(handleQuizCompleted);
@@ -464,6 +469,26 @@ const PlayQuiz = () => {
           </>
         )}
       </div>
+      {/* COUNTDOWN OVERLAY */}
+      <AnimatePresence>
+        {countdown !== null && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.5, opacity: 0 }}
+            key={countdown}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          >
+            <motion.span
+              animate={{ scale: [1, 1.5, 1] }}
+              transition={{ duration: 0.5 }}
+              className="text-[12rem] font-black text-white drop-shadow-[0_0_30px_rgba(124,58,237,0.8)]"
+            >
+              {countdown}
+            </motion.span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

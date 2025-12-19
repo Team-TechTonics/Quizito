@@ -521,21 +521,7 @@ const HostSession = () => {
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-[20%] -right-[10%] w-[70vh] h-[70vh] rounded-full bg-indigo-100/50 blur-3xl"></div>
         <div className="absolute top-[20%] -left-[10%] w-[50vh] h-[50vh] rounded-full bg-purple-100/50 blur-3xl"></div>
-        {/* Helper for Reactions */}
-        <AnimatePresence>
-          {reactions.map(r => (
-            <motion.div
-              key={r.id}
-              initial={{ y: window.innerHeight, x: Math.random() * window.innerWidth, opacity: 1, scale: 0.5 }}
-              animate={{ y: -100, opacity: 0, scale: 1.5 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 2, ease: "easeOut" }}
-              className="fixed text-4xl pointer-events-none z-[100]"
-            >
-              {r.reaction}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+
       </div>
 
       {/* COUNTDOWN OVERLAY */}
@@ -972,6 +958,22 @@ const HostSession = () => {
 
         </div>
       </div>
+      {/* GLOBAL REACTION OVERLAY - Z-INDEX FIX */}
+      <AnimatePresence>
+        {reactions.map(r => (
+          <motion.div
+            key={r.id}
+            initial={{ y: "100vh", x: Math.random() * 100 + "vw", opacity: 1, scale: 0.5 }}
+            animate={{ y: -100, opacity: 0, scale: 1.5 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 2, ease: "easeOut" }}
+            className="fixed text-5xl pointer-events-none z-[9999]"
+            style={{ left: 0, top: 0 }}
+          >
+            {r.reaction}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
