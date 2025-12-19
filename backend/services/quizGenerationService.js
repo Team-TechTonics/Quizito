@@ -94,7 +94,8 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                         'Content-Type': 'application/json',
                         'HTTP-Referer': process.env.FRONTEND_URL || 'https://quizito.com', // Required by OpenRouter for ranking
                         'X-Title': 'Quizito AI Quiz Generator' // Optional
-                    }
+                    },
+                    timeout: 120000 // 2 minute timeout explicitly
                 }
             );
 
