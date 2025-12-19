@@ -3192,6 +3192,20 @@ const startQuestionTimer = async (roomCode, session) => {
             }
           });
 
+          // Emit Leaderboard Update (Critical Fix for Timer Expiry)
+          const leaderboard = freshSession.participants
+            .map(p => ({
+              userId: p.userId,
+              username: p.username || 'Unknown',
+              score: p.score || 0,
+              avatar: p.avatar,
+              streak: p.streak || 0
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10);
+
+          io.to(roomCode).emit('leaderboard-update', { leaderboard });
+
           io.to(roomCode).emit("question-completed", {
             questionIndex: freshSession.currentState.questionIndex,
             correctAnswer: correctOption?.text || question.correctAnswer,

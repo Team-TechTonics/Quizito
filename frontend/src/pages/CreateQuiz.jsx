@@ -458,109 +458,92 @@ const CreateQuiz = () => {
 
           {/* Loading Overlay with Educational Tips */}
           {loading && (
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-indigo-50 z-50 flex flex-col items-center justify-center rounded-3xl p-8">
-              {/* Animated Spinner */}
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="w-20 h-20 border-4 border-purple-200 border-t-purple-600 rounded-full mb-8"
-              />
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-indigo-50 z-50 flex flex-col items-center justify-center rounded-3xl overflow-hidden p-8">
 
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">Creating Magic...</h3>
-
-              {/* Progress Bar */}
-              {uploadProgress > 0 && (
-                <div className="w-full max-w-md mb-6">
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${uploadProgress}%` }}
-                      className="h-full bg-gradient-to-r from-purple-500 to-indigo-500"
-                    />
-                  </div>
-                  <p className="text-sm text-gray-600 text-center mt-2">{uploadProgress}% Complete</p>
-                </div>
-              )}
-
-              {/* Educational Tips Carousel */}
-              <motion.div
-                key={Math.floor(Date.now() / 4000)} // Change every 4 seconds
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="max-w-2xl text-center"
-              >
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-purple-100">
-                  <div className="flex items-center justify-center mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
-                      <Sparkles className="text-white" size={20} />
-                    </div>
-                  </div>
-                  <p className="text-lg font-semibold text-gray-800 mb-2">
-                    {[
-                      "💡 Did you know?",
-                      "🧠 Learning Tip:",
-                      "✨ Fun Fact:",
-                      "📚 Study Hack:",
-                      "🎯 Pro Tip:"
-                    ][Math.floor(Date.now() / 4000) % 5]}
-                  </p>
-                  <p className="text-gray-600 leading-relaxed">
-                    {[
-                      "Spaced repetition increases retention by 200%! Review material at increasing intervals for better memory.",
-                      "Teaching others is the best way to learn. Explaining concepts reinforces your own understanding.",
-                      "The brain can only focus for 25-30 minutes. Take short breaks to maximize learning efficiency!",
-                      "Active recall (testing yourself) is 50% more effective than passive reading for long-term retention.",
-                      "Sleep consolidates memories. Getting 7-8 hours after studying improves recall by up to 40%!",
-                      "Handwriting notes activates more brain regions than typing, leading to better comprehension.",
-                      "The Feynman Technique: Explain concepts in simple terms to identify gaps in your knowledge.",
-                      "Interleaving (mixing topics) improves problem-solving skills more than studying one topic at a time.",
-                      "Mnemonics and visual imagery can boost memory retention by creating stronger neural connections.",
-                      "Regular exercise increases brain-derived neurotrophic factor (BDNF), enhancing learning and memory!"
-                    ][Math.floor(Date.now() / 4000) % 10]}
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* Floating Icons Animation */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {/* Floating Icons Background */}
+              <div className="absolute inset-0 pointer-events-none">
                 {[
-                  { icon: "📚", startX: 10, endX: 80, startY: -10, endY: 110, duration: 12, delay: 0 },
-                  { icon: "🎓", startX: 90, endX: 20, startY: 110, endY: -10, duration: 14, delay: 2 },
-                  { icon: "✨", startX: 30, endX: 70, startY: -10, endY: 110, duration: 11, delay: 1 },
-                  { icon: "🧠", startX: 70, endX: 15, startY: 110, endY: -10, duration: 13, delay: 3 },
-                  { icon: "💡", startX: 50, endX: 85, startY: -10, endY: 110, duration: 15, delay: 1.5 },
-                  { icon: "🚀", startX: 85, endX: 30, startY: 110, endY: -10, duration: 12, delay: 4 },
-                  { icon: "📖", startX: 20, endX: 60, startY: -10, endY: 110, duration: 14, delay: 2.5 },
-                  { icon: "⭐", startX: 60, endX: 10, startY: 110, endY: -10, duration: 13, delay: 3.5 }
+                  { icon: "📚", xA: 10, xB: 90, yA: -20, yB: 120, d: 20, rain: false },
+                  { icon: "🎓", xA: 80, xB: 20, yA: 120, yB: -20, d: 25, rain: false },
+                  { icon: "✨", xA: 30, xB: 70, yA: -10, yB: 110, d: 18, rain: false },
+                  { icon: "🧠", xA: 70, xB: 30, yA: 110, yB: -10, d: 22, rain: false },
+                  { icon: "💡", xA: 50, xB: 80, yA: -20, yB: 120, d: 15, rain: false },
+                  { icon: "🚀", xA: 20, xB: 80, yA: 100, yB: -20, d: 12, rain: false },
+                  { icon: "⭐", xA: 85, xB: 15, yA: -10, yB: 90, d: 28, rain: false }
                 ].map((item, i) => (
                   <motion.div
                     key={i}
-                    initial={{
-                      x: `${item.startX}%`,
-                      y: `${item.startY}%`,
-                      opacity: 0,
-                      rotate: 0,
-                      scale: 0.8
-                    }}
+                    initial={{ left: `${item.xA}%`, top: `${item.yA}%`, opacity: 0, scale: 0.5 }}
                     animate={{
-                      x: `${item.endX}%`,
-                      y: `${item.endY}%`,
-                      opacity: [0, 0.7, 0.7, 0],
-                      rotate: 360,
-                      scale: [0.8, 1.2, 0.8]
+                      left: `${item.xB}%`,
+                      top: `${item.yB}%`,
+                      opacity: [0, 1, 1, 0],
+                      scale: [0.5, 1.2, 0.5],
+                      rotate: 360
                     }}
                     transition={{
-                      duration: item.duration,
+                      duration: item.d,
                       repeat: Infinity,
-                      delay: item.delay,
-                      ease: "easeInOut"
+                      ease: "linear",
+                      delay: i * 2
                     }}
-                    className="absolute text-4xl"
+                    className="absolute text-5xl opacity-50"
                   >
                     {item.icon}
                   </motion.div>
                 ))}
+              </div>
+
+              {/* Foreground Content */}
+              <div className="relative z-10 flex flex-col items-center w-full max-w-2xl">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-20 h-20 border-4 border-purple-200 border-t-purple-600 rounded-full mb-8"
+                />
+
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">Creating Magic...</h3>
+
+                {uploadProgress > 0 && (
+                  <div className="w-full max-w-md mb-6">
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadProgress}%` }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                      />
+                    </div>
+                    <p className="text-sm text-gray-600 text-center mt-2">{uploadProgress}% Complete</p>
+                  </div>
+                )}
+
+                <motion.div
+                  key={Math.floor(Date.now() / 4000)}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="w-full text-center"
+                >
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-purple-100 mx-auto">
+                    <div className="flex items-center justify-center mb-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
+                        <Sparkles className="text-white" size={20} />
+                      </div>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-800 mb-2">
+                      Did you know?
+                    </p>
+                    <p className="text-gray-600 leading-relaxed">
+                      {[
+                        "Spaced repetition increases retention by 200%!",
+                        "Teaching others is the best way to learn.",
+                        "Sleep consolidates memories effectively.",
+                        "Active recall is superior to passive rereading.",
+                        "Visual imagery boosts memory retention."
+                      ][Math.floor(Date.now() / 4000) % 5]}
+                    </p>
+                  </div>
+                </motion.div>
               </div>
             </div>
           )}
