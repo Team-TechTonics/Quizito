@@ -77,7 +77,9 @@ const PlayQuiz = () => {
 
   // Refs for stale closure
   const selectedOptionRef = useRef(null);
+  const scoreRef = useRef(0);
   useEffect(() => { selectedOptionRef.current = selectedOption; }, [selectedOption]);
+  useEffect(() => { scoreRef.current = score; }, [score]);
 
   useEffect(() => {
     const connectToSession = async () => {
@@ -204,7 +206,7 @@ const PlayQuiz = () => {
     socketService.onSessionEndedByHost((data) => {
       toast("Session ended by host", { icon: '🏁' });
       if (data.sessionId) {
-        navigate(`/results/${data.sessionId}`);
+        navigate(`/results/${data.sessionId}`, { state: { score: scoreRef.current, totalQuestions } });
       } else {
         navigate('/');
       }
@@ -439,11 +441,12 @@ const PlayQuiz = () => {
                       })}
                     </div>
 
-                    <PowerUpBar
+                    {/* PowerUpBar removed per user request */}
+                    {/* <PowerUpBar
                       powerUps={powerUps}
                       onUse={handleUsePowerUp}
                       disabled={gameState !== 'question' || selectedOption !== null}
-                    />
+                    /> */}
 
                     {/* Reaction FAB */}
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2">
