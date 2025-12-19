@@ -2368,6 +2368,7 @@ io.on("connection", (socket) => {
         io.to(roomCode).emit("question-completed", {
           questionIndex,
           correctAnswer,
+          correctIndex: question.options?.findIndex(o => o.isCorrect),
           explanation: question.explanation,
           stats: {
             totalAnswers: session.currentState.answersReceived,

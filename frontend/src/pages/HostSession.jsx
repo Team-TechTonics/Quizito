@@ -272,7 +272,7 @@ const HostSession = () => {
         });
 
         // Reaction Listener
-        socketService.on('receive-reaction', (data) => {
+        socketService.on('user-reaction', (data) => {
           const id = Date.now() + Math.random();
           setReactions(prev => [...prev, { ...data, id }]);
           setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 2000); // Cleanup
