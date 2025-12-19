@@ -280,6 +280,14 @@ class SocketService {
         this.socket?.on('chat-toggled', callback);
     }
 
+    onQuizPaused(callback) {
+        this.socket?.on('quiz-paused', callback);
+    }
+
+    onQuizResumed(callback) {
+        this.socket?.on('quiz-resumed', callback);
+    }
+
     endSession(roomCode, callback) {
         this.socket?.emit('end-session', { roomCode }, callback);
     }

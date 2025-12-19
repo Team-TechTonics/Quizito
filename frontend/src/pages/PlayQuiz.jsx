@@ -176,6 +176,12 @@ const PlayQuiz = () => {
     socketService.onQuizCompleted(handleQuizCompleted);
     socketService.onLeaderboardUpdate(handleLeaderboardUpdate);
     socketService.onTimerUpdate((data) => setTimeRemaining(data.timeRemaining));
+    socketService.onQuizPaused(() => {
+      toast("⏸️ Quiz Paused by Host", { duration: 5000, icon: '🛑' });
+    });
+    socketService.onQuizResumed(() => {
+      toast("▶️ Quiz Resumed!", { duration: 3000, icon: '🚀' });
+    });
     socketService.onQuestionTimeUp(() => {
       if (gameState === 'question') {
         setGameState('answer');

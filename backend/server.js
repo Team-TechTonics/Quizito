@@ -2539,6 +2539,13 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("quiz-paused", { pausedAt: session.pausedAt, pausedBy: socket.user.username });
+
+      // Stop the timer
+      if (sessionTimers.has(roomCode)) {
+        clearInterval(sessionTimers.get(roomCode));
+        sessionTimers.delete(roomCode);
+      }
+
       console.log(`Quiz paused in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
@@ -2613,6 +2620,10 @@ io.on("connection", (socket) => {
       await session.save();
 
       io.to(roomCode).emit("quiz-resumed", { resumedBy: socket.user.username });
+
+      // Restart the timer
+      startQuestionTimer(roomCode, session);
+
       console.log(`Quiz resumed in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
@@ -2729,7 +2740,27 @@ io.on("connection", (socket) => {
       if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can extend timer" });
       if (session.status !== "active") return callback({ success: false, message: "Quiz is not active" });
 
+      // Update state
+      session.currentState.timeRemaining += seconds;
+
+      // Update running timer if it exists (by restarting it or just validating state)
+      // Since timer loop reads current state variable or local variable?
+      // The timer loop uses local 'timeRemaining'. We need to update IT.
+      // But we can't access local closure variable of setInterval.
+      // So we have to RESTART the timer with new time.
+      if (sessionTimers.has(roomCode)) {
+        clearInterval(sessionTimers.get(roomCode));
+        sessionTimers.delete(roomCode);
+      }
+      // Save new time to DB so startQuestionTimer picks it up
+      await session.save();
+
+      // Broadcast extension
       io.to(roomCode).emit("timer-extended", { additionalSeconds: seconds, extendedBy: socket.user.username });
+
+      // Restart timer
+      startQuestionTimer(roomCode, session);
+
       console.log(`Timer extended by ${seconds}s in room ${roomCode}`);
       callback({ success: true });
     } catch (error) {
