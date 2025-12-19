@@ -3183,7 +3183,7 @@ const nextQuestion = async (roomCode, session) => {
 
     const safeQuestion = {
       index: nextIndex,
-      text: nextQuestion.question,
+      question: nextQuestion.question,
       type: nextQuestion.type,
       options: nextQuestion.options?.map(opt => ({
         text: opt.text,
@@ -7899,6 +7899,7 @@ try {
   logger.warn('⚠️ Analytics routes not available:', error.message);
 }
 
+
 // ===========================================================================
 // ADAPTIVE DIFFICULTY ROUTES
 // ===========================================================================
@@ -7910,6 +7911,19 @@ try {
 } catch (error) {
   logger.warn('⚠️ Adaptive routes not available:', error.message);
 }
+
+// ===========================================================================
+// STATIC FILES & SPA CATCH-ALL
+// ===========================================================================
+
+// Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+// The "catch-all" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+});
 
 // ===========================================================================
 // 20. START SERVER WITH COMPREHENSIVE LOGGING

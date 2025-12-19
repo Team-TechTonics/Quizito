@@ -35,10 +35,38 @@ const PlayQuiz = () => {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [streak, setStreak] = useState(0);
   const [powerUps, setPowerUps] = useState({ fiftyFifty: 2, timeFreeze: 1, doublePoints: 1 });
-  const [showConfetti, setShowConfetti] = useState(false);
   const [sessionSettings, setSessionSettings] = useState(null);
   const [quizInfo, setQuizInfo] = useState(null);
   const [currentExplanation, setCurrentExplanation] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
+
+  // Chat/Reaction Effects
+  useEffect(() => {
+    const onChat = (msg) => {
+      setChatMessages(prev => [...prev, msg]);
+      if (!isChatOpen) setUnreadMessages(prev => prev + 1);
+    };
+    const onReaction = (data) => {
+      if (data.userId !== user?._id) {
+        toast(data.reaction, {
+          icon: data.username,
+          position: 'bottom-left',
+          style: { borderRadius: '20px', background: 'rgba(255,255,255,0.9)' }
+        });
+      }
+    };
+    socketService.onChatMessage(onChat);
+    socketService.on('user-reaction', onReaction);
+    return () => {
+      socketService.off('user-reaction', onReaction);
+      // socketService.offChatMessage? (If exists, else ignore)
+    };
+  }, [isChatOpen, user]);
 
   const { playSound, soundEnabled, toggleSound } = useSoundSettings();
 
@@ -218,47 +246,13 @@ const PlayQuiz = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (gameState === 'waiting') {
-    const player = { username: user?.username || localStorage.getItem('username'), avatar: '😎' };
-    return <LobbyView
-      roomCode={roomCode}
-      player={player}
-      settings={sessionSettings}
-      quizInfo={quizInfo}
-      currentTip={TIPS[tipIndex]}
-    />;
+
+  // Loading State
+  if (gameState === 'connecting') {
+    return <LoadingSpinner text="Joining session..." fullScreen={true} color="purple" />;
   }
 
-  // Toggle Chat
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [unreadMessages, setUnreadMessages] = useState(0);
-  const [chatMessages, setChatMessages] = useState([]);
 
-  useEffect(() => {
-    // Listen for incoming chat
-    const onChat = (msg) => {
-      setChatMessages(prev => [...prev, msg]);
-      if (!isChatOpen) setUnreadMessages(prev => prev + 1);
-    };
-    socketService.onChatMessage(onChat);
-
-    // Listen for OTHERS' reactions to show floating animation
-    const onReaction = (data) => {
-      if (data.userId !== user?._id) { // Don't double show ours if handled locally
-        // Trigger floating animation? For now toast
-        toast(data.reaction, {
-          icon: data.username,
-          position: 'bottom-left',
-          style: { borderRadius: '20px', background: 'rgba(255,255,255,0.9)' }
-        });
-      }
-    };
-    socketService.on('user-reaction', onReaction);
-
-    return () => {
-      socketService.off('user-reaction', onReaction);
-    };
-  }, [isChatOpen, user]);
 
   const handleSendMessage = (text) => {
     socketService.sendChatMessage(roomCode, text);
@@ -297,113 +291,133 @@ const PlayQuiz = () => {
       </AnimatePresence>
 
       <div className="relative z-10 h-full flex flex-col">
-        {/* Top Bar */}
-        <div className="max-w-3xl mx-auto flex justify-between items-center mb-8 bg-gray-800/50 p-4 rounded-xl backdrop-blur-sm w-full">
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-400 uppercase font-bold">Score</span>
-            <span className="text-2xl font-bold text-yellow-400">{score}
-              {streak > 2 && <span className="ml-2 animate-bounce inline-block">🔥 {streak}</span>}
-            </span>
-            {rank > 0 && <span className="text-xs text-green-400">Rank #{rank}</span>}
-          </div>
 
-          <button
-            onClick={toggleSound}
-            className={`p-2 rounded-full transition-colors ${soundEnabled ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}
-          >
-            {soundEnabled ? '🔊' : '🔇'}
-          </button>
+        {/* LOBBY VIEW */}
+        {gameState === 'waiting' && (
+          <LobbyView
+            roomCode={roomCode}
+            player={{ username: user?.username || localStorage.getItem('username'), avatar: '😎' }}
+            settings={sessionSettings}
+            quizInfo={quizInfo}
+            currentTip={TIPS[tipIndex]}
+          />
+        )}
 
-          <div className="flex flex-col items-end">
-            <span className="text-xs text-gray-400 uppercase font-bold">Question</span>
-            <span className="text-xl font-bold">{currentQuestionIndex + 1} <span className="text-sm text-gray-500">/ {totalQuestions}</span></span>
-          </div>
-        </div>
-
-        <div className="max-w-3xl mx-auto relative z-10 w-full">
-          <AnimatePresence>
-            {gameState === 'answer' && (
-              <ResponseFeedback
-                isCorrect={selectedOptionRef.current === correctAnswer}
-                points={pointsEarned}
-                streak={streak}
-                explanation={currentExplanation}
-              />
-            )}
-          </AnimatePresence>
-
-          {gameState === 'question' || gameState === 'answer' ? (
-            <div className="bg-gray-800/80 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden border border-gray-700/50">
-              <div className="h-2 bg-gray-700 w-full">
-                <div
-                  className={`h-full transition-all duration-1000 ${timeRemaining < 10 ? 'bg-red-500' : 'bg-cyan-500'}`}
-                  style={{ width: `${(timeRemaining / (currentQuestion?.timeLimit || 30)) * 100}%` }}
-                ></div>
+        {/* GAME UI */}
+        {gameState !== 'waiting' && (
+          <>
+            {/* Top Bar */}
+            <div className="max-w-3xl mx-auto flex justify-between items-center mb-8 bg-gray-800/50 p-4 rounded-xl backdrop-blur-sm w-full">
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-400 uppercase font-bold">Score</span>
+                <span className="text-2xl font-bold text-yellow-400">{score}
+                  {streak > 2 && <span className="ml-2 animate-bounce inline-block">🔥 {streak}</span>}
+                </span>
+                {rank > 0 && <span className="text-xs text-green-400">Rank #{rank}</span>}
               </div>
 
-              <div className="p-6 md:p-8">
-                <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-tight">
-                  {currentQuestion?.question || currentQuestion?.text}
-                </h2>
+              <button
+                onClick={toggleSound}
+                className={`p-2 rounded-full transition-colors ${soundEnabled ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}
+              >
+                {soundEnabled ? '🔊' : '🔇'}
+              </button>
 
-                <div className="grid grid-cols-1 gap-4">
-                  {currentQuestion?.options?.map((opt, idx) => {
-                    const text = typeof opt === 'object' ? opt.text : opt;
-                    let statusClass = "bg-gray-700 hover:bg-gray-600 border-gray-600";
-
-                    if (gameState === 'answer' && idx === correctAnswer) {
-                      statusClass = "bg-green-600 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
-                    } else if (gameState === 'answer' && selectedOption === idx && idx !== correctAnswer) {
-                      statusClass = "bg-red-600 border-red-400";
-                    } else if (selectedOption === idx) {
-                      statusClass += " ring-2 ring-white bg-indigo-600 border-indigo-400";
-                    }
-
-                    return (
-                      <motion.button
-                        key={idx}
-                        whileHover={gameState === 'question' && !selectedOption ? { scale: 1.02, translateY: -2 } : {}}
-                        whileTap={gameState === 'question' && !selectedOption ? { scale: 0.98 } : {}}
-                        onClick={() => handleOptionSelect(idx)}
-                        disabled={gameState !== 'question' || selectedOption !== null}
-                        className={`p-6 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${statusClass}`}
-                      >
-                        <div className="relative z-10 flex items-center justify-between">
-                          <span className="text-lg md:text-xl font-bold">{text}</span>
-                          {selectedOption === idx && <span className="text-2xl">Selected</span>}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                <PowerUpBar
-                  powerUps={powerUps}
-                  onUse={handleUsePowerUp}
-                  disabled={gameState !== 'question' || selectedOption !== null}
-                />
-
-                {/* Reaction FAB */}
-                <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-                  {['❤️', '😂', '😮', '😡'].map(emoji => (
-                    <button
-                      key={emoji}
-                      onClick={() => sendReaction(emoji)}
-                      className="w-10 h-10 bg-white/10 rounded-full hover:bg-white/20 backdrop-blur text-xl shadow-lg transition-transform hover:scale-110 active:scale-95"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-gray-400 uppercase font-bold">Question</span>
+                <span className="text-xl font-bold">{currentQuestionIndex + 1} <span className="text-sm text-gray-500">/ {totalQuestions}</span></span>
               </div>
             </div>
-          ) : gameState === 'finished' ? (
-            <div className="text-center py-12 bg-gray-800/80 rounded-2xl backdrop-blur-md">
-              <h2 className="text-4xl font-bold mb-4">Quiz Finished!</h2>
-              <p className="text-xl text-gray-400">Redirecting to results...</p>
+
+            <div className="max-w-3xl mx-auto relative z-10 w-full">
+              <AnimatePresence>
+                {gameState === 'answer' && (
+                  <ResponseFeedback
+                    isCorrect={selectedOptionRef.current === correctAnswer}
+                    points={pointsEarned}
+                    streak={streak}
+                    explanation={currentExplanation}
+                  />
+                )}
+              </AnimatePresence>
+
+              {gameState === 'question' || gameState === 'answer' ? (
+                <div className="bg-gray-800/80 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden border border-gray-700/50">
+                  <div className="h-2 bg-gray-700 w-full">
+                    <div
+                      className={`h-full transition-all duration-1000 ${timeRemaining < 10 ? 'bg-red-500' : 'bg-cyan-500'}`}
+                      style={{ width: `${(timeRemaining / (currentQuestion?.timeLimit || 30)) * 100}%` }}
+                    ></div>
+                  </div>
+
+                  <div className="p-6 md:p-8">
+                    <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-tight">
+                      {currentQuestion?.question || currentQuestion?.text}
+                    </h2>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {currentQuestion?.options?.map((opt, idx) => {
+                        const text = typeof opt === 'object' ? opt.text : opt;
+                        let statusClass = "bg-gray-700 hover:bg-gray-600 border-gray-600";
+
+                        if (gameState === 'answer' && idx === correctAnswer) {
+                          statusClass = "bg-green-600 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
+                        } else if (gameState === 'answer' && selectedOption === idx && idx !== correctAnswer) {
+                          statusClass = "bg-red-600 border-red-400";
+                        } else if (selectedOption === idx) {
+                          statusClass += " ring-2 ring-white bg-indigo-600 border-indigo-400";
+                        }
+
+                        return (
+                          <motion.button
+                            key={idx}
+                            whileHover={gameState === 'question' && !selectedOption ? { scale: 1.02, translateY: -2 } : {}}
+                            whileTap={gameState === 'question' && !selectedOption ? { scale: 0.98 } : {}}
+                            onClick={() => handleOptionSelect(idx)}
+                            disabled={gameState !== 'question' || selectedOption !== null}
+                            className={`p-6 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${statusClass}`}
+                          >
+                            <div className="relative z-10 flex items-center justify-between">
+                              <span className="text-lg md:text-xl font-bold">{text}</span>
+                              {selectedOption === idx && <span className="text-2xl">Selected</span>}
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+
+                    <PowerUpBar
+                      powerUps={powerUps}
+                      onUse={handleUsePowerUp}
+                      disabled={gameState !== 'question' || selectedOption !== null}
+                    />
+
+                    {/* Reaction FAB */}
+                    <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                      {['❤️', '😂', '😮', '😡'].map(emoji => (
+                        <button
+                          key={emoji}
+                          onClick={() => sendReaction(emoji)}
+                          className="w-10 h-10 bg-white/10 rounded-full hover:bg-white/20 backdrop-blur text-xl shadow-lg transition-transform hover:scale-110 active:scale-95"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              ) : null}
+
+              {gameState === 'finished' && (
+                <div className="text-center py-12 bg-gray-800/80 rounded-2xl backdrop-blur-md">
+                  <h2 className="text-4xl font-bold mb-4">Quiz Finished!</h2>
+                  <p className="text-xl text-gray-400">Redirecting to results...</p>
+                </div>
+              )}
             </div>
-          ) : null}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

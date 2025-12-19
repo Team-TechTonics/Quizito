@@ -726,7 +726,7 @@ const HostSession = () => {
                 <div className="flex-1 flex flex-col justify-center min-h-0">
                   <div className="flex-1 flex items-center justify-center mb-8">
                     <h2 className="text-2xl md:text-4xl font-bold text-center text-slate-800 leading-snug">
-                      {currentQuestion.question}
+                      {currentQuestion.question || currentQuestion.text}
                     </h2>
                   </div>
 
