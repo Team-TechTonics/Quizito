@@ -2851,8 +2851,26 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle live reactions
+  socket.on("send-reaction", (data) => {
+    try {
+      const { roomCode, reaction } = data;
 
-  // Handle end session
+      // Broadcast reaction to everyone in the room (including sender for confirmation)
+      io.to(roomCode).emit("user-reaction", {
+        userId: socket.user._id,
+        username: socket.user.username || socket.data.displayName,
+        reaction: reaction,
+        timestamp: new Date()
+      });
+
+      logger.debug(`Reaction ${reaction} sent in room ${roomCode} by ${socket.user.username}`);
+    } catch (error) {
+      logger.error("Send reaction error:", error);
+    }
+  });
+
+
   socket.on("end-session", async (data, callback) => {
     try {
       const { roomCode } = data;
