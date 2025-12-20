@@ -68,6 +68,7 @@ const HostSession = () => {
             if (response.success && response.session) {
               const q = response.session.quiz;
               const s = response.session.settings;
+              setSessionId(response.session._id); // Store session ID
               setQuizMetadata({
                 title: q.title,
                 questionCount: q.questions?.length || 0,
@@ -266,9 +267,13 @@ const HostSession = () => {
           toast.info(`+${data.additionalSeconds}s added`);
         });
 
-        socketService.onSessionEndedByHost(() => {
+        socketService.onSessionEndedByHost((data) => {
           toast('Session ended', { icon: '🏁' });
-          navigate(`/dashboard`);
+          if (data?.sessionId) {
+            navigate(`/results/${data.sessionId}`);
+          } else {
+            navigate(`/dashboard`);
+          }
         });
 
         // Reaction Listener
@@ -363,8 +368,8 @@ const HostSession = () => {
       if (response?.success) {
         toast.success('Session ended');
         // Redirect host to results page to see analytics
-        // Use the current session's room code or session ID
-        setTimeout(() => navigate(`/results/${roomCode}`), 1000);
+        const targetId = response.sessionId || sessionId || roomCode;
+        setTimeout(() => navigate(`/results/${targetId}`), 1000);
       } else {
         toast.error(response?.message || 'Failed to end session');
       }

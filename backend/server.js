@@ -391,6 +391,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/quizzes", require("./routes/quizzes"));
 app.use("/api/quiz-generation", require("./routes/quizGeneration"));
+app.use("/api/analytics", require("./routes/analytics"));
 app.use("/api/upload", require("./routes/upload")); // Python AI service proxy
 
 // Request Logging Middleware
@@ -2779,6 +2780,100 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.error("Unlock room error:", error);
       callback({ success: false, message: "Failed to unlock room" });
+    }
+  });
+
+  // END SESSION
+  socket.on("end-session", async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const session = await Session.findOne({ roomCode }).populate("quizId");
+
+      if (!session) return callback({ success: false, message: "Session not found" });
+      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can end session" });
+
+      // If already ended
+      if (session.status === "completed") {
+        return callback({ success: true, message: "Session already ended" });
+      }
+
+      session.status = "completed";
+      session.endedAt = new Date();
+      session.currentState.phase = "finished";
+
+      await session.save();
+
+      // Clear any running timers
+      if (sessionTimers.has(roomCode)) {
+        clearInterval(sessionTimers.get(roomCode));
+        sessionTimers.delete(roomCode);
+      }
+
+      // Generate results for all participants
+      const resultsPromises = session.participants.map(async (p) => {
+        // Skip if spectator
+        if (p.role === 'spectator') return;
+
+        // Map answers to questionBreakdown
+        const questionBreakdown = p.answers.map(a => {
+          const question = session.quizId.questions[a.questionIndex];
+          return {
+            questionIndex: a.questionIndex,
+            questionId: question?._id,
+            question: question?.question || `Question ${a.questionIndex + 1}`,
+            type: question?.type || 'multiple-choice',
+            difficulty: question?.difficulty || 'medium',
+            selectedAnswer: a.selectedOption,
+            correctAnswer: question?.options?.find(o => o.isCorrect)?.text || '',
+            isCorrect: a.isCorrect,
+            timeTaken: a.timeTaken,
+            points: a.pointsEarned,
+            options: question?.options?.map(o => ({
+              text: o.text,
+              isCorrect: o.isCorrect,
+              selected: o.text === a.selectedOption
+            }))
+          };
+        });
+
+        const correctCount = p.correctAnswers || p.answers.filter(a => a.isCorrect).length;
+
+        // Create QuizResult record
+        const result = new QuizResult({
+          userId: p.userId,
+          quizId: session.quizId._id,
+          sessionId: session._id,
+          score: p.score,
+          percentage: session.quizId.questions.length > 0 ? (correctCount / session.quizId.questions.length) * 100 : 0,
+          correctAnswers: correctCount,
+          incorrectAnswers: p.answers.length - correctCount,
+          totalQuestions: session.quizId.questions.length,
+          timeSpent: p.totalTime,
+          completedAt: new Date(),
+          questionBreakdown: questionBreakdown,
+          sessionType: 'multiplayer',
+          metadata: {
+            device: p.deviceInfo?.device || 'unknown'
+          }
+        });
+
+        await result.save();
+      });
+
+      await Promise.all(resultsPromises);
+
+      // Notify clients
+      io.to(roomCode).emit("session-ended-by-host", {
+        endedBy: socket.user.username,
+        sessionId: session._id
+      });
+
+      console.log(`Session ${roomCode} ended by host`);
+      if (typeof callback === 'function') callback({ success: true, sessionId: session._id });
+
+    } catch (error) {
+      console.error("End session error:", error);
+      if (typeof callback === 'function') callback({ success: false, message: "Failed to end session" });
     }
   });
 
