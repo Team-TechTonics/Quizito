@@ -123,8 +123,10 @@ const Results = () => {
       const username = user?.username || localStorage.getItem('username');
       const userId = user?._id;
 
-      let currentUserData = null;
-      if (resultsData.participants) {
+      // Handle Host specific data key 'myResult' or find within participants
+      let currentUserData = resultsData.myResult;
+
+      if (!currentUserData && resultsData.participants) {
         currentUserData = resultsData.participants.find(p => p.userId === userId || p.username === username);
       }
       if (!currentUserData && lb.length > 0) {
@@ -147,8 +149,14 @@ const Results = () => {
         timeTaken: totalTime,
         answers: userAnswers,
         rank: myRank || 0,
-        leaderboard: lb
+        leaderboard: lb,
+        isHost: resultsData.isHost,
+        participantsDetailed: resultsData.participantsDetailed
       });
+
+      if (resultsData.isHost) {
+        setSelectedTab('participants');
+      }
 
       setLeaderboard(lb);
       setUserRank(myRank || 0);
@@ -459,7 +467,13 @@ const Results = () => {
           {/* Tabs */}
           <div className="mb-8">
             <div className="flex border-b border-gray-200">
-              {['overview', 'answers', 'leaderboard', 'analytics'].map((tab) => (
+              {[
+                'overview',
+                'answers',
+                'leaderboard',
+                'analytics',
+                ...(results?.isHost ? ['participants'] : [])
+              ].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setSelectedTab(tab)}
@@ -833,6 +847,150 @@ const Results = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* HOST ONLY: Participants Tab */}
+            {selectedTab === 'participants' && results.isHost && (
+              <motion.div
+                key="participants"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-white rounded-2xl shadow-xl p-8 overflow-hidden"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold">All Participants ({results.participantsDetailed?.length || 0})</h3>
+                  <button
+                    onClick={() => {
+                      // CSV Export Logic
+                      const headers = ["Rank", "Username", "Email", "Score", "Correct Answers", "Accuracy", "Time Taken (s)"];
+                      if (!results.participantsDetailed) return;
+
+                      const rows = results.participantsDetailed
+                        .sort((a, b) => b.score - a.score)
+                        .map((p, idx) => {
+                          const totalQ = results.totalQuestions || 1;
+                          const accuracy = Math.round((p.correctAnswers / totalQ) * 100);
+                          const user = p.userId || { username: 'Guest', email: '-' };
+
+                          return [
+                            idx + 1,
+                            user.username || 'Guest',
+                            user.email || '-',
+                            p.score,
+                            p.correctAnswers,
+                            `${accuracy}%`,
+                            Math.round(p.totalTime || 0)
+                          ]
+                        });
+
+                      const csvContent = [
+                        headers.join(','),
+                        ...rows.map(r => r.join(','))
+                      ].join('\n');
+
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement("a");
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute("href", url);
+                      link.setAttribute("download", `quiz_results_${sessionId}.csv`);
+                      link.style.visibility = 'hidden';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Download size={18} />
+                    Export CSV
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-slate-100 text-slate-500 text-sm uppercase">
+                        <th className="py-3 px-4">Rank</th>
+                        <th className="py-3 px-4">Player</th>
+                        <th className="py-3 px-4">Score</th>
+                        <th className="py-3 px-4">Accuracy</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.participantsDetailed?.sort((a, b) => b.score - a.score).map((p, idx) => {
+                        const totalQ = results.totalQuestions || 1;
+                        const accuracy = Math.round((p.correctAnswers / totalQ) * 100);
+
+                        return (
+                          <React.Fragment key={p._id}>
+                            <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors group">
+                              <td className="py-3 px-4 font-bold text-slate-400">#{idx + 1}</td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  {p.userId?.avatar ? (
+                                    <img src={p.userId.avatar} className="w-8 h-8 rounded-full" alt="avatar" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+                                      {p.userId?.username?.[0]?.toUpperCase() || 'G'}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="font-bold text-slate-700">{p.userId?.username || 'Guest'}</div>
+                                    <div className="text-xs text-slate-400">{p.userId?.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-indigo-600">{p.score}</td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                    <div className={`h-full ${accuracy > 75 ? 'bg-green-500' : accuracy > 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${accuracy}%` }}></div>
+                                  </div>
+                                  <span className="text-xs font-bold">{accuracy}%</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right relative">
+                                <details className="group/details relative inline-block">
+                                  <summary className="list-none cursor-pointer text-indigo-600 hover:text-indigo-800 text-sm font-bold flex items-center gap-1 justify-end">
+                                    <span>Details</span>
+                                    <ChevronRight size={14} className="group-open/details:rotate-90 transition-transform" />
+                                  </summary>
+                                  {/* Tooltip Overlay for Answers */}
+                                  <div className="absolute right-0 top-8 w-[320px] max-h-[400px] overflow-y-auto bg-white shadow-2xl rounded-xl border border-slate-200 z-[60] p-4 text-left hidden group-open/details:block custom-scrollbar">
+                                    <div className="flex justify-between items-center border-b pb-2 mb-2">
+                                      <h4 className="font-bold text-slate-700">Answer History</h4>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {p.answers?.map((ans, i) => (
+                                        <div key={i} className={`text-xs p-2 rounded border ${ans.isCorrect ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                                          <div className="flex justify-between font-bold mb-1">
+                                            <span>Q{i + 1}</span>
+                                            <span>{ans.pointsEarned} pts</span>
+                                          </div>
+                                          <div className="flex justify-between mt-1">
+                                            <span className={`font-bold ${ans.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                              {ans.isCorrect ? 'Correct' : 'Wrong'}
+                                            </span>
+                                            <span className="text-slate-400">{ans.timeTaken}s</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      {(!p.answers || p.answers.length === 0) && (
+                                        <p className="text-center text-slate-400 py-2">No answers recorded</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </details>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </motion.div>
             )}

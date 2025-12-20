@@ -2244,15 +2244,16 @@ io.on("connection", (socket) => {
         if (typeof answer === 'number') {
           // If answer is an index, check if that option index is marked correct
           const selectedOption = question.options[answer];
-          isCorrect = selectedOption && selectedOption.isCorrect === true;
+          // Use loose check for true in case it's string "true"
+          isCorrect = selectedOption && (selectedOption.isCorrect === true || selectedOption.isCorrect === "true");
         } else {
           // If answer is text, compare with correct option text
-          isCorrect = correctOption && answer === correctOption.text;
+          isCorrect = correctOption && (answer === correctOption.text || answer === correctOption.text.trim());
         }
 
         correctAnswer = correctOption?.text || "";  // Always return text for display
       } else if (question.type === "true-false") {
-        isCorrect = answer === question.correctAnswer;
+        isCorrect = (String(answer).toLowerCase() === String(question.correctAnswer).toLowerCase());
         correctAnswer = question.correctAnswer;
       }
 
@@ -2311,6 +2312,8 @@ io.on("connection", (socket) => {
         questionIndex,
         isCorrect,
         points,
+        score: participant.score, // Pass updated total score
+        pointsEarned: points, // Pass points earned for this question
         correctAnswer,
         explanation: question.explanation,
         streak: participant.streak,

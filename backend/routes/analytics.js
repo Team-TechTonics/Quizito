@@ -101,22 +101,48 @@ router.get('/results/:sessionId', authenticate, async (req, res) => {
         const QuizResult = require('../models/QuizResult');
         const Session = require('../models/Session');
 
-        const [userResult, session] = await Promise.all([
-            QuizResult.findOne({ sessionId, userId }),
-            Session.findById(sessionId).lean()
-        ]);
+        // Fetch session first to check host status
+        const session = await Session.findById(sessionId).lean();
 
-        if (!userResult && !session) {
-            return res.status(404).json({ success: false, message: "Results not found" });
+        if (!session) {
+            return res.status(404).json({ success: false, message: "Session not found" });
         }
 
-        // Merge data
-        const result = {
-            ...userResult?.toObject(),
-            leaderboard: session?.leaderboard || [],
-            sessionId,
-            quizId: session?.quizId
-        };
+        const isHost = session.hostId.toString() === userId;
+        let result = {};
+
+        if (isHost) {
+            // If Host: Fetch ALL results for this session
+            const allResults = await QuizResult.find({ sessionId })
+                .populate('userId', 'username avatar email') // Get user details
+                .lean();
+
+            // Structure specifically for Host View
+            result = {
+                sessionId,
+                quizId: session.quizId,
+                isHost: true,
+                leaderboard: session.leaderboard || [], // Session leaderboard
+                participantsDetailed: allResults, // Detailed breakdown for everyone
+                // Also include host's own result (if they played)
+                myResult: allResults.find(r => r.userId._id.toString() === userId) || null
+            };
+        } else {
+            // If Standard Player: Fetch ONLY their result
+            const userResult = await QuizResult.findOne({ sessionId, userId }).lean();
+
+            if (!userResult && !session) {
+                return res.status(404).json({ success: false, message: "Results not found" });
+            }
+
+            result = {
+                ...userResult,
+                leaderboard: session.leaderboard || [],
+                sessionId,
+                quizId: session.quizId,
+                isHost: false
+            };
+        }
 
         res.json({ success: true, result });
     } catch (error) {
