@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const analyticsService = require('../services/analyticsService');
-const { authenticate } = require('../middleware/auth');
+const authenticate = require('../middleware/auth');
 
 /**
  * @route   GET /api/analytics/stats

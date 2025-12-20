@@ -14,9 +14,9 @@ class QuizGenerationService {
      */
     initializeApiKey() {
         if (!this.apiKey) {
-            this.apiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY;
+            this.apiKey = process.env.OPENROUTER_API_KEY;
             if (!this.apiKey) {
-                throw new Error('OPENROUTER_API_KEY or DEEPSEEK_API_KEY not found in environment variables');
+                throw new Error('OPENROUTER_API_KEY not found in environment variables');
             }
         }
         return this.apiKey;
@@ -65,7 +65,6 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
         try {
             const apiKey = this.initializeApiKey();
             // Use Meta Llama - better rate limits on free tier
-            // Alternative: 'google/gemini-2.0-flash-exp:free' or 'qwen/qvq-72b-preview:free'
             const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 
             console.log(`[QuizGenerationService] Calling OpenRouter with model: ${model}`);
@@ -86,7 +85,6 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                     ],
                     temperature: 0.7,
                     max_tokens: 4000,
-                    // OpenRouter specific headers (can be passed in body for some providers, but standard is headers)
                 },
                 {
                     headers: {
@@ -99,7 +97,7 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 }
             );
 
-            console.log('[QuizGenerationService] Raw API response:', JSON.stringify(response.data));
+            console.log('[QuizGenerationService] Raw API response received');
 
             // Safe access with null checks
             const content = response.data?.choices?.[0]?.message?.content;
@@ -109,37 +107,61 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 throw new Error('Empty AI response - no content returned');
             }
 
-            console.log('[QuizGenerationService] Content received, length:', content.length);
-
             // Clean the response - find JSON array
+            // Regex explanation:
+            // 1. \[ checks for opening bracket
+            // 2. [\s\S]*? non-greedy match of any character
+            // 3. \] checks for closing bracket
             const jsonMatch = content.match(/\[[\s\S]*\]/);
             let cleanedContent = jsonMatch ? jsonMatch[0] : content;
 
+            // Remove markdown code blocks if present
+            cleanedContent = cleanedContent.replace(/```json/g, '').replace(/```/g, '').trim();
+
             // Validate it looks like JSON
-            if (!cleanedContent.trim().startsWith('[')) {
+            if (!cleanedContent.startsWith('[')) {
                 console.error('[QuizGenerationService] Response is not a JSON array:', cleanedContent.substring(0, 200));
                 throw new Error('Response does not contain a valid JSON array');
             }
 
             // Parse JSON
-            const questions = JSON.parse(cleanedContent);
+            let questions;
+            try {
+                questions = JSON.parse(cleanedContent);
+            } catch (e) {
+                console.error('[QuizGenerationService] JSON parsing failed, attempting cleanup...');
+                // Aggressive cleanup for malformed JSON
+                // Sometimes trailing commas or mismatched quotes appear
+                try {
+                    // Using Function to parse looser JSON if standard parse fails (risky but handled in catch)
+                    // Or just clean common errors
+                    const fixedJson = cleanedContent
+                        .replace(/,\s*]/g, ']') // Remove trailing comma before ]
+                        .replace(/,\s*}/g, '}'); // Remove trailing comma before }
+                    questions = JSON.parse(fixedJson);
+                } catch (e2) {
+                    throw new Error(`JSON Parse Error: ${e.message}`);
+                }
+            }
 
             if (!Array.isArray(questions)) {
                 throw new Error('API response is not an array');
             }
 
             if (questions.length === 0) {
-                throw new Error('API returned empty questions array');
+                // Return empty array instead of throwing - allows other chunks to succeed
+                console.warn('API returned empty questions array');
+                return [];
             }
 
             console.log('[QuizGenerationService] Successfully parsed', questions.length, 'questions');
             return questions;
+
         } catch (error) {
             console.error('[QuizGenerationService] API call error:', {
                 message: error.message,
-                response: error.response?.data,
                 status: error.response?.status,
-                headers: error.response?.headers
+                data: error.response?.data
             });
 
             // More descriptive error for 401
@@ -147,7 +169,8 @@ IMPORTANT: Return ONLY a valid JSON array with NO additional text, markdown, or 
                 throw new Error('OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY in environment variables.');
             }
 
-            throw new Error(`Failed to generate quiz: ${error.message}`);
+            // Don't crash the loop for one chunk failure
+            return [];
         }
     }
 
