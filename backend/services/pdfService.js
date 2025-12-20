@@ -1,4 +1,4 @@
-const pdf = require('pdf-parse');
+const pdfParse = require('pdf-parse');
 
 /**
  * PDF Service - Handles PDF text extraction and processing
@@ -11,7 +11,21 @@ class PDFService {
      */
     async extractText(pdfBuffer) {
         try {
-            const data = await pdf(pdfBuffer);
+            console.log('[PDFService] Parsing PDF buffer...');
+
+            // Handle import variations (some envs might import as object with default)
+            let parser = pdfParse;
+            if (typeof parser !== 'function' && parser.default) {
+                console.log('[PDFService] Using .default export for pdf-parse');
+                parser = parser.default;
+            }
+
+            if (typeof parser !== 'function') {
+                console.error('[PDFService] parser type:', typeof parser, parser);
+                throw new Error('pdf-parse library did not export a function');
+            }
+
+            const data = await parser(pdfBuffer);
 
             return {
                 text: data.text,
