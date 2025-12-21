@@ -29,19 +29,29 @@ class AudioService {
      * @returns {Promise<Object>} Transcription result
      */
     async transcribeAudio(audioBuffer, filename) {
+        let tempFilePath = null;
         try {
             const groq = this.initializeGroq();
+            const fs = require('fs');
+            const path = require('path');
+            const os = require('os');
 
             console.log('[AudioService] Starting transcription for:', filename);
 
-            // Create a File object from buffer
-            const audioFile = new File([audioBuffer], filename, {
-                type: this.getMimeType(filename)
-            });
+            // Create temp file path
+            const tempDir = os.tmpdir();
+            tempFilePath = path.join(tempDir, `upload_${Date.now()}_${filename.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+
+            // Write buffer to temp file
+            await fs.promises.writeFile(tempFilePath, audioBuffer);
+
+            // Create a read stream from the temp file
+            const fileStream = fs.createReadStream(tempFilePath);
 
             // Transcribe using Groq Whisper
+            // Pass the stream directly which is safer in Node environments than File object
             const transcription = await groq.audio.transcriptions.create({
-                file: audioFile,
+                file: fileStream,
                 model: 'whisper-large-v3',
                 response_format: 'json',
                 language: 'en', // Can be made dynamic
@@ -58,6 +68,18 @@ class AudioService {
         } catch (error) {
             console.error('[AudioService] Transcription error:', error);
             throw new Error(`Failed to transcribe audio: ${error.message}`);
+        } finally {
+            // Clean up temp file
+            if (tempFilePath) {
+                const fs = require('fs');
+                try {
+                    if (fs.existsSync(tempFilePath)) {
+                        await fs.promises.unlink(tempFilePath);
+                    }
+                } catch (cleanupError) {
+                    console.error('[AudioService] Failed to clean up temp file:', cleanupError);
+                }
+            }
         }
     }
 

@@ -67,60 +67,87 @@ router.post('/', upload.single('file'), async (req, res) => {
 
         // --- NEW DIRECT PROCESSING LOGIC ---
         const pdfService = require('../services/pdfService');
+        const audioService = require('../services/audioService');
         const quizGenerationService = require('../services/quizGenerationService');
 
-        console.log('📖 Extracting text from PDF...');
+        let extractedText = '';
+        let metadata = {};
 
-        // 1. Process PDF to get text chunks
-        const pdfData = await pdfService.processPDF(req.file.buffer);
-        console.log(`✅ Extracted ${pdfData.pages} pages, ${pdfData.totalChunks} text chunks`);
+        // Detect File Type
+        const mimeType = req.file.mimetype;
+        const isPdf = mimeType === 'application/pdf';
+        const isAudio = mimeType.startsWith('audio/') ||
+            ['application/octet-stream'].includes(mimeType); // Fallback for some audio types
 
-        if (pdfData.totalChunks === 0) {
+        console.log(`📂 Processing file type: ${mimeType}`);
+
+        if (isPdf) {
+            console.log('📖 Extracting text from PDF...');
+            const pdfData = await pdfService.processPDF(req.file.buffer);
+            console.log(`✅ Extracted ${pdfData.pages} pages, ${pdfData.totalChunks} text chunks`);
+
+            if (pdfData.totalChunks === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Could not extract text from PDF. The file might be scanned or empty.'
+                });
+            }
+
+            // Combine chunks for simple context (quizGenerationService might need chunks, but for now we simplify)
+            // Actually quizGenerationService.generateFromChunks expects an array of chunks.
+            // Let's stick to the existing flow for PDFs, but unify the text source for Audio.
+
+            // For PDF we just use the chunks directly below, so we don't strictly need 'extractedText' variable here yet,
+            // but for Audio we need to transcribe first.
+
+            // PDF PATH
+            console.log('🤖 Generating questions via AI (PDF Pipeline)...');
+            const questions = await quizGenerationService.generateFromChunks(pdfData.chunks, {
+                numberOfQuestions: 15,
+                difficulty: 'medium'
+            });
+            console.log(`✅ AI generated ${questions.length} questions`);
+
+            return sendQuizResponse(res, req.file.originalname, questions, {
+                source: 'pdf-upload',
+                pages: pdfData.pages
+            });
+
+        } else if (isAudio) {
+            console.log('🎤 Transcribing audio...');
+            const audioData = await audioService.processAudio(req.file.buffer, req.file.originalname);
+            console.log(`✅ Transcription complete. Length: ${audioData.wordCount} words`);
+
+            if (!audioData.text || audioData.text.length < 50) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Could not transcribe sufficient text from audio. Please try a clearer recording.'
+                });
+            }
+
+            // For Audio, we have raw text, we need to chunk it like PDF or just pass it as context.
+            // Let's use the pdfService.chunkText utility since it's generic!
+            const chunks = pdfService.chunkText(audioData.text, 2000);
+
+            console.log('🤖 Generating questions via AI (Audio Pipeline)...');
+            const questions = await quizGenerationService.generateFromChunks(chunks, {
+                numberOfQuestions: 15,
+                difficulty: 'medium'
+            });
+            console.log(`✅ AI generated ${questions.length} questions`);
+
+            return sendQuizResponse(res, req.file.originalname, questions, {
+                source: 'audio-upload',
+                duration: audioData.duration,
+                wordCount: audioData.wordCount
+            });
+
+        } else {
             return res.status(400).json({
                 success: false,
-                message: 'Could not extract text from PDF. The file might be scanned or empty.'
+                message: 'Unsupported file type. Only PDF and Audio (MP3, WAV, M4A) are supported.'
             });
         }
-
-        console.log('🤖 Generating questions via AI...');
-
-        // 2. Generate questions from chunks
-        // Limit to 10 questions by default, or read from query/body if available
-        const questions = await quizGenerationService.generateFromChunks(pdfData.chunks, {
-            numberOfQuestions: 15, // Generate a decent amount
-            difficulty: 'medium'
-        });
-
-        console.log(`✅ AI generated ${questions.length} questions`);
-
-        // 3. Format response to match expected frontend structure
-        const formattedQuestions = questions.map((q, index) => ({
-            question: q.question,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation,
-            difficulty: q.difficulty || "medium",
-            order: index + 1,
-            type: 'multiple-choice',
-            points: 100,
-            timeLimit: 30
-        }));
-
-        res.json({
-            success: true,
-            quiz: {
-                title: `Quiz from ${req.file.originalname}`,
-                category: 'General',
-                difficulty: 'medium',
-                questions: formattedQuestions,
-                metadata: {
-                    source: 'pdf-upload',
-                    filename: req.file.originalname,
-                    questionsGenerated: formattedQuestions.length,
-                    pages: pdfData.pages
-                }
-            }
-        });
 
     } catch (error) {
         console.error('❌ Upload processing error:', error.message);
@@ -136,10 +163,41 @@ router.post('/', upload.single('file'), async (req, res) => {
 
         res.status(500).json({
             success: false,
-            message: error.message || 'Failed to process PDF',
+            message: error.message || 'Failed to process file',
             error: 'Internal server error'
         });
     }
 });
+
+// Helper to standardise response
+const sendQuizResponse = (res, filename, questions, metadata) => {
+    // 3. Format response to match expected frontend structure
+    const formattedQuestions = questions.map((q, index) => ({
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        difficulty: q.difficulty || "medium",
+        order: index + 1,
+        type: 'multiple-choice',
+        points: 100,
+        timeLimit: 30
+    }));
+
+    res.json({
+        success: true,
+        quiz: {
+            title: `Quiz from ${filename}`,
+            category: 'General',
+            difficulty: 'medium',
+            questions: formattedQuestions,
+            metadata: {
+                filename,
+                questionsGenerated: formattedQuestions.length,
+                ...metadata
+            }
+        }
+    });
+};
 
 module.exports = router;

@@ -132,10 +132,14 @@ const Results = () => {
       if (!currentUserData && lb.length > 0) {
         currentUserData = lb.find(p => p.userId === userId || p.username === username);
       }
+      // Fallback: if the root object itself looks like a result (has score/answers)
+      if (!currentUserData && resultsData.score !== undefined) {
+        currentUserData = resultsData;
+      }
 
       const userScore = currentUserData?.score || 0;
       const userCorrect = currentUserData?.correctAnswers || 0;
-      const totalQuestions = resultsData.totalQuestions || resultsData.finalResults?.totalQuestions || 10;
+      const totalQuestions = resultsData.totalQuestions || resultsData.finalResults?.totalQuestions || currentUserData?.totalQuestions || 10;
       const userAccuracy = totalQuestions > 0 ? (userCorrect / totalQuestions) * 100 : 0;
       const userAnswers = currentUserData?.answers || [];
       const totalTime = userAnswers.reduce((sum, a) => sum + (a.timeTaken || 0), 0);
@@ -161,8 +165,9 @@ const Results = () => {
       setLeaderboard(lb);
       setUserRank(myRank || 0);
 
-      if (currentUserData || lb.length > 0) {
-        generatePerformanceData({ ...resultsData, participants: resultsData.participants || lb });
+      // Pass the found user data explicitly to avoid re-search failure
+      if (currentUserData) {
+        generatePerformanceData(currentUserData, totalQuestions);
       }
 
     } catch (error) {
@@ -172,31 +177,24 @@ const Results = () => {
     }
   };
 
-  const generatePerformanceData = (resultsData) => {
-    // Find current user stats
-    const currentUser = resultsData.participants?.find(p =>
-      p.username === user?.username || p.userId === user?._id
-    ) || resultsData.leaderboard?.find(p =>
-      p.username === user?.username || p.userId === user?._id
-    );
-
-    if (!currentUser) return;
-
+  const generatePerformanceData = (currentUser, totalQs) => {
     // Accuracy
-    const totalQs = resultsData.totalQuestions || 1;
-    const accuracy = currentUser.performance?.accuracy || (currentUser.correctAnswers / totalQs * 100);
+    const accuracy = currentUser.performance?.accuracy || (currentUser.correctAnswers / totalQs * 100) || 0;
 
     // Speed (Inverse of average time, normalized to 30s)
-    const avgTime = currentUser.performance?.speed || 15;
-    const speedScore = Math.min(100, Math.max(0, 100 - ((avgTime / 30) * 100) + 20)); // Bonus for being fast
+    const avgTime = currentUser.performance?.speed ||
+      (currentUser.answers?.length > 0 ? currentUser.answers.reduce((a, b) => a + (b.timeTaken || 0), 0) / currentUser.answers.length : 0);
+
+    // Avoid division by zero or negative speed scores
+    const speedScore = avgTime > 0 ? Math.min(100, Math.max(0, 100 - ((avgTime / 30) * 100) + 20)) : 0;
 
     // Consistency (Variance or Streak)
     const streak = currentUser.streak || 0;
-    const consistency = Math.min(100, (streak / totalQs) * 100 + 40);
+    const consistency = Math.min(100, (streak / (totalQs || 1)) * 100 + 40);
 
     // Engagement (Participation)
     const answeredCount = currentUser.answers?.length || currentUser.correctAnswers || 0;
-    const engagement = (answeredCount / totalQs) * 100;
+    const engagement = totalQs > 0 ? (answeredCount / totalQs) * 100 : 0;
 
     const categories = ['Speed', 'Accuracy', 'Consistency', 'Engagement'];
     const data = categories.map(category => {
@@ -217,6 +215,11 @@ const Results = () => {
 
     setPerformanceData(data);
   }
+
+  // ... (other functions: getGrade, getRankBadge, handleShare, handlePlayAgain, formatTime getPerformanceChartData) ...
+  // Note: We need to locate where Charts are rendered to add checks.
+  // Since this tool replaces a block, I will target the fetchResults and generatePerformanceData functions first.
+  // The charts are further down. I'll need a separate call for them.
 
   const getGrade = (score) => {
     if (score >= 90) return { grade: 'A+', color: 'from-green-500 to-emerald-600' }
@@ -505,21 +508,27 @@ const Results = () => {
                     <span>Performance Overview</span>
                   </h3>
                   <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={performanceData}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="category" />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                        <Radar
-                          name="Performance"
-                          dataKey="score"
-                          stroke="#3b82f6"
-                          fill="#3b82f6"
-                          fillOpacity={0.6}
-                        />
-                        <Tooltip />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                    {performanceData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={performanceData}>
+                          <PolarGrid />
+                          <PolarAngleAxis dataKey="category" />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                          <Radar
+                            name="Performance"
+                            dataKey="score"
+                            stroke="#3b82f6"
+                            fill="#3b82f6"
+                            fillOpacity={0.6}
+                          />
+                          <Tooltip />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400">
+                        <p>No performance data available</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -527,29 +536,35 @@ const Results = () => {
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                   <h3 className="text-2xl font-bold mb-6">Question-by-Question Performance</h3>
                   <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={getPerformanceChartData()}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="question" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="points"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          name="Points Earned"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="time"
-                          stroke="#10b981"
-                          strokeWidth={2}
-                          name="Time (seconds)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    {getPerformanceChartData().length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={getPerformanceChartData()}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="question" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="points"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            name="Points Earned"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="time"
+                            stroke="#10b981"
+                            strokeWidth={2}
+                            name="Time (seconds)"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400">
+                        <p>No question data available</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
