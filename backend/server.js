@@ -2249,7 +2249,7 @@ io.on("connection", (socket) => {
       }
 
       const participant = session.participants.find(
-        p => p.userId && p.userId.equals(socket.user._id)
+        p => p.userId && (p.userId.toString() === socket.user._id.toString())
       );
 
       if (!participant) {
@@ -2325,6 +2325,8 @@ io.on("connection", (socket) => {
         pointsEarned: points,
         answeredAt: new Date(),
       });
+
+      if (isNaN(points)) points = 0; // Guard against NaN
 
       if (isCorrect) {
         participant.score += points;
@@ -2652,7 +2654,7 @@ io.on("connection", (socket) => {
       const { roomCode } = data;
       const session = await Session.findOne({ roomCode }).populate("quizId");
       if (!session) return callback({ success: false, message: "Session not found" });
-      if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can action" });
+      if (session.hostId.toString() !== socket.user._id.toString()) return callback({ success: false, message: "Only host can action" });
 
       // Ensure state exists
       if (!session.currentState) {
@@ -2834,7 +2836,7 @@ io.on("connection", (socket) => {
       if (!session.hostId.equals(socket.user._id)) return callback({ success: false, message: "Only host can end session" });
 
       // If already ended
-      if (session.status === "completed") {
+      if (session.status === "finished") {
         return callback({ success: true, message: "Session already ended" });
       }
 
