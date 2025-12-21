@@ -14,6 +14,7 @@ import QuizTimer from "../components/QuizTimer";
 import QuizResults from "../components/QuizResults";
 import ProgressBar from "../components/ProgressBar";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useAntiCheat } from '../hooks/useAntiCheat';
 
 
 const QuizSession = () => {
@@ -56,6 +57,15 @@ const QuizSession = () => {
   const timerRef = useRef(null);
   const questionStartTime = useRef(null);
   const socketInitialized = useRef(false);
+
+  // Anti-Cheat Handler
+  const handleDisqualification = () => {
+    submitAnswer(currentQuestionIndex, -1, 0); // Submit invalid
+    navigate('/');
+    toast.error("🚫 You have been disqualified for cheating!", { duration: 6000, icon: '👮' });
+  };
+
+  useAntiCheat(!isHost && quizStatus === 'active', handleDisqualification);
 
   // Initialize session
   useEffect(() => {

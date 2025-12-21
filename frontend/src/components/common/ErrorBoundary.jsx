@@ -16,6 +16,26 @@ class ErrorBoundary extends React.Component {
         // You can also log the error to an error reporting service
         console.error("Uncaught error:", error, errorInfo);
         this.setState({ errorInfo });
+
+        // Auto-reload on ChunkLoadError or Dynamic Import Error (deployment updates)
+        const isChunkError = error.message && (
+            error.message.includes("dynamically imported module") ||
+            error.message.includes("Loading chunk") ||
+            error.message.includes("Importing a module script failed") ||
+            error.message.includes("missing")
+        );
+
+        if (isChunkError) {
+            const lastReload = parseInt(sessionStorage.getItem('chunk_reload_time') || '0');
+            const now = Date.now();
+
+            // Only reload if we haven't reloaded in the last 10 seconds (prevents infinite loops)
+            if (now - lastReload > 10000) {
+                console.log("Chunk load error detected. Reloading page...");
+                sessionStorage.setItem('chunk_reload_time', now.toString());
+                window.location.reload(true);
+            }
+        }
     }
 
     render() {

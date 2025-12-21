@@ -7,6 +7,8 @@ import Chat from './Chat';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { useAntiCheat } from '../hooks/useAntiCheat';
+
 const PlayerView = () => {
   const { roomCode } = useParams();
   const navigate = useNavigate();
@@ -24,6 +26,21 @@ const PlayerView = () => {
   const [feedback, setFeedback] = useState(null); // { isCorrect: boolean, correctAnswer: string, points: number }
   const [chatMessages, setChatMessages] = useState([]);
   const [chatEnabled, setChatEnabled] = useState(true);
+
+  // Anti-Cheat Handler
+  const handleDisqualification = () => {
+    socketService.submitAnswer({
+      roomCode,
+      questionIndex: currentQuestionIndex,
+      answer: null,
+      timeTaken: 0,
+      disqualified: true
+    });
+    navigate('/');
+    toast.error("🚫 You have been disqualified for cheating!", { duration: 6000, icon: '👮' });
+  };
+
+  useAntiCheat(['question', 'answer'].includes(gamePhase), handleDisqualification);
 
   useEffect(() => {
     const token = localStorage.getItem('token');

@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import { useSoundSettings } from '../context/SoundContext';
 
+import { useAntiCheat } from '../hooks/useAntiCheat';
+
 // Components
 import LoadingSpinner from "../components/LoadingSpinner";
 import QuizTimer from "../components/QuizTimer";
@@ -20,6 +22,20 @@ const PlayQuiz = () => {
   const { roomCode } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Anti-Cheat Handler
+  const handleDisqualification = () => {
+    socketService.submitAnswer({
+      roomCode,
+      questionIndex: currentQuestionIndex,
+      answer: -1, // sent invalid answer
+      timeTaken: 0,
+      disqualified: true
+    });
+    // socketService.leaveSession(roomCode); // Optional
+    navigate('/'); // Kick them out
+    toast.error("🚫 You have been disqualified for cheating!", { duration: 6000, icon: '👮' });
+  };
 
   // Game State
   const [gameState, setGameState] = useState('connecting');
@@ -74,6 +90,9 @@ const PlayQuiz = () => {
   }, [isChatOpen, user]);
 
   const { playSound, soundEnabled, toggleSound } = useSoundSettings();
+
+  // Activate Anti-Cheat during active gameplay
+  useAntiCheat(['question', 'answer'].includes(gameState), handleDisqualification);
 
   // Refs for stale closure
   const selectedOptionRef = useRef(null);
