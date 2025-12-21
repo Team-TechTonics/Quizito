@@ -331,8 +331,9 @@ const HostSession = () => {
     });
 
     // Optional: sound
-    const audio = new Audio('/sounds/select.mp3');
-    audio.play().catch(() => { });
+    if (soundEnabled) {
+      playSound('click'); // Using 'click' as 'select' might not exist in mapping
+    }
   };
 
   const handleStartQuiz = async () => {

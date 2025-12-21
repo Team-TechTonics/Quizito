@@ -3612,7 +3612,8 @@ const completeQuiz = async (roomCode, session) => {
 
 
 // Add to calculatePoints function (make sure it exists)
-const calculatePoints = (question, answerData, userPerformance) => {
+// Add to calculatePoints function (make sure it exists)
+function calculatePoints(question, answerData, userPerformance) {
   const basePoints = question.points || 100;
   const { timeTaken, isCorrect, streak, hintUsed } = answerData;
 
