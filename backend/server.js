@@ -1835,6 +1835,10 @@ io.on("connection", (socket) => {
           role: "host",
           isReady: true,
           status: "waiting",
+          score: 0,
+          streak: 0,
+          correctAnswers: 0,
+          answers: []
         }],
         status: "waiting",
       });
@@ -2283,10 +2287,10 @@ io.on("connection", (socket) => {
           // If answer is an index, check if that option index is marked correct
           const selectedOption = question.options[answer];
           // Use loose check for true in case it's string "true"
-          isCorrect = selectedOption && (selectedOption.isCorrect === true || selectedOption.isCorrect === "true");
+          isCorrect = selectedOption && (selectedOption.isCorrect === true || String(selectedOption.isCorrect) === "true");
         } else {
           // If answer is text, compare with correct option text
-          isCorrect = correctOption && (answer === correctOption.text || answer === correctOption.text.trim());
+          isCorrect = correctOption && (String(answer).trim() === String(correctOption.text).trim());
         }
 
         correctAnswer = correctOption?.text || "";  // Always return text for display
@@ -2299,15 +2303,21 @@ io.on("connection", (socket) => {
       const userPerformance = {
         accuracy: participant.correctAnswers / Math.max(participant.answers.length, 1),
         averageTime: participant.averageTime || 0,
-        streak: participant.streak,
+        streak: participant.streak || 0,
       };
 
       let points = isCorrect ? calculatePoints(question, {
         timeTaken,
         isCorrect,
-        streak: participant.streak,
-        hintUsed: false, // Implement hint system
+        streak: participant.streak || 0,
+        hintUsed: false,
       }, userPerformance) : 0;
+
+      // Ensure points is a valid number
+      if (typeof points !== 'number' || isNaN(points)) points = 0;
+
+      // DEBUG LOGGING
+      console.log(`📝 ANSWER SUBMITTED: User=${socket.user.username}, Role=${participant.role}, Q=${questionIndex}, Ans="${answer}", Correct="${correctAnswer}", IsCorrect=${isCorrect}, Points=${points}`);
 
       // Apply multiplier (Powerup)
       if (points > 0 && participant.multiplier > 1) {
@@ -2329,9 +2339,9 @@ io.on("connection", (socket) => {
       if (isNaN(points)) points = 0; // Guard against NaN
 
       if (isCorrect) {
-        participant.score += points;
-        participant.correctAnswers += 1;
-        participant.streak += 1;
+        participant.score = (participant.score || 0) + points;
+        participant.correctAnswers = (participant.correctAnswers || 0) + 1;
+        participant.streak = (participant.streak || 0) + 1;
       } else {
         participant.streak = 0;
       }
@@ -3497,6 +3507,18 @@ const completeQuiz = async (roomCode, session) => {
       .filter(p => p.userId)
       .sort((a, b) => b.score - a.score);
 
+    // Ensure quizId is populated
+    if (!session.quizId || !session.quizId.questions) {
+      const quiz = await Quiz.findById(session.quizId);
+      if (quiz) {
+        session.quizId = quiz;
+      } else {
+        logger.error(`Quiz not found for session ${session._id}`);
+      }
+    }
+
+    const totalQuestions = session.quizId?.questions?.length || 0;
+
     session.leaderboard = sortedParticipants.map((p, index) => ({
       userId: p.userId,
       username: p.username,
@@ -3507,7 +3529,7 @@ const completeQuiz = async (roomCode, session) => {
       rank: index + 1,
       answers: p.answers, // Include detailed answers for analytics
       performance: {
-        accuracy: p.correctAnswers / session.quizId.questions.length * 100,
+        accuracy: totalQuestions > 0 ? (p.correctAnswers / totalQuestions * 100) : 0,
         speed: p.averageTime || 0,
       },
     }));
