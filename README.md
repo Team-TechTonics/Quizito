@@ -1,6 +1,6 @@
 # 🧠 Quizito - AI-Powered Interactive Learning Platform
 
-![Quizito Banner](https://via.placeholder.com/1200x400?text=Quizito+AI+Learning+Platform)
+![Quizito Banner](assets/banner.png)
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live-green?style=for-the-badge&logo=vercel)](https://quizito-frontend.onrender.com)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
@@ -113,18 +113,38 @@
 
 ```
 Quizito/
-├── backend/            # Express + MongoDB API
-│   ├── models/         # Database schemas
-│   ├── routes/         # API endpoints
-│   ├── services/       # AI & business logic
-│   └── server.js       # Entry point
+├── ai/                 # 🧠 AI Microservice (Python)
+│   ├── app2.py         # AI Quiz Generation Logic
+│   ├── setup.py        # Environment setup
+│   ├── requirements.txt # Python dependencies
+│   └── Dockerfile      # Containerization for AI service
 │
-├── frontend/           # React + Vite App
+├── backend/            # 🚀 API Server (Node.js/Express)
+│   ├── config/         # Environment configuration
+│   ├── middleware/     # Auth & Error handling
+│   ├── models/         # Mongoose Schemas (User, Quiz, Session)
+│   ├── routes/         # REST API Routes
+│   ├── services/       # Business Logic & External Integrations
+│   │   ├── quizGenerationService.js
+│   │   ├── adaptiveDifficultyService.js 
+│   │   ├── pdfService.js
+│   │   └── audioService.js
+│   └── server.js       # Main Application Entry Point
+│
+├── frontend/           # ⚛️ Client Application (React + Vite)
 │   ├── src/
-│   │   ├── components/ # Reusable UI components
-│   │   ├── pages/      # Route pages (Home, Quiz, Host)
-│   │   ├── locales/    # i18n translation files
-│   │   └── context/    # Global state
+│   │   ├── components/ # Atomic UI Components
+│   │   ├── pages/      # Application Pages (Home, Dashboard, Quiz)
+│   │   ├── context/    # React Context (Auth, Theme, Socket)
+│   │   ├── hooks/      # Custom React Hooks
+│   │   ├── locales/    # i18n Translation Files
+│   │   ├── assets/     # Images, Fonts, & Global Styles
+│   │   ├── utils/      # Helper Functions
+│   │   └── App.jsx     # Root Component
+│   └── vite.config.js  # Vite Configuration
+│
+├── assets/             # 🎨 Static Project Assets
+│   └── banner.png      # Project Banner
 │
 └── README.md           # Documentation
 ```
