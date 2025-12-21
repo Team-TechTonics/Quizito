@@ -2827,6 +2827,7 @@ io.on("connection", (socket) => {
   });
 
   // END SESSION
+  // END SESSION
   socket.on("end-session", async (data, callback) => {
     try {
       const { roomCode } = data;
@@ -2840,9 +2841,10 @@ io.on("connection", (socket) => {
         return callback({ success: true, message: "Session already ended" });
       }
 
-      session.status = "completed";
+      session.status = "finished"; // Fixed: Enum was "finished", not "completed"
       session.endedAt = new Date();
       session.currentState.phase = "finished";
+      session.duration = session.startedAt ? (session.endedAt - session.startedAt) / 1000 : 0;
 
       await session.save();
 
@@ -2853,63 +2855,77 @@ io.on("connection", (socket) => {
       }
 
       // Generate results for all participants
-      const resultsPromises = session.participants.map(async (p) => {
-        // Skip if spectator
-        if (p.role === 'spectator') return;
+      try {
+        const resultsPromises = session.participants.map(async (p) => {
+          // Skip if spectator or host
+          if (p.role === 'spectator' || p.role === 'host') return;
 
-        // Map answers to questionBreakdown
-        const questionBreakdown = p.answers.map(a => {
-          const question = session.quizId.questions[a.questionIndex];
-          return {
-            questionIndex: a.questionIndex,
-            questionId: question?._id,
-            question: question?.question || `Question ${a.questionIndex + 1}`,
-            type: question?.type || 'multiple-choice',
-            difficulty: question?.difficulty || 'medium',
-            selectedAnswer: a.selectedOption,
-            correctAnswer: question?.options?.find(o => o.isCorrect)?.text || '',
-            isCorrect: a.isCorrect,
-            timeTaken: a.timeTaken,
-            points: a.pointsEarned,
-            options: question?.options?.map(o => ({
-              text: o.text,
-              isCorrect: o.isCorrect,
-              selected: o.text === a.selectedOption
-            }))
-          };
+          // Map answers to questionBreakdown
+          const questionBreakdown = p.answers.map(a => {
+            const question = session.quizId.questions[a.questionIndex];
+            return {
+              questionIndex: a.questionIndex,
+              questionId: question?._id,
+              question: question?.question || `Question ${a.questionIndex + 1}`,
+              type: question?.type || 'multiple-choice',
+              difficulty: question?.difficulty || 'medium',
+              selectedAnswer: a.selectedOption,
+              correctAnswer: question?.options?.find(o => o.isCorrect)?.text || '',
+              isCorrect: a.isCorrect,
+              timeTaken: a.timeTaken,
+              points: a.pointsEarned,
+              options: question?.options?.map(o => ({
+                text: o.text,
+                isCorrect: o.isCorrect,
+                selected: o.text === a.selectedOption
+              }))
+            };
+          });
+
+          const correctCount = p.correctAnswers || p.answers.filter(a => a.isCorrect).length;
+
+          // Create QuizResult record
+          const result = new QuizResult({
+            userId: p.userId,
+            quizId: session.quizId._id,
+            sessionId: session._id,
+            score: p.score,
+            percentage: session.quizId.questions.length > 0 ? (correctCount / session.quizId.questions.length) * 100 : 0,
+            correctAnswers: correctCount,
+            incorrectAnswers: p.answers.length - correctCount,
+            totalQuestions: session.quizId.questions.length,
+            timeSpent: p.totalTime,
+            completedAt: new Date(),
+            questionBreakdown: questionBreakdown,
+            sessionType: 'multiplayer',
+            metadata: {
+              device: p.deviceInfo?.device || 'unknown'
+            }
+          });
+
+          await result.save();
         });
 
-        const correctCount = p.correctAnswers || p.answers.filter(a => a.isCorrect).length;
+        await Promise.all(resultsPromises);
+        console.log(`Saved analytics for ${resultsPromises.length} participants`);
+      } catch (error) {
+        console.error("Failed to save analytics:", error);
+      }
 
-        // Create QuizResult record
-        const result = new QuizResult({
-          userId: p.userId,
-          quizId: session.quizId._id,
-          sessionId: session._id,
-          score: p.score,
-          percentage: session.quizId.questions.length > 0 ? (correctCount / session.quizId.questions.length) * 100 : 0,
-          correctAnswers: correctCount,
-          incorrectAnswers: p.answers.length - correctCount,
-          totalQuestions: session.quizId.questions.length,
-          timeSpent: p.totalTime,
-          completedAt: new Date(),
-          questionBreakdown: questionBreakdown,
-          sessionType: 'multiplayer',
-          metadata: {
-            device: p.deviceInfo?.device || 'unknown'
-          }
-        });
-
-        await result.save();
-      });
-
-      await Promise.all(resultsPromises);
+      // Clean up active session
+      activeSessions.delete(roomCode);
+      if (roomSockets.has(roomCode)) {
+        roomSockets.delete(roomCode);
+      }
 
       // Notify clients
       io.to(roomCode).emit("session-ended-by-host", {
         endedBy: socket.user.username,
         sessionId: session._id
       });
+
+      // Kick all players from socket room
+      io.in(roomCode).socketsLeave(roomCode);
 
       console.log(`Session ${roomCode} ended by host`);
       if (typeof callback === 'function') callback({ success: true, sessionId: session._id });
@@ -3057,83 +3073,7 @@ io.on("connection", (socket) => {
   });
 
 
-  socket.on("end-session", async (data, callback) => {
-    try {
-      const { roomCode } = data;
 
-      const session = await Session.findOne({ roomCode }).populate('quizId');
-      if (!session) {
-        return callback({ success: false, message: "Session not found" });
-      }
-
-      // Check if user is host
-      if (!session.hostId.equals(socket.user._id)) {
-        return callback({ success: false, message: "Only host can end the session" });
-      }
-
-      // Update session status
-      session.status = "finished";
-      session.endedAt = new Date();
-      session.duration = session.startedAt ?
-        (session.endedAt - session.startedAt) / 1000 : 0;
-
-      await session.save();
-
-      // Clean up active session
-      activeSessions.delete(roomCode);
-
-      if (roomSockets.has(roomCode)) {
-        roomSockets.delete(roomCode);
-      }
-
-      if (sessionTimers.has(roomCode)) {
-        clearTimeout(sessionTimers.get(roomCode));
-        sessionTimers.delete(roomCode);
-      }
-
-      // SAVE RESULTS TO ANALYTICS (Fix for "Fake Analytics")
-      try {
-        const QuizResult = require('./models/QuizResult');
-        const resultsPromises = session.participants.map(async (p) => {
-          if (!p.userId || p.role === 'host') return; // Skip host and guests
-
-          const result = new QuizResult({
-            sessionId: session._id,
-            quizId: session.quizId,
-            userId: p.userId,
-            score: p.score,
-            maxScore: session.quizId?.questions?.length * 1000 || 10000,
-            percentage: session.quizId?.questions?.length ? (p.correctAnswers / session.quizId.questions.length) * 100 : 0,
-            correctAnswers: p.correctAnswers,
-            totalQuestions: session.quizId?.questions?.length || 0,
-            startedAt: session.startedAt,
-            completedAt: new Date(),
-            categoryBreakdown: [{ category: session.quizId?.category || 'General', correct: p.correctAnswers, total: session.quizId?.questions?.length || 0 }]
-          });
-          await result.save();
-        });
-        await Promise.all(resultsPromises);
-        console.log(`Saved analytics for ${resultsPromises.length} participants`);
-      } catch (err) {
-        console.error("Failed to save analytics:", err);
-      }
-
-      // Notify all participants
-      io.to(roomCode).emit("session-ended-by-host", {
-        message: "Session ended by host",
-        endedAt: session.endedAt,
-        sessionId: session._id,
-      });
-
-      // Kick all players from socket room
-      io.in(roomCode).socketsLeave(roomCode);
-
-      callback({ success: true });
-    } catch (error) {
-      logger.error("End session error:", error);
-      callback({ success: false, message: "Failed to end session" });
-    }
-  });
 
   // Handle next question force (host only)
   socket.on("next-question-force", async (data, callback) => {

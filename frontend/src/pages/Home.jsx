@@ -583,20 +583,20 @@ const Home = () => {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-bold text-sm mb-6 border border-orange-200 dark:border-orange-800/50">
               <span className="animate-pulse w-2 h-2 rounded-full bg-orange-500"></span>
-              <span>Proudly Made in India 🇮🇳</span>
+              <span>{t('home.hero.badge', 'Proudly Made in India 🇮🇳')}</span>
             </div>
 
             <h1 className="text-6xl lg:text-8xl font-black mb-8 leading-[1.05] tracking-tight">
-              <span className="block text-slate-900 dark:text-white mb-2">Launch Your</span>
+              <span className="block text-slate-900 dark:text-white mb-2">{t('home.hero.title_start', 'Launch Your')}</span>
               <span className="bg-gradient-to-r from-orange-500 via-amber-200 to-yellow-500 bg-clip-text text-transparent drop-shadow-2xl filter brightness-110">
-                Success Journey
+                {t('home.hero.title_end', 'Success Journey')}
               </span>
             </h1>
 
             <div className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-10 max-w-2xl leading-normal font-medium opacity-90">
-              Create, host, and play live AI-powered quizzes in seconds.
+              {t('home.hero.subtitle', 'Create, host, and play live AI-powered quizzes in seconds.')}
               <span className="block mt-4 text-lg font-serif italic text-slate-500 dark:text-slate-400">
-                "Where Vedic wisdom meets Warp-speed AI. Your mission control for mastery."
+                "{t('home.hero.quote', 'Where Vedic wisdom meets Warp-speed AI. Your mission control for mastery.')}"
               </span>
             </div>
 
@@ -628,14 +628,14 @@ const Home = () => {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-green-400"></span>
                     </span>
-                    <span className="tracking-wide drop-shadow-md">START MISSION</span>
+                    <span className="tracking-wide drop-shadow-md">{t('home.cta.launch', 'START MISSION')}</span>
                     <Rocket className="w-6 h-6 animate-bounce-slow" />
                   </div>
                 </MagneticButton>
 
                 {/* Tooltip */}
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-max px-4 py-2 bg-slate-900/90 text-white text-xs font-mono rounded-lg opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 pointer-events-none border border-white/10 backdrop-blur-md">
-                  Just like a launch, every quiz is a mission.
+                  {t('home.hero.tooltip', 'Just like a launch, every quiz is a mission.')}
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-slate-900 rotate-45 border-r border-b border-white/10"></div>
                 </div>
               </div>
@@ -643,11 +643,11 @@ const Home = () => {
               {isAuthenticated ? (
                 <button onClick={() => navigate('/dashboard')} className="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-blue-500 rounded-xl font-bold text-lg transition-all flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-blue-500" />
-                  Dashboard
+                  {t('nav.dashboard', 'Dashboard')}
                 </button>
               ) : (
                 <button onClick={() => scrollToSection(hologramRef)} className="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 hover:border-orange-500 rounded-xl font-bold text-lg transition-all">
-                  Explore Cosmos
+                  {t('home.cta.explore', 'Explore Cosmos')}
                 </button>
               )}
             </div>
@@ -683,15 +683,15 @@ const Home = () => {
               {/* Live Battle Pill */}
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-sm tracking-wider mb-8 uppercase animate-pulse">
                 <Play className="w-4 h-4 fill-current" />
-                <span>LIVE BATTLE</span>
+                <span>{t('home.join.title', 'LIVE BATTLE')}</span>
               </div>
 
               {/* Main Title */}
               <h2 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight drop-shadow-xl">
-                Got a Game Code?
+                {t('home.join.subtitle', 'Got a Game Code?')}
               </h2>
               <p className="text-slate-400 text-lg md:text-xl font-medium mb-12">
-                Join your friends instantly
+                {t('home.join.desc', 'Join your friends instantly')}
               </p>
 
               {/* Input Area */}
@@ -702,7 +702,7 @@ const Home = () => {
                     type="text"
                     value={gameCode}
                     onChange={(e) => setGameCode(e.target.value.toUpperCase())}
-                    placeholder="C O D E"
+                    placeholder={t('home.join.placeholder', 'C O D E')}
                     className="relative w-full h-16 bg-slate-950/50 rounded-2xl border border-white/10 text-white text-center text-3xl font-black tracking-[0.2em] placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-all uppercase shadow-inner"
                   />
                 </div>
@@ -710,7 +710,7 @@ const Home = () => {
                   type="submit"
                   className="h-16 px-10 bg-gradient-to-br from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white text-xl font-bold rounded-2xl shadow-lg shadow-orange-500/20 transform hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  JOIN
+                  {t('home.join.button', 'JOIN')}
                 </button>
               </form>
             </div>
@@ -736,7 +736,7 @@ const Home = () => {
                 {stat.icon}
               </div>
               <div className="text-3xl font-black text-slate-900 dark:text-white mb-1">{stat.value}</div>
-              <div className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{stat.label}</div>
+              <div className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{t(`home.stats.${stat.label.toLowerCase().replace(' ', '_')}`, stat.label)}</div>
             </motion.div>
           ))}
         </div>
@@ -747,13 +747,13 @@ const Home = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="inline-block py-1 px-3 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-bold text-xs uppercase tracking-wider mb-4">
-              Made for India
+              {t('home.features.badge', 'Made for India')}
             </span>
             <h2 className="text-4xl md:text-5xl font-black mb-4 text-slate-900 dark:text-white">
-              Tech & Tradition Combined
+              {t('home.features.title', 'Tech & Tradition Combined')}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto text-lg">
-              We blend cutting-edge AI with the timeless principles of Indian education.
+              {t('home.features.subtitle', 'We blend cutting-edge AI with the timeless principles of Indian education.')}
             </p>
           </div>
 
@@ -765,8 +765,8 @@ const Home = () => {
                   <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-white mb-6 shadow-lg rotate-3 group-hover:rotate-6 transition-transform`}>
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">{feature.title}</h3>
-                  <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{feature.description}</p>
+                  <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">{t(`home.features.items.${i}.title`, feature.title)}</h3>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{t(`home.features.items.${i}.desc`, feature.description)}</p>
                 </div>
               </TiltCard>
             ))}
@@ -785,14 +785,14 @@ const Home = () => {
             <div className="lg:col-span-1">
               <div className="inline-flex items-center gap-2 text-blue-400 font-bold uppercase tracking-widest mb-6">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
-                <span>Deep Space Learning</span>
+                <span>{t('home.hologram.badge', 'Deep Space Learning')}</span>
               </div>
               <h2 className="text-5xl font-black text-white mb-6">
-                Explore the <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Knowledge Cosmos</span>
+                {t('home.hologram.explore', 'Explore the')} <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">{t('home.hologram.cosmos', 'Knowledge Cosmos')}</span>
               </h2>
               <p className="text-slate-400 mb-10 text-lg leading-relaxed">
-                Navigate through 3D constellations of questions. Just closer to the stars, farther from ignorance.
+                {t('home.hologram.desc', 'Navigate through 3D constellations of questions. Just closer to the stars, farther from ignorance.')}
               </p>
 
               <div className="space-y-6">

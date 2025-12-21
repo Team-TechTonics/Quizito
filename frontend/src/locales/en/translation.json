@@ -42,43 +42,59 @@
         "subtitle": "AI-Powered Quiz Platform"
     },
     "home": {
-        "features": {
-            "neural_engine": {
-                "title": "Neural Quiz Engine",
-                "desc": "AI that understands context and adapts difficulty in real-time"
-            },
-            "zero_lag": {
-                "title": "Zero-Lag Sessions",
-                "desc": "Sub-50ms response time for seamless global competitions"
-            },
-            "analytics": {
-                "title": "Predictive Analytics",
-                "desc": "Anticipate learning gaps before they become obstacles"
-            },
-            "collaborative": {
-                "title": "Collaborative Quizzing",
-                "desc": "Team-based challenges with synchronized problem-solving"
-            }
-        },
-        "stats": {
-            "sessions": "Knowledge Sessions",
-            "retention": "Retention Boost",
-            "questions": "Questions Answered",
-            "countries": "Countries Active"
-        },
-        "join": {
-            "title": "Join a Live Session",
-            "subtitle": "Have a room code? Enter it below to join an active quiz session instantly",
-            "placeholder": "Enter Room Code (e.g., ABC123)",
-            "button": "JOIN NOW"
+        "hero": {
+            "badge": "Proudly Made in India 🇮🇳",
+            "title_start": "Launch Your",
+            "title_end": "Success Journey",
+            "subtitle": "Create, host, and play live AI-powered quizzes in seconds.",
+            "quote": "Where Vedic wisdom meets Warp-speed AI. Your mission control for mastery.",
+            "tooltip": "Just like a launch, every quiz is a mission."
         },
         "cta": {
-            "launch": "LAUNCH NEURAL QUIZ",
-            "explore": "EXPLORE CAPABILITIES",
-            "begin": "BEGIN YOUR JOURNEY",
-            "witness": "WITNESS THE IMPACT",
-            "ready_title": "Redefine Cognitive Engagement?",
-            "ready_subtitle": "Join 14,873 educational institutions, corporations, and innovators who have transformed passive learning into active neural development."
+            "launch": "START MISSION",
+            "explore": "Explore Cosmos"
+        },
+        "join": {
+            "title": "LIVE BATTLE",
+            "subtitle": "Got a Game Code?",
+            "desc": "Join your friends instantly",
+            "placeholder": "C O D E",
+            "button": "JOIN"
+        },
+        "stats": {
+            "active_scholars": "Active Scholars",
+            "daily_battles": "Daily Battles",
+            "questions_solved": "Questions Solved",
+            "countries_reached": "Countries Reached"
+        },
+        "features": {
+            "badge": "Made for India",
+            "title": "Tech & Tradition Combined",
+            "subtitle": "We blend cutting-edge AI with the timeless principles of Indian education.",
+            "items": [
+                {
+                    "title": "AI-Powered Guru",
+                    "desc": "Your personal digital mentor that adapts to your unique learning style."
+                },
+                {
+                    "title": "Competitive Battles",
+                    "desc": "Engage in righteous battles of intellect with real-time multiplayer quizzes."
+                },
+                {
+                    "title": "Deep Analytics",
+                    "desc": "Deep insights and pattern recognition to master every subject perfectly."
+                },
+                {
+                    "title": "Global Ranks",
+                    "desc": "Climb the global leaderboard by earning Karma points through daily practice."
+                }
+            ]
+        },
+        "hologram": {
+            "badge": "Deep Space Learning",
+            "explore": "Explore the",
+            "cosmos": "Knowledge Cosmos",
+            "desc": "Navigate through 3D constellations of questions. Just closer to the stars, farther from ignorance."
         }
     }
 }
