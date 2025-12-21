@@ -265,7 +265,7 @@ const CreateQuiz = () => {
       if (type === 'pdf') {
         formData.append('file', file)
       } else {
-        formData.append('audio', file)
+        formData.append('file', file)
       }
       // Basic params for file generation
       formData.append('numberOfQuestions', '10')

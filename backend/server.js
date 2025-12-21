@@ -1398,6 +1398,44 @@ const calculateAdaptiveDifficulty = (userPerformance, currentDifficulty) => {
 
 // Duplicate calculatePoints removed
 
+// Update session leaderboard
+const updateSessionLeaderboard = async (roomCode) => {
+  try {
+    const session = await Session.findOne({ roomCode });
+    if (!session) return;
+
+    const activeParticipants = session.participants.filter(p =>
+      p.status === "ready" || p.status === "playing"
+    );
+
+    const sortedParticipants = [...activeParticipants]
+      .sort((a, b) => b.score - a.score)
+      .map((p, index) => ({
+        userId: p.userId,
+        username: p.username,
+        avatar: p.avatar,
+        score: p.score,
+        correctAnswers: p.correctAnswers,
+        streak: p.streak || 0,
+        rank: index + 1,
+      }));
+
+    // Update session leaderboard
+    session.leaderboard = sortedParticipants;
+    await session.save();
+
+    // Broadcast to room
+    io.to(roomCode).emit("leaderboard-update", {
+      leaderboard: sortedParticipants,
+      updatedAt: new Date(),
+    });
+  } catch (error) {
+    logger.error("Update leaderboard error:", error);
+  }
+};
+
+
+
 // AI-powered question generation
 const generateQuestionsWithAI = async (content, options = {}) => {
   const {
@@ -3569,41 +3607,7 @@ const completeQuiz = async (roomCode, session) => {
   }
 };
 
-// Helper function to update leaderboard
-const updateSessionLeaderboard = async (roomCode) => {
-  try {
-    const session = await Session.findOne({ roomCode });
-    if (!session) return;
 
-    const activeParticipants = session.participants.filter(p =>
-      p.status === "ready" || p.status === "playing"
-    );
-
-    const sortedParticipants = [...activeParticipants]
-      .sort((a, b) => b.score - a.score)
-      .map((p, index) => ({
-        userId: p.userId,
-        username: p.username,
-        avatar: p.avatar,
-        score: p.score,
-        correctAnswers: p.correctAnswers,
-        streak: p.streak || 0,
-        rank: index + 1,
-      }));
-
-    // Update session leaderboard
-    session.leaderboard = sortedParticipants;
-    await session.save();
-
-    // Broadcast to room
-    io.to(roomCode).emit("leaderboard-update", {
-      leaderboard: sortedParticipants,
-      updatedAt: new Date(),
-    });
-  } catch (error) {
-    logger.error("Update leaderboard error:", error);
-  }
-};
 
 
 
