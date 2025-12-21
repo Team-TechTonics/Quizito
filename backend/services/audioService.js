@@ -59,6 +59,7 @@ class AudioService {
             });
 
             console.log('[AudioService] Transcription completed');
+            console.log('[AudioService] Raw response:', JSON.stringify(transcription, null, 2));
 
             return {
                 text: transcription.text,

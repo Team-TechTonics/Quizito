@@ -118,16 +118,25 @@ router.post('/', upload.single('file'), async (req, res) => {
             const audioData = await audioService.processAudio(req.file.buffer, req.file.originalname);
             console.log(`✅ Transcription complete. Length: ${audioData.wordCount} words`);
 
-            if (!audioData.text || audioData.text.length < 50) {
+            console.log(`🎤 Raw Transcription: "${audioData.text}"`);
+            console.log(`📏 Text Length: ${audioData.text ? audioData.text.length : 0}`);
+
+            if (!audioData.text || audioData.text.trim().length < 5) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Could not transcribe sufficient text from audio. Please try a clearer recording.'
+                    message: `Could not transcribe sufficient text from audio. Received ${audioData.text ? audioData.text.length : 0} characters. Please try a clearer recording with more content.`
                 });
             }
 
             // For Audio, we have raw text, we need to chunk it like PDF or just pass it as context.
             // Let's use the pdfService.chunkText utility since it's generic!
-            const chunks = pdfService.chunkText(audioData.text, 2000);
+            let chunks = pdfService.chunkText(audioData.text, 2000);
+
+            // Fallback: If chunkText filtered everything out (e.g. text < 50 chars), but we have text, use it!
+            if (chunks.length === 0 && audioData.text && audioData.text.trim().length > 0) {
+                console.log('⚠️ chunks empty after filtering, using raw text as single chunk');
+                chunks = [audioData.text];
+            }
 
             console.log('🤖 Generating questions via AI (Audio Pipeline)...');
             const questions = await quizGenerationService.generateFromChunks(chunks, {
